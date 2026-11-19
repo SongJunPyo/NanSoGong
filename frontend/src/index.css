@@ -1,0 +1,3 @@
+/* Tailwind CSS v4: 이 한 줄이 전부다 (tailwind.config.js 없음)
+   shadcn/ui 를 처음 세팅(npx shadcn@latest init)하면 이 아래에 색상 테마 변수가 자동으로 추가된다 */
+@import "tailwindcss";

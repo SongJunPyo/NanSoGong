@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: '2010-09-09'
+# 🧪 dev (작게): EC2 t4g.small 1대에서 docker compose 로 화면 · 서버 · PostgreSQL · Redis · 목업을 모두 실행
+#   생성:  aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-dev \
+#            --template-file infra/cloudformation/dev.yml --capabilities CAPABILITY_IAM \
+#            --parameter-overrides VpcId=<기본 VPC> SubnetId=<기본 VPC 의 public 서브넷> AllowedCidr=<팀원 IP>/32
+#   prod 와 달리 RDS · ElastiCache · ALB · NAT 를 쓰지 않는다 (하루 약 $0.7)
+#   → 네트워크 · 권한 · TLS 처럼 prod 에서만 생기는 문제는 여기서 확인되지 않는다 (prod 리허설로 확인)
+#
+#   만든 뒤 (SSM Session Manager 로 접속, infra/README.md 의 "dev 만들기")
+#     sudo -iu ec2-user
+#     git clone -b dev https://github.com/SongJunPyo/NanSoGong.git /opt/nansogong
+#     /opt/nansogong/infra/dev/update.sh
+#   이후에는 dev 에 머지할 때마다 GitHub Actions 가 update.sh 를 원격 실행한다
+Description: nansogong dev (single EC2 running docker compose)
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: 인터넷 게이트웨이로 나가는 public 서브넷 (기본 VPC 의 서브넷이면 된다)
+  AllowedCidr:
+    Type: String
+    Description: 화면(80)에 들어올 수 있는 IP (예 1.2.3.4/32). 팀원 IP 는 만든 뒤 보안 그룹에 한 줄씩 추가
+  InstanceType:
+    Type: String
+    Default: t4g.small
+
+Resources:
+  DevSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: nansogong dev - HTTP 80 from team IPs only (shell access via SSM)
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: !Ref AllowedCidr, Description: team }
+      Tags:
+        - { Key: Name, Value: nansogong-dev }
+
+  DevRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore          # 접속 · Actions 원격 실행(SSM Run Command)
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly    # ECR 에서 이미지 받기
+      Policies:
+        - PolicyName: read-dev-secret
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:nansogong/dev-*'
+
+  DevInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref DevRole]
+
+  DevInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}'
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref DevInstanceProfile
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds: [!Ref DevSecurityGroup]
+      MetadataOptions:
+        HttpTokens: required
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeSize: 30, VolumeType: gp3, Encrypted: true }
+      Tags:
+        - { Key: Name, Value: nansogong-dev }
+        - { Key: Environment, Value: dev }
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          set -euo pipefail
+          dnf install -y docker git jq
+          systemctl enable --now docker
+          usermod -aG docker ec2-user
+
+          # docker compose 플러그인 (Amazon Linux 저장소에 없어서 직접 받는다)
+          mkdir -p /usr/local/lib/docker/cli-plugins
+          curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
+            https://github.com/docker/compose/releases/download/v2.32.4/docker-compose-linux-aarch64
+          chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+          # 메모리 2GB 에 컨테이너 5개 → 스왑 2GB 로 여유를 둔다
+          dd if=/dev/zero of=/swapfile bs=1M count=2048
+          chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+          echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+          mkdir -p /opt/nansogong && chown ec2-user:ec2-user /opt/nansogong
+
+  # 고정 IP: EC2 를 껐다 켜도 주소가 바뀌지 않는다. 🚨 스택을 지우면 함께 반납된다 (따로 만들면 반납을 잊어 과금)
+  DevEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref DevInstance
+      Tags:
+        - { Key: Name, Value: nansogong-dev }
+
+Outputs:
+  InstanceId:
+    Description: GitHub Environments(dev) 변수 DEV_INSTANCE_ID
+    Value: !Ref DevInstance
+  Url:
+    Value: !Sub 'http://${DevEip}'

@@ -1,0 +1,45 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+**/logs/
+logs/*
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### VS Code ###
+# 팀 공용 설정(추천 확장 · 실행 · 작업 · 설정)만 공유하고 나머지 개인 파일은 올리지 않는다
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### 🚨 중요 정보를 담아놓은 파일 ###
+.env
+.env.*
+!.env.example
+*.pem
+
+### Python (ml/) ###
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+ml/data/
+
+### 배포 (infra/dev/update.sh 가 기록하는 dev 이미지 태그) ###
+.deploy-tags

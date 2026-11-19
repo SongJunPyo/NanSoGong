@@ -1,0 +1,15 @@
+{
+  // 저장소를 열면 VS Code 오른쪽 아래에 "추천 확장 설치" 알림이 뜬다 → 모두 설치
+  "recommendations": [
+    "vscjava.vscode-java-pack",          // Java 언어 지원 · 디버거 · 테스트 · Gradle (Extension Pack for Java)
+    "vmware.vscode-boot-dev-pack",       // Spring Boot 대시보드 · application.yml 자동완성
+    "vscjava.vscode-gradle",             // Gradle 작업 실행 (bootRun · test)
+    "editorconfig.editorconfig",         // .editorconfig 적용 (들여쓰기 · 줄바꿈 통일)
+    "dbaeumer.vscode-eslint",            // 프론트 lint
+    "bradlc.vscode-tailwindcss",         // Tailwind 클래스 자동완성
+    "ms-azuretools.vscode-docker",       // 컨테이너 상태 · 로그 보기
+    "humao.rest-client",                 // backend/src/api.http 요청을 바로 보내기
+    "ms-python.python",                  // (ml 담당) Python
+    "ms-toolsai.jupyter"                 // (ml 담당) 노트북
+  ]
+}

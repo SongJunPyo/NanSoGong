@@ -1,0 +1,32 @@
+# 🚀 CodeDeploy 배포 설명서 (prod ASG 의 EC2 마다 실행된다)
+#   GitHub Actions(backend.yml)가 이 폴더 + image.env(이번에 배포할 이미지) + demo-data 를 zip 으로 묶어 S3 에 올리고 배포를 시작한다
+#   CodeDeploy 가 EC2 한 대씩: ALB 에서 빼기 → 아래 순서 실행 → 헬스체크 통과 → ALB 에 다시 넣기
+#   중간에 실패하면 배포가 멈추고 직전 버전으로 자동 롤백된다 (infra/cloudformation/app.yml 의 DeploymentGroup)
+#
+#   ApplicationStop  : 지금 떠 있는 서버 컨테이너 끄기 (🚨 이 단계만 "직전 버전" 의 스크립트로 실행된다)
+#   AfterInstall     : ECR 에서 새 이미지 받기
+#   ApplicationStart : Secrets Manager + 인프라 주소로 환경변수 파일을 만들고 컨테이너 실행
+#   ValidateService  : /actuator/health 가 UP 이 될 때까지 기다리기 (최대 5분)
+version: 0.0
+os: linux
+files:
+  - source: /
+    destination: /opt/nansogong/deploy
+file_exists_behavior: OVERWRITE
+hooks:
+  ApplicationStop:
+    - location: scripts/stop.sh
+      timeout: 60
+      runas: root
+  AfterInstall:
+    - location: scripts/pull.sh
+      timeout: 300
+      runas: root
+  ApplicationStart:
+    - location: scripts/start.sh
+      timeout: 120
+      runas: root
+  ValidateService:
+    - location: scripts/validate.sh
+      timeout: 300
+      runas: root

@@ -1,0 +1,117 @@
+# 이 파일은 들여쓰기(스페이스 2칸)가 곧 문법입니다. 탭을 쓰면 앱이 뜨지 않습니다.
+# ${이름:기본값} = 환경변수가 있으면 그 값, 없으면 콜론 뒤의 기본값.
+# 🧑‍💻 기본값은 "로컬 개발(docker compose)" 에 맞춰 두었다 → 팀원은 docker compose up -d 후 ./gradlew bootRun 만 하면 된다
+# 🚨 비밀번호 · API 키를 이 파일에 직접 쓰지 않는다. 깃에 올라가는 순간 모두에게 공개된다
+spring:
+  application:
+    name: nansogong
+
+  # 📄 저장소 맨 위(Nansogong/.env)의 .env 를 읽는다 (없으면 건너뜀). docker compose 도 같은 .env 를 읽으므로 값이 한 곳에서 관리된다
+  #    backend 폴더에서 실행하면 ../.env, 맨 위 폴더에서 실행하면 .env 를 찾는다
+  config:
+    import:
+      - optional:file:../.env[.properties]
+      - optional:file:.env[.properties]
+
+  # 🐘 PostgreSQL: 로컬은 docker compose 의 postgres 컨테이너, 운영은 RDS (환경변수로 덮어쓴다)
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:${DB_PORT:5432}/${DB_NAME:nansogong}}
+    username: ${DB_USER:dev}
+    password: ${DB_PASSWORD:dev}
+
+  jpa:
+    hibernate:
+      # 🚨 로컬도 AWS 와 똑같이 validate: 표는 Flyway(resources/db/migration)만 만든다
+      #    엔티티를 추가 · 수정했으면 V<번호>__설명.sql 도 함께 만든다. 빠뜨리면 내 PC 에서 먼저 실패해서 알려 준다
+      #    (update 로 두면 내 PC 에서는 되는데 dev · prod 서버에서만 터지는 사고가 난다)
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: Asia/Seoul
+
+  # 🗂️ Flyway: 서버가 켜질 때 db/migration 의 SQL 중 아직 안 돈 것만 순서대로 실행한다 (로컬 · 테스트 · dev · prod 공통)
+  #    파일 이름은 V<연월일시분>__설명.sql (예: V202611201430__create_store.sql) → 6명이 동시에 만들어도 번호가 겹치지 않는다
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    out-of-order: true        # 내가 먼저 만들었지만 늦게 머지된 마이그레이션도 적용한다 (시간 이름표 방식과 짝)
+
+  # 🧠 Redis: 로컬은 docker compose 의 redis 컨테이너, 운영은 ElastiCache
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+  # 🤖 Claude API (Spring AI). 키가 없어도 앱은 뜬다 → AI 를 부르는 순간에만 실패한다
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:no-key}
+      chat:
+        options:
+          model: ${AI_MODEL:claude-haiku-5-5}   # 개발 중에는 저렴한 모델. 운영 모델은 환경변수로 바꾼다
+          max-tokens: 1024
+
+# ⚙️ 우리 서비스 설정 (common/AppProperties.java 가 타입으로 읽는다 → 오타가 나면 서버가 뜰 때 알려 준다)
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+  # 🔐 로그인 토큰 (구현-1-3 자동 로그인 · 로그아웃 시 무효화)
+  jwt:
+    secret: ${JWT_SECRET:LOCAL-ONLY-change-me-0123456789-0123456789}   # 32바이트 이상. 로컬용 기본값, AWS 는 Secrets Manager
+    access-token-ttl: 30m     # 짧게: 탈취돼도 피해 시간이 짧다
+    refresh-token-ttl: 14d    # 자동 로그인 유지 기간. Redis 에 저장해 두고 로그아웃 때 지운다
+
+  # 📱 휴대폰 본인인증 (구현-1-1, 1-4, 1-5). MVP 는 목업: 인증번호가 항상 mock-code
+  verification:
+    mode: ${VERIFICATION_MODE:mock}       # mock | real (real = PASS 등 연동 후)
+    mock-code: "000000"
+
+  # 🔒 POS · 거래처 · 마이데이터 연동 인증 정보 암호화 키 (구현-1-7, 7-1). AES-256 = Base64 로 인코딩한 32바이트
+  #    로컬용 기본값. AWS 는 환경별로 다른 키를 Secrets Manager 에 둔다 (키를 바꾸면 기존 암호문을 못 읽으니 주의)
+  crypto:
+    credential-key: ${CREDENTIAL_ENCRYPTION_KEY:OV2qpGiz04ZuJHfgAUVNvXerouYQ66RTLCQCz01z+CA=}
+
+  # 🌐 외부 API. 로컬 기본값은 전부 목업 서버(docker compose 의 mock, 8089) → 키 없이 개발 가능
+  #    진짜 API 로 바꾸려면 .env 에서 *_BASE_URL 과 키를 넣는다
+  external:
+    data-go-kr-service-key: ${DATA_GO_KR_SERVICE_KEY:mock-key}   # 공공데이터포털 인증키 1개로 국세청 · 기상청 · 특일 공통
+    nts-base-url: ${NTS_BASE_URL:http://localhost:${MOCK_PORT:8089}/nts/v1}              # 국세청 사업자 진위확인 · 상태조회
+    kma-base-url: ${KMA_BASE_URL:http://localhost:${MOCK_PORT:8089}/kma}                 # 기상청 단기예보
+    holiday-base-url: ${HOLIDAY_BASE_URL:http://localhost:${MOCK_PORT:8089}/holiday}     # 특일 정보(공휴일)
+    naver-datalab-base-url: ${NAVER_DATALAB_BASE_URL:http://localhost:${MOCK_PORT:8089}/naver/v1/datalab}
+    naver-client-id: ${NAVER_CLIENT_ID:mock-id}
+    naver-client-secret: ${NAVER_CLIENT_SECRET:mock-secret}
+    pos-base-url: ${POS_BASE_URL:http://localhost:${MOCK_PORT:8089}/pos/v1}              # MVP: POS 시뮬레이터
+    supplier-base-url: ${SUPPLIER_BASE_URL:http://localhost:${MOCK_PORT:8089}/supplier/v1}
+    mydata-base-url: ${MYDATA_BASE_URL:http://localhost:${MOCK_PORT:8089}/mydata/v1}
+    connect-timeout: 3s
+    read-timeout: 10s         # 이보다 늦으면 '결과 확인 중' 으로 처리한다 (목업의 timeout 시나리오는 30초)
+
+logging:
+  level:
+    root: INFO
+    com.nansogong: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
+
+server:
+  port: 8080
+
+# 🩺 Actuator. 로컬에서는 Prometheus 주소도 열어 둔다 (docker compose --profile monitoring 으로 확인)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+      roles: ADMIN
+  metrics:
+    tags:
+      application: ${spring.application.name}

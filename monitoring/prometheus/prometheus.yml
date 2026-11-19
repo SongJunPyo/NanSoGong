@@ -1,0 +1,9 @@
+# 📊 로컬 모니터링: 내 PC 에서 bootRun 중인 서버의 숫자를 15초마다 읽어 간다
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: nansogong-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8080"]

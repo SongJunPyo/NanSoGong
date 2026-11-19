@@ -1,0 +1,52 @@
+{
+  // Ctrl+Shift+P → "Tasks: Run Task" 에서 고른다
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "전체 켜기 (서버 컨테이너 포함)",
+      "type": "shell",
+      "command": "docker compose up -d",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      // VS Code 로 서버를 디버깅할 때: 컨테이너 서버(app)는 멈추고 DB · Redis · 목업만 (8080 충돌 방지)
+      "label": "인프라 켜기 (DB · Redis · 목업)",
+      "type": "shell",
+      "command": "docker compose stop app; docker compose up -d postgres redis mock",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "서버 컨테이너 로그 보기",
+      "type": "shell",
+      "command": "docker compose logs -f app",
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "인프라 끄기",
+      "type": "shell",
+      "command": "docker compose down",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "백엔드 테스트",
+      "type": "shell",
+      "command": "./gradlew test",
+      "windows": { "command": ".\\gradlew.bat test" },
+      "options": { "cwd": "${workspaceFolder}/backend" },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "프론트 lint",
+      "type": "shell",
+      "command": "npm run lint",
+      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "problemMatcher": ["$eslint-stylish"]
+    }
+  ]
+}

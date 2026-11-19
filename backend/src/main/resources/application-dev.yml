@@ -1,0 +1,18 @@
+# 🧪 AWS 개발 서버 (dev EC2 의 docker-compose.dev.yml 이 SPRING_PROFILES_ACTIVE=dev 로 켠다). dev 브랜치에 머지되면 배포된다
+# aws 공통 설정 위에 "디버깅하기 쉽게" 만 덮어쓴다. 데이터는 진짜 고객 데이터가 아닌 테스트 데이터만 쓴다
+springdoc:
+  api-docs:
+    enabled: true             # 프론트 팀원 · QA 가 dev 서버 Swagger 로 API 를 확인한다
+  swagger-ui:
+    enabled: true
+
+logging:
+  level:
+    com.nansogong: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG   # AI 요청 · 응답 확인 (dev 는 테스트 데이터만)
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0        # 요청 100% 추적
