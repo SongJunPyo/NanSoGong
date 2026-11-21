@@ -18,6 +18,19 @@ AWSTemplateFormatVersion: '2010-09-09'
 #   🚨 스택을 지우기 전에 S3 버킷 두 개를 비운다 (비어 있지 않으면 삭제 실패): infra/README.md 참고
 Description: nansogong app (ALB, WAF, ASG, CodeDeploy, CloudFront, S3, Route53, alarms)
 
+# 콘솔에서 스택을 만들 때 입력 칸을 묶어서 보여 준다 (동작에는 영향 없음). 콘솔 글자는 한글이 깨질 수 있어 영어로
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: '1. Environment' }
+        Parameters: [Environment]
+      - Label: { default: '2. Domain and certificates (ACM certificates are created by hand)' }
+        Parameters: [DomainName, ApiDomainName, HostedZoneId, CloudFrontCertificateArn, AlbCertificateArn]
+      - Label: { default: '3. App servers (Auto Scaling)' }
+        Parameters: [InstanceType, AsgMinSize, AsgMaxSize]
+      - Label: { default: '4. Alarms' }
+        Parameters: [AlarmEmail]
+
 Parameters:
   Environment:
     Type: String
@@ -32,11 +45,16 @@ Parameters:
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
     Description: 위 도메인의 Route 53 호스팅 영역 ID
+  # 인증서는 콘솔(ACM)에서 직접 발급한다. 리전을 잘못 고른 ARN 은 스택을 만들기 전에 여기서 걸러진다
   AlbCertificateArn:
     Type: String
+    AllowedPattern: '^arn:aws:acm:ap-northeast-2:\d{12}:certificate/[0-9a-f-]+$'
+    ConstraintDescription: 'must be an ACM certificate ARN issued in Seoul (ap-northeast-2) for ApiDomainName'
     Description: ApiDomainName 용 ACM 인증서 (서울 ap-northeast-2 에서 발급)
   CloudFrontCertificateArn:
     Type: String
+    AllowedPattern: '^arn:aws:acm:us-east-1:\d{12}:certificate/[0-9a-f-]+$'
+    ConstraintDescription: 'must be an ACM certificate ARN issued in N. Virginia (us-east-1); CloudFront cannot use certificates from other regions'
     Description: DomainName 용 ACM 인증서 (🚨 버지니아 us-east-1 에서 발급해야 CloudFront 에 붙는다)
   InstanceType:
     Type: String

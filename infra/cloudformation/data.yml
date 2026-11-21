@@ -9,6 +9,17 @@ AWSTemplateFormatVersion: '2010-09-09'
 #   DB 주소 · Redis 주소는 app 스택이 이 스택의 Export 를 읽어 서버에 넣는다 → secrets-put.sh 에 적지 않는다
 Description: nansogong data (RDS PostgreSQL Multi-AZ, ElastiCache Redis, DB secret)
 
+# 콘솔에서 스택을 만들 때 입력 칸을 묶어서 보여 준다 (동작에는 영향 없음)
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: '1. Environment' }
+        Parameters: [Environment]
+      - Label: { default: '2. Database (RDS PostgreSQL)' }
+        Parameters: [DbEngineVersion, DbInstanceClass, DbAllocatedStorage, DbMultiAz]
+      - Label: { default: '3. Cache (ElastiCache Redis)' }
+        Parameters: [CacheNodeType]
+
 Parameters:
   Environment:
     Type: String

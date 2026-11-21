@@ -13,6 +13,15 @@ AWSTemplateFormatVersion: '2010-09-09'
 #   이후에는 dev 에 머지할 때마다 GitHub Actions 가 update.sh 를 원격 실행한다
 Description: nansogong dev (single EC2 running docker compose)
 
+# 콘솔에서 스택을 만들 때 입력 칸을 묶어서 보여 준다 (동작에는 영향 없음)
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: '1. Network (default VPC)' }
+        Parameters: [VpcId, SubnetId]
+      - Label: { default: '2. Access and size' }
+        Parameters: [AllowedCidr, InstanceType]
+
 Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
