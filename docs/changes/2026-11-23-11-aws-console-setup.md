@@ -16,7 +16,7 @@ AWS 구축 안내가 `aws cloudformation deploy` 명령과 `secrets-put.sh`(AWS 
 |---|---|
 | `infra/cloudformation/shared.yml` | GitHub OIDC 공급자(`CreateGitHubOidcProvider=false` 면 기존 것 사용) · 빌드 역할 `nansogong-build` 를 만든다. 입력 `GitHubRepository` 추가, 출력 `BuildRoleArn`, Export `nansogong-GitHubOidcProviderArn` · `nansogong-GitHubRepository`. 콘솔 입력 칸 묶음 추가 |
 | `infra/cloudformation/dev.yml` | dev 배포 역할 `nansogong-deploy-dev` 를 만든다 (이 스택의 EC2 에만 SSM 명령). 출력 `DeployRoleArn`. `AllowedCidr` 형식 검사 추가 (`/32` 빠뜨리면 바로 거절) |
-| `infra/cloudformation/app.yml` | prod 배포 역할 `nansogong-deploy-<env>` 를 만든다 (이 스택의 버킷 · CodeDeploy · CloudFront 에만). 출력 `DeployRoleArn` |
+| `infra/cloudformation/app.yml` (12 에서 `prod.yml` 로 합침) | prod 배포 역할 `nansogong-deploy-<env>` 를 만든다 (이 스택의 버킷 · CodeDeploy · CloudFront 에만). 출력 `DeployRoleArn` |
 | `infra/cloudformation/network.yml` · `data.yml` | 머리 주석의 CLI 명령 → 콘솔 순서. 접두사 목록 · PostgreSQL 버전 확인 방법을 콘솔 기준으로 |
 | `infra/iam/*.json` (6개) | **삭제**. 같은 권한을 위 스택들이 만든다 (권한 내용은 그대로) |
 | `infra/secrets-put.sh` | **삭제** → `infra/secrets/README.md` (콘솔 절차 · 키 목록) + `dev.example.json` · `prod.example.json` (붙여넣을 틀) |

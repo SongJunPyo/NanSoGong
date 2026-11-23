@@ -26,3 +26,4 @@
 | [09](2026-11-19-09-aws-infra-as-code.md) | 2026-11-19 | AWS 인프라 코드화(CloudFormation), ECR + CodeDeploy · arm64 배포, 작은 dev(EC2 1대 + compose), 데모 데이터 스크립트 | 있음 (선택 · 담당자별) |
 | [10](2026-11-19-10-branch-per-member.md) | 2026-11-19 | 브랜치 전략: 팀원 이름 브랜치 → `dev` → `main`, 통합 브랜치 이름 `develop` → `dev` | 있음 |
 | [11](2026-11-23-11-aws-console-setup.md) | 2026-11-23 | AWS 구축을 콘솔만으로: GitHub 역할 3개 · OIDC 를 스택이 만들고, `secrets-put.sh` → 콘솔 JSON 틀 | 있음 (이미 역할을 만든 경우만) |
+| [12](2026-11-23-12-prod-single-stack.md) | 2026-11-23 | prod 스택 3개(network · data · app) → 스택 하나(`prod.yml`) | 있음 (이미 prod 를 만든 경우만) |
