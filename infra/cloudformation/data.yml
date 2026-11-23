@@ -1,12 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
 # 🐘 2/3 data: RDS PostgreSQL 17 (Multi-AZ) · ElastiCache Redis (2노드) · DB 비밀번호(Secrets Manager)
-#   생성:  aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-prod-data \
-#            --template-file infra/cloudformation/data.yml --parameter-overrides Environment=prod
+#   생성 (콘솔): CloudFormation > 스택 생성 > 새 리소스 사용(표준) > 템플릿 파일 업로드 → 이 파일
+#     스택 이름  nansogong-prod-data
+#     입력       Environment=prod, 나머지 기본값
 #   RDS Multi-AZ 는 20~30분 걸린다. network 스택이 먼저 있어야 한다
 #
 #   DB 비밀번호는 사람이 정하지 않는다: 이 스택이 nansogong/<env>/db 비밀을 자동 생성하고, RDS 가 그 값을 쓴다
-#   서버는 배포될 때 이 비밀 + nansogong/<env>(API 키 등, infra/secrets-put.sh) 를 합쳐 환경변수로 쓴다
-#   DB 주소 · Redis 주소는 app 스택이 이 스택의 Export 를 읽어 서버에 넣는다 → secrets-put.sh 에 적지 않는다
+#   서버는 배포될 때 이 비밀 + nansogong/<env>(API 키 등, 콘솔에서 직접 넣는다: infra/secrets/README.md) 를 합쳐 환경변수로 쓴다
+#   DB 주소 · Redis 주소는 app 스택이 이 스택의 Export 를 읽어 서버에 넣는다 → nansogong/<env> 비밀에 적지 않는다
 Description: nansogong data (RDS PostgreSQL Multi-AZ, ElastiCache Redis, DB secret)
 
 # 콘솔에서 스택을 만들 때 입력 칸을 묶어서 보여 준다 (동작에는 영향 없음)
@@ -41,7 +42,7 @@ Parameters:
   DbEngineVersion:
     Type: String
     Default: '17.11'
-    Description: PostgreSQL 17 의 세부 버전. 오래된 버전은 새로 만들 수 없다 → 만들기 전에 확인 aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[?starts_with(EngineVersion,'17.')].EngineVersion"
+    Description: PostgreSQL 17 의 세부 버전. 오래된 버전은 새로 만들 수 없다 → 콘솔 RDS > 데이터베이스 생성 > PostgreSQL > 엔진 버전 목록에서 17.x 확인 (만들지 말고 취소)
 
 Conditions:
   IsProd: !Equals [!Ref Environment, prod]

@@ -7,7 +7,7 @@
 #   DB_USER  DB_PASSWORD                 ← data 스택이 만든 비밀 nansogong/prod/db
 #   JWT_SECRET  CREDENTIAL_ENCRYPTION_KEY  ANTHROPIC_API_KEY  DATA_GO_KR_SERVICE_KEY  NAVER_CLIENT_ID  NAVER_CLIENT_SECRET
 #   POS_BASE_URL  SUPPLIER_BASE_URL  MYDATA_BASE_URL  VERIFICATION_MODE  CORS_ALLOWED_ORIGINS=https://<도메인>
-#   (목록 전체는 infra/secrets-put.sh 의 KEYS)
+#   (목록 전체는 infra/secrets/README.md 의 키 목록)
 spring:
   datasource:
     url: ${DB_URL}
