@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# NanSoGong
-
-=======
 # 난소공
 
 소상공인 맞춤형 AI 매장 운영 에이전트 · 사장님 전용 서비스
@@ -159,11 +155,41 @@ npm ci                            # 🚨 npm install 이 아니라 npm ci (lock 
 npm run dev                       # 화면 5173
 ```
 
-**http://localhost:5173** 에 서버 · PostgreSQL · Redis · 외부 연동 목업 네 줄이 모두 `연결됨` 이면 세팅 완료 ✅
+**http://localhost:5173/dev** 에 서버 · PostgreSQL · Redis · 외부 연동 목업 네 줄이 모두 `연결됨` 이면 세팅 완료 ✅
+(화면 라우터가 들어오면서 연결 확인판은 `/` 가 아니라 `/dev` 로 옮겼습니다)
+
+### 화면만 둘러보기 (서버 없이)
+
+지금 화면들은 서버 API 대신 각 영역의 `mock.js` 데이터로 그려집니다. 그래서 **`docker compose` 없이 `npm run dev` 만으로** 모든 화면을 볼 수 있습니다.
+
+```bash
+cd frontend
+npm ci                            # 처음 한 번, 또는 package-lock.json 이 바뀐 날
+npm run dev                       # → http://localhost:5173/screens
+```
+
+- **http://localhost:5173/screens**: Figma 프레임 번호 순 전체 화면 목록입니다. 누르면 그 화면으로 갑니다. `:id` 가 있는 화면은 예시 id(`o1`, `milk` 등)로 열립니다.
+- 브라우저 개발자 도구의 모바일 보기(폭 360px)로 확인합니다. 화면은 가운데 최대 430px 폭으로 그려집니다.
+- 화면 목록과 주소는 `frontend/src/routes.js` 의 `ROUTES` 한 곳에서 관리합니다. 새 화면은 여기에 `['Figma 번호 이름', '/경로', 컴포넌트, 'UF-xx']` 한 줄을 추가합니다.
+- 서버 API 가 생기면 각 영역 `queries.js` 의 `queryFn` 만 `api.js` 호출로 바꿉니다. 화면 코드는 그대로 둡니다.
+
+민성 담당 화면 (재고 · 발주 · 입고 · 메뉴 · 승인 이력)
+
+| 영역 | 주요 화면 | 주소 |
+|---|---|---|
+| 재고 (UF-09 ~ 11) | 재고 목록 · 품목 상세 · 품목 등록 · 실사 · 폐기 | `/inventory`, `/inventory/items/milk`, `/inventory/adjust` |
+| 발주 추천 (UF-12) | 발주 추천 · 가격 비교 · 조건 수정 | `/orders/recommendation`, `/orders/recommendation/compare` |
+| AI 대신 주문 (UF-13) | 24-6 대신 주문 설정, 24-7 AI 대신 주문 진행 · 완료 | `/settings/agent-order`, `/orders/agent` |
+| 발주 상태 (UF-13) | 발주 목록 · 발주 상태 · 직접 주문 등록 | `/orders`, `/orders/o1`, `/orders/o1/direct` |
+| 입고 · 정정 (UF-14) | 입고 확인 · 정정 요청 | `/receiving`, `/corrections/new` |
+| 메뉴 (UF-15, 16) | 메뉴 · 레시피 편집 · 판매 분석 · AI 메뉴 추천 | `/menu`, `/menu/analysis`, `/menu/recommendations` |
+| 승인 · 실행 이력 (UF-19, 20) | 실행 결과 · 재승인 · 반려 · 보류 | `/results`, `/reapproval/o2`, `/on-hold` |
 
 | 주소 | 용도 |
 |---|---|
 | http://localhost:5173 | 화면 (CORS 때문에 꼭 이 주소로) |
+| http://localhost:5173/screens | 전체 화면 목록 (개발용 바로가기) |
+| http://localhost:5173/dev | 서버 · DB · Redis · 목업 연결 확인판 |
 | http://localhost:8080/api/ping | 서버 · DB · Redis 연결 상태 |
 | http://localhost:8080/swagger-ui/index.html | API 문서 |
 | http://localhost:8080/actuator/health | 서버 상태 |
@@ -316,8 +342,7 @@ AWS 쪽 준비 · 생성 · 삭제(CloudFormation, IAM 역할, Secrets Manager, 
 | 쿠폰 발행 방식 | 유저 플로우 1.01 은 **POS 역동기화**, 요구사항 1.1(구현-2-8)은 **네이버 플레이스 직접 발행** | 목업에 POS 쿠폰 등록(`/pos/v1/coupons`)은 넣어 둠. 직접 발행으로 정하면 안 쓰면 됨 |
 | 수요 예측 모델 실행 방식 | 요구사항에 없음 | `ml/README.md` 의 A(Python 배치) / B(Java 추론) 중 선택 |
 | AWS 에서 목업 서버 위치 | dev 는 EC2 의 compose 에 함께 뜬다. **prod 는 미정** | prod 서버가 뜨려면 `nansogong/prod` 에 `POS_BASE_URL` 등이 필요. 서버 EC2 에 함께 띄우기 / 별도 서비스 중 선택 |
-| 화면 이동(라우터) · 차트 라이브러리 | 기술 스택에 없음 | 하단 4개 탭 · 매출 그래프에 필요. 예: React Router · Recharts(shadcn/ui charts) |
+| 차트 라이브러리 | 기술 스택에 없음 | 매출 그래프에 필요. 예: Recharts(shadcn/ui charts). (화면 이동 라우터는 `react-router-dom` 으로 정함) |
 | 알림 방식 | 재고 부족 · 입고 확인 · 주간 실사 알림 (구현-3-6 ~ 3-8, 3-13) | 앱 안 알림 목록만이면 추가 설정 없음. PWA 푸시면 VAPID 키 · 서비스워커 설정 추가 |
 | 정정 요청 증빙 사진 (구현-3-14) | 업로드 포함 여부 확인 필요 | 포함하면 S3 버킷 · 업로드 권한 추가 |
 | 앱 → POS 메뉴 역동기화 (구현-4-1) | 팀 논의 예정 | 정하면 목업에 POS 메뉴 등록 스텁 추가 |
->>>>>>> d8137f8e920665b9dc9083ac8e57ad0c380c9dd7
