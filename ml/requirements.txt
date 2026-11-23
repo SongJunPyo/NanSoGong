@@ -1,6 +1,6 @@
 # 🤖 수요 예측 실험 환경 (구현-6-1: 이동평균 baseline → LightGBM)
 # ~= : 같은 minor 버전 안에서만 올라간다 (팀원끼리 결과가 달라지지 않게)
-# 담당자가 처음 빌드한 뒤 docker compose run --rm ml pip freeze > ml/requirements.lock 으로 정확한 버전을 남겨 커밋한다
+# AI 담당이 처음 빌드한 뒤 docker compose run --rm ml pip freeze > ml/requirements.lock 으로 정확한 버전을 남겨 커밋한다
 lightgbm~=4.6
 pandas~=2.3
 scikit-learn~=1.7

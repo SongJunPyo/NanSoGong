@@ -132,10 +132,10 @@ ol.todo li b{font-weight:800}
 .own{border:1px solid var(--navy-b);border-radius:9px;background:var(--navy-l);padding:6px 8px;display:flex;flex-direction:column;gap:3px}
 .own .nm{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:800;color:var(--navy-d)}
 .own .nm svg{width:16px;height:16px}
-.own .dm{font-size:11.5px;line-height:1.35}
+.own .dm{font-size:11.5px;line-height:1.35;white-space:nowrap}
 .own .uf{font-size:10.8px;color:var(--muted)}
-.own.tbd{background:#fff;border-style:dashed}
-.own.tbd .nm{color:var(--warn)}
+.own.mint{background:var(--mint-l);border-color:var(--mint-b)}
+.own.mint .nm{color:var(--mint-d)}
 
 /* 05 decisions */
 .dec{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px}
@@ -208,7 +208,7 @@ ol.todo li b{font-weight:800}
       각자 도메인 기능 <b>하나를 화면 → API → DB까지 끝까지</b> 연결해 dev에 머지한다.</div>
     <ul>
       <li><b>무엇을:</b> 시스템 구조 · 코드 규칙 · 첫 작업</li>
-      <li><b>누가:</b> 도메인 담당 5명 + 인프라 · AI</li>
+      <li><b>누가:</b> 백엔드 2 · 프론트 2 · 인프라 · AI</li>
       <li><b>어떻게:</b> 내 이름 브랜치 → dev PR (기능 1개씩)</li>
     </ul>
   </section>
@@ -218,11 +218,11 @@ ol.todo li b{font-weight:800}
     <section class="sec">
       <div class="sh"><span class="num">01</span><h2>오늘 순서</h2><span class="note">3번이 머지되기 전까지는 코드 대신 설계</span></div>
       <div class="steps">
-        <div class="step"><div class="top"><span class="badge">1</span><span class="who">인프라</span><svg class="i"><use href="#i-merge"/></svg></div>
+        <div class="step"><div class="top"><span class="badge">1</span><span class="who">경모</span><svg class="i"><use href="#i-merge"/></svg></div>
           <h3>환경 dev 머지</h3><p>kyeongmo → dev PR<br>(README 충돌 1건)</p></div>
         <div class="step"><div class="top"><span class="badge">2</span><span class="who all">전원</span><svg class="i"><use href="#i-users"/></svg></div>
           <h3>안내 공유 · 결정</h3><p>이 문서를 함께 읽고<br>05 결정 사항 확정</p></div>
-        <div class="step"><div class="top"><span class="badge">3</span><span class="who">1명 지정</span><svg class="i"><use href="#i-layers"/></svg></div>
+        <div class="step"><div class="top"><span class="badge">3</span><span class="who">준표 · 민성</span><svg class="i"><use href="#i-layers"/></svg></div>
           <h3>구조 정리 PR</h3><p>패키지 · 폴더만 07_cicd<br>구조로 (기능 코드 없음)</p></div>
         <div class="step"><div class="top"><span class="badge">4</span><span class="who all">전원</span><svg class="i"><use href="#i-git"/></svg></div>
           <h3>dev 받기</h3><p><code style="font-family:var(--mono);font-size:10.5px">git merge origin/dev</code> 로 내 브랜치 갱신</p></div>
@@ -293,10 +293,10 @@ ol.todo li b{font-weight:800}
 
   <!-- ROW B : 03 -->
   <section class="sec">
-    <div class="sh"><span class="num">03</span><h2>역할별 처음 할 일</h2><span class="note">각자 자기 도메인의 백엔드 + 프론트를 함께 만든다 · 인프라 · AI는 공통 지원</span></div>
+    <div class="sh"><span class="num">03</span><h2>역할별 처음 할 일</h2><span class="note">백엔드 · 프론트는 2인 1조 (A조 예원 ↔ 소정, B조 준표 ↔ 민성) · 인프라 경모 · AI 후상</span></div>
     <div class="roles">
       <div class="role">
-        <div class="rh"><svg class="i"><use href="#i-server"/></svg>백엔드<small>계층별 패키지</small></div>
+        <div class="rh"><svg class="i"><use href="#i-server"/></svg>백엔드<small>예원 · 준표</small></div>
         <div class="rb">
 <pre class="tree">com.nansogong/
 ├ common/      <em>설정 · 보안 · 예외 처리</em>
@@ -315,7 +315,7 @@ ol.todo li b{font-weight:800}
         </div>
       </div>
       <div class="role">
-        <div class="rh"><svg class="i"><use href="#i-layout"/></svg>프론트엔드<small>종류별 폴더</small></div>
+        <div class="rh"><svg class="i"><use href="#i-layout"/></svg>프론트엔드<small>소정 · 민성</small></div>
         <div class="rb">
 <pre class="tree">frontend/src/
 ├ api/         <em>client.js request() + 도메인.js</em>
@@ -324,15 +324,15 @@ ol.todo li b{font-weight:800}
 ├ store/       <em>Zustand: 로그인 · 선택 매장</em>
 └ utils/       <em>format.js (금액 · 날짜)</em></pre>
           <ol class="todo">
-            <li><b>공통 틀</b>: 하단 탭 홈 · 재고 · 메뉴 · 매출 (1명)</li>
-            <li><b>로그인 화면</b>: api/auth.js + useAuthStore</li>
+            <li><b>공통 틀 (민성)</b>: 하단 탭 홈 · 재고 · 메뉴 · 매출</li>
+            <li><b>로그인 화면 (소정)</b>: api/auth.js + useAuthStore</li>
             <li><b>각자</b> api/도메인.js → 도메인/XxxPage (API 전엔 가짜 데이터)</li>
           </ol>
           <div class="warn"><svg class="i"><use href="#i-alert"/></svg><span>컴포넌트에서 fetch 금지 · queryKey에 storeId 필수 · 토큰은 메모리에만</span></div>
         </div>
       </div>
       <div class="role mint">
-        <div class="rh"><svg class="i"><use href="#i-cloud"/></svg>인프라<small>팀원이 막히지 않게</small></div>
+        <div class="rh"><svg class="i"><use href="#i-cloud"/></svg>인프라<small>경모</small></div>
         <div class="rb">
           <ol class="todo">
             <li><b>kyeongmo → dev 머지</b> (README 충돌 정리)</li>
@@ -347,7 +347,7 @@ ol.todo li b{font-weight:800}
         </div>
       </div>
       <div class="role mint">
-        <div class="rh"><svg class="i"><use href="#i-spark"/></svg>AI<small>LLM + 수요 예측</small></div>
+        <div class="rh"><svg class="i"><use href="#i-spark"/></svg>AI<small>후상</small></div>
         <div class="rb">
           <div class="prin">
             <div><svg class="i"><use href="#i-table"/></svg>숫자는 코드, 문장은 AI</div>
@@ -361,7 +361,7 @@ ol.todo li b{font-weight:800}
             <li><b>에이전트 설계</b>: 실행 계획 JSON · 승인 흐름 · @Tool(storeId 고정) · 중복 방지</li>
             <li><b>ml/</b> 이동평균 baseline → LightGBM</li>
           </ol>
-          <div class="warn"><svg class="i"><use href="#i-alert"/></svg><span>AI를 쓰는 메뉴 · 쿠폰 · 홈 담당에게 공통 틀과 예시를 먼저 전달</span></div>
+          <div class="warn"><svg class="i"><use href="#i-alert"/></svg><span>AI 호출부는 후상, 결과 검증 · 저장 API 는 백엔드(준표 · 예원)</span></div>
         </div>
       </div>
     </div>
@@ -370,22 +370,22 @@ ol.todo li b{font-weight:800}
   <!-- ROW C : 04 + 05 -->
   <div class="row rC">
     <section class="sec">
-      <div class="sh"><span class="num">04</span><h2>모두가 지킬 규칙 &amp; 도메인 담당</h2></div>
+      <div class="sh"><span class="num">04</span><h2>모두가 지킬 규칙 &amp; 담당</h2></div>
       <div class="rules">
         <div class="rule"><span class="ic"><svg class="i"><use href="#i-git"/></svg></span><div><b>브랜치</b><p>내 이름 브랜치 → dev PR. 시작 전 merge origin/dev, rebase · force push 금지</p></div></div>
         <div class="rule"><span class="ic"><svg class="i"><use href="#i-pr"/></svg></span><div><b>PR 크기 · 머지</b><p>기능 하나 = PR 하나. 테스트 통과 + 1명 확인 → merge commit</p></div></div>
         <div class="rule"><span class="ic"><svg class="i"><use href="#i-table"/></svg></span><div><b>DB 변경</b><p>V&lt;연월일시분&gt;__설명.sql. 머지된 SQL은 고치지 않고 새 파일로</p></div></div>
-        <div class="rule"><span class="ic"><svg class="i"><use href="#i-link"/></svg></span><div><b>다른 담당의 코드</b><p>남의 표 · repository 대신 그 사람의 service를 부른다</p></div></div>
+        <div class="rule"><span class="ic"><svg class="i"><use href="#i-link"/></svg></span><div><b>다른 도메인의 코드</b><p>남의 표 · repository 대신 그 도메인의 service를 부른다</p></div></div>
         <div class="rule"><span class="ic"><svg class="i"><use href="#i-file"/></svg></span><div><b>공용 파일</b><p>common/ · client.js · components/ui/ · compose는 고치기 전 단톡 공유</p></div></div>
         <div class="rule"><span class="ic"><svg class="i"><use href="#i-key"/></svg></span><div><b>비밀값</b><p>API 키는 .env에만. 코드 · yml · 커밋에 넣지 않는다</p></div></div>
       </div>
       <div class="owners">
-        <div class="own"><div class="nm"><svg class="i"><use href="#i-user"/></svg>소정</div><div class="dm">인증 · 매장 · 연동 · 날씨</div><div class="uf">UF-01 ~ 05</div></div>
-        <div class="own"><div class="nm"><svg class="i"><use href="#i-user"/></svg>예원</div><div class="dm">홈 · 쿠폰</div><div class="uf">UF-05 ~ 08</div></div>
-        <div class="own"><div class="nm"><svg class="i"><use href="#i-user"/></svg>후상</div><div class="dm">재고 · 발주</div><div class="uf">UF-09 ~ 14</div></div>
-        <div class="own"><div class="nm"><svg class="i"><use href="#i-user"/></svg>경모</div><div class="dm">메뉴 + 인프라</div><div class="uf">UF-15, 16</div></div>
-        <div class="own"><div class="nm"><svg class="i"><use href="#i-user"/></svg>준표</div><div class="dm">매출 · 비용</div><div class="uf">UF-17, 18</div></div>
-        <div class="own tbd"><div class="nm"><svg class="i"><use href="#i-alert"/></svg>미정</div><div class="dm">에이전트 · 공통 · AI</div><div class="uf">UF-06, 19, 20</div></div>
+        <div class="own"><div class="nm"><svg class="i"><use href="#i-server"/></svg>예원</div><div class="dm">회원 · 매장 · 매출 · 홈</div><div class="uf">백엔드 · A조</div></div>
+        <div class="own"><div class="nm"><svg class="i"><use href="#i-layout"/></svg>소정</div><div class="dm">로그인 · 홈 · 매출 화면</div><div class="uf">프론트엔드 · A조</div></div>
+        <div class="own"><div class="nm"><svg class="i"><use href="#i-server"/></svg>준표</div><div class="dm">메뉴 · 재고 · 발주 · 승인</div><div class="uf">백엔드 · B조</div></div>
+        <div class="own"><div class="nm"><svg class="i"><use href="#i-layout"/></svg>민성</div><div class="dm">공통 틀 · 메뉴 · 재고</div><div class="uf">프론트엔드 · B조</div></div>
+        <div class="own mint"><div class="nm"><svg class="i"><use href="#i-cloud"/></svg>경모</div><div class="dm">환경 · CI/CD · AWS · 목업</div><div class="uf">인프라</div></div>
+        <div class="own mint"><div class="nm"><svg class="i"><use href="#i-spark"/></svg>후상</div><div class="dm">ai/ 틀 · 예측 · 제안</div><div class="uf">AI</div></div>
       </div>
     </section>
 
@@ -393,8 +393,8 @@ ol.todo li b{font-weight:800}
       <div class="sh"><span class="num">05</span><h2>오늘 정할 것</h2></div>
       <div class="dec">
         <div class="d"><span class="badge hot">1</span><div><b>07_cicd 구조로 전환</b><span>경모(세팅 담당) 동의 필요</span></div></div>
-        <div class="d"><span class="badge hot">2</span><div><b>구조 정리 PR 담당</b><span>1명이 백 · 프론트 같이</span></div></div>
-        <div class="d"><span class="badge hot">3</span><div><b>에이전트 · 공통 · AI 담당</b><span>현재 비어 있음</span></div></div>
+        <div class="d"><span class="badge hot">2</span><div><b>구조 정리 PR 담당</b><span>제안: 준표(백) · 민성(프론트)</span></div></div>
+        <div class="d"><span class="badge">3</span><div><b>역할별 담당 ✅ 확정</b><span>백 2 · 프론트 2 · 인프라 · AI</span></div></div>
         <div class="d"><span class="badge">4</span><div><b>화면 이동 방식</b><span>조건부 렌더링 / React Router</span></div></div>
         <div class="d"><span class="badge">5</span><div><b>차트 라이브러리 통일</b><span>매출 · 쿠폰 · 메뉴 분석 공용</span></div></div>
         <div class="d"><span class="badge">6</span><div><b>수요 예측 실행 방식</b><span>A. Python 배치 / B. Java 추론</span></div></div>
