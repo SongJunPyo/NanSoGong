@@ -1,8 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 # 🧪 dev (작게): EC2 t4g.small 1대에서 docker compose 로 화면 · 서버 · PostgreSQL · Redis · 목업을 모두 실행
-#   생성:  aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-dev \
-#            --template-file infra/cloudformation/dev.yml --capabilities CAPABILITY_IAM \
-#            --parameter-overrides VpcId=<기본 VPC> SubnetId=<기본 VPC 의 public 서브넷> AllowedCidr=<팀원 IP>/32
+#   생성 (콘솔): CloudFormation > 스택 생성 > 새 리소스 사용(표준) > 템플릿 파일 업로드 → 이 파일
+#     스택 이름  nansogong-dev  (shared 스택이 먼저 있어야 한다: GitHub OIDC 공급자 · 저장소 이름을 가져다 쓴다)
+#     입력       VpcId=<기본 VPC>, SubnetId=<기본 VPC 의 서브넷>, AllowedCidr=<내 IP>/32
+#     검토 화면  "사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 승인합니다" 체크
+#   만든 뒤     출력 DeployRoleArn · InstanceId → GitHub Environment dev 의 AWS_DEPLOY_ROLE_ARN · DEV_INSTANCE_ID
 #   prod 와 달리 RDS · ElastiCache · ALB · NAT 를 쓰지 않는다 (하루 약 $0.7)
 #   → 네트워크 · 권한 · TLS 처럼 prod 에서만 생기는 문제는 여기서 확인되지 않는다 (prod 리허설로 확인)
 #
@@ -30,6 +32,8 @@ Parameters:
     Description: 인터넷 게이트웨이로 나가는 public 서브넷 (기본 VPC 의 서브넷이면 된다)
   AllowedCidr:
     Type: String
+    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
+    ConstraintDescription: 'must be an IPv4 CIDR such as 1.2.3.4/32 (check your IP at https://checkip.amazonaws.com)'
     Description: 화면(80)에 들어올 수 있는 IP (예 1.2.3.4/32). 팀원 IP 는 만든 뒤 보안 그룹에 한 줄씩 추가
   InstanceType:
     Type: String
@@ -118,7 +122,43 @@ Resources:
       Tags:
         - { Key: Name, Value: nansogong-dev }
 
+  # GitHub Actions 의 dev 배포 역할: Environment dev 의 잡만, 이 EC2 에 update.sh 명령 보내기만 (infra/dev/run-remote.sh)
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: nansogong-deploy-dev
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Federated: !ImportValue nansogong-GitHubOidcProviderArn }
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub
+                  - 'repo:${Repo}:environment:dev'      # 🚨 브랜치가 아니라 Environment 이름으로 확인한다
+                  - { Repo: !ImportValue nansogong-GitHubRepository }
+      Policies:
+        - PolicyName: run-update-on-dev-instance
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: RunUpdateScriptOnDevInstanceOnly
+                Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${DevInstance}'
+                  - !Sub 'arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript'
+              - Sid: ReadCommandResult
+                Effect: Allow
+                Action: ssm:GetCommandInvocation
+                Resource: '*'
+
 Outputs:
+  DeployRoleArn:
+    Description: GitHub Environments(dev) 변수 AWS_DEPLOY_ROLE_ARN
+    Value: !GetAtt DeployRole.Arn
   InstanceId:
     Description: GitHub Environments(dev) 변수 DEV_INSTANCE_ID
     Value: !Ref DevInstance

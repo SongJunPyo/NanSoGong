@@ -1,6 +1,6 @@
 #!/bin/bash
 # ApplicationStart: 환경변수 파일을 만들고 서버 컨테이너를 띄운다
-#   /etc/nansogong/app.env  =  nansogong/<env> 비밀 (API 키 · JWT 등, infra/secrets-put.sh)
+#   /etc/nansogong/app.env  =  nansogong/<env> 비밀 (API 키 · JWT 등, 콘솔에서 넣는다: infra/secrets/README.md)
 #                            + nansogong/<env>/db 비밀 (DB 계정, data 스택이 자동 생성)
 #                            + /etc/nansogong/infra.env (DB · Redis 주소, app 스택의 User data)
 #                            + SPRING_PROFILES_ACTIVE=aws,<env>

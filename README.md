@@ -20,12 +20,12 @@
 .
 ├── .github/workflows/   # GitHub Actions: backend.yml(서버) · frontend.yml(화면)
 ├── backend/             # Spring Boot 서버 (build.gradle · gradlew · Dockerfile · src)
-│   └── src/             #   담당 영역별 패키지, resources/db/migration = Flyway SQL, api.http = 요청 모음
-├── frontend/            # React · Vite 화면 (src/features = 담당 영역별 폴더)
+│   └── src/             #   도메인별 패키지, resources/db/migration = Flyway SQL, api.http = 요청 모음
+├── frontend/            # React · Vite 화면 (src/features = 도메인별 폴더)
 ├── mock/                # 🎭 외부 연동 목업 (국세청 · 기상청 · 특일 · 네이버 · POS · 거래처 · 마이데이터)
 ├── ml/                  # 🤖 수요 예측 실험 (Python · LightGBM · Jupyter)
 ├── monitoring/          # 로컬 Prometheus 설정 · Grafana 상황판(JSON)
-├── infra/               # AWS: CloudFormation 템플릿 · CodeDeploy 배포 스크립트 · dev 갱신 스크립트 · 데모 데이터 · IAM 정책 · 비밀값 등록
+├── infra/               # AWS: CloudFormation 템플릿 · CodeDeploy 배포 스크립트 · dev 갱신 스크립트 · 데모 데이터 · 비밀값 틀
 ├── docs/                # 팀 문서 (changes/ = 개발 환경 변경 기록)
 ├── docker-compose.yml   # 🐳 로컬 개발용 서버 · PostgreSQL · Redis · 목업 (· 화면 nginx · Prometheus · Grafana · Jupyter)
 ├── docker-compose.dev.yml # AWS dev EC2 전용 덧씌우기 (ECR 이미지 · 80 포트 화면). 내 PC 에서는 쓰지 않는다
@@ -37,24 +37,38 @@
 > Node 버전은 `.nvmrc`, npm 패키지 버전은 `frontend/package-lock.json` 이 고정합니다.
 > AWS ECR 에는 **배포용 이미지**(서버 · dev 화면, arm64)만 Actions 가 올립니다.
 
-## 담당 영역
+## 담당
 
-유저 플로우의 담당 구분을 그대로 패키지 · 폴더로 나눴습니다. 각 패키지의 `package-info.java` 에 담당 요구사항 번호와 개발 메모가 있습니다.
+역할(백엔드 · 프론트엔드 · 인프라 · AI)별로 나누고, 백엔드와 프론트엔드는 **같은 도메인을 맡는 2인 1조**로 짝을 지었습니다. 같은 조끼리 API 모양을 바로 맞출 수 있게 하기 위해서입니다.
 
-| 백엔드 패키지 · 프론트 폴더 | 담당 | 유저 플로우 | 요구사항 |
-|---|---|---|---|
-| `auth` | 미정 | UF-01, 02 | 구현-1-1, 1-3, 1-4, 1-5, 7-1, 7-2 |
-| `store` | 미정 | UF-01, 02 | 구현-1-2, 1-6 |
-| `integration` | 미정 | UF-03, 04 | 구현-1-7 ~ 1-12, 1-14 |
-| `weather` | 미정 | UF-02, 05 | 구현-1-13 |
-| `home` | 미정 | UF-05, 06 | 구현-2-1 ~ 2-5 |
-| `coupon` | 미정 | UF-07, 08 | 구현-2-6 ~ 2-8, 5-6 |
-| `inventory` | 미정 | UF-09 ~ 11 | 구현-3-1 ~ 3-8 |
-| `purchase` | 미정 | UF-12 ~ 14 | 구현-3-9 ~ 3-14 |
-| `menu` | 미정 | UF-15, 16 | 구현-4-1 ~ 4-5 |
-| `sales` | 미정 | UF-17, 18 | 구현-5-1 ~ 5-5 |
-| `agent` | 미정 | UF-06, 19, 20 | 구현-6-1 ~ 6-9 |
-| `common` | 미정 | — | 구현-7-3, 설정 · 보안 · 외부 API 클라이언트 |
+| 역할 | 담당 | 맡는 범위 |
+|---|---|---|
+| 백엔드 | **예원** | 회원 · 인증, 매장, 연동, 날씨, 매출 · 비용, 홈, 쿠폰 |
+| 백엔드 | **준표** | 메뉴, 재고, 발주 · 입고, 승인 · 실행 공통(에이전트의 승인 · 중복 방지 · 이력) |
+| 프론트엔드 | **소정** | 예원 님 도메인의 화면: 로그인 · 회원가입 · 매장 · 연동 설정, 홈 탭, 매출 탭(쿠폰 포함) |
+| 프론트엔드 | **민성** | 준표 님 도메인의 화면: 재고 탭(재고 · 발주 · 입고), 메뉴 탭, 승인 · 실행 이력. 화면 공통 틀(하단 탭 · 레이아웃 · 공통 컴포넌트) |
+| 인프라 | **경모** | 개발 환경 · CI/CD · AWS · 모니터링 · 목업 · 데모 데이터, `common/` 설정(보안 · 외부 API 클라이언트) |
+| AI | **후상** | `ai/` 공통 틀, 에이전트의 제안 · 실행 계획 생성 · Tool Calling, 수요 예측(`ml/`), 각 도메인의 AI 기능(레시피 · 신메뉴 · 쿠폰 문구 · 운영 제안) |
+
+도메인별 담당입니다. 각 패키지의 `package-info.java` 에도 같은 내용과 요구사항 번호 · 개발 메모가 있습니다.
+
+| 백엔드 패키지 · 프론트 폴더 | 백엔드 | 프론트엔드 | AI | 유저 플로우 | 요구사항 |
+|---|---|---|---|---|---|
+| `auth` | 예원 | 소정 | — | UF-01, 02 | 구현-1-1, 1-3, 1-4, 1-5, 7-1, 7-2 |
+| `store` | 예원 | 소정 | — | UF-01, 02 | 구현-1-2, 1-6 |
+| `integration` | 예원 | 소정 | — | UF-03, 04 | 구현-1-7 ~ 1-12, 1-14 |
+| `weather` | 예원 | 소정 | 후상 (수요 예측 입력) | UF-02, 05 | 구현-1-13 |
+| `home` | 예원 | 소정 | 후상 (2-3 운영 제안) | UF-05, 06 | 구현-2-1 ~ 2-5 |
+| `coupon` | 예원 | 소정 | 후상 (2-6 추천 문구) | UF-07, 08 | 구현-2-6 ~ 2-8, 5-6 |
+| `sales` | 예원 | 소정 | — | UF-17, 18 | 구현-5-1 ~ 5-5 |
+| `menu` | 준표 | 민성 | 후상 (4-2 레시피, 4-5 신메뉴) | UF-15, 16 | 구현-4-1 ~ 4-5 |
+| `inventory` | 준표 | 민성 | 후상 (3-3 수요 예측 연계) | UF-09 ~ 11 | 구현-3-1 ~ 3-8 |
+| `purchase` | 준표 | 민성 | 후상 (6-5 Tool Calling 실행) | UF-12 ~ 14 | 구현-3-9 ~ 3-14 |
+| `agent` | 준표 (승인 · 실행 · 이력) | 민성 | 후상 (수요 예측 · 제안 생성 · Tool Calling) | UF-06, 19, 20 | 구현-6-1 ~ 6-9 |
+| `common` | 경모 (설정 · 보안 · 외부 API 클라이언트) | 민성 (화면 공통 틀) | 후상 (`ai/` 공통 틀) | — | 구현-7-3 |
+
+- **AI 기능은 나눠서 만듭니다.** AI 결과를 쓰는 API · 저장은 그 도메인의 백엔드 담당이, AI 호출 부분(프롬프트 · ChatClient · `@Tool`)은 후상 님이 만듭니다.
+- 데모 데이터(`infra/demo-data/`)의 SQL 은 그 표를 만든 백엔드 담당이 추가하고, 실행 흐름은 경모 님이 관리합니다.
 
 ## 요구사항이 개발 환경에 요구하는 것
 
@@ -71,7 +85,7 @@
 | 1-14 메뉴명 유사도 연결 후보 · 3-4 품목 검색 | Flyway V1 에서 `pg_trgm` 확장 |
 | 1-13 · 3-6 · 6-1 · 6-9 주기 실행 | `@Scheduled` + ShedLock (서버 여러 대여도 한 번만), 시간대 Asia/Seoul 고정 |
 | 6-1 이동평균 → LightGBM, 시간 순서 검증 | `ml/` Jupyter 환경 (`docker compose --profile ml`) |
-| 6-2 · 7-1 API 키는 Secrets Manager | AWS 비밀값은 `nansogong/dev` · `nansogong/prod` 비밀 (`infra/secrets-put.sh`) |
+| 6-2 · 7-1 API 키는 Secrets Manager | AWS 비밀값은 `nansogong/dev` · `nansogong/prod` 비밀 (콘솔에서 넣기: `infra/secrets/README.md`) |
 | 7-3 React + Vite PWA 모바일 우선 | vite-plugin-pwa, Tailwind, shadcn/ui |
 
 ---
@@ -177,7 +191,7 @@ cd frontend && npm ci             # package-lock.json 이 바뀐 날만
 | 바꾸는 것 | 함께 바꿀 곳 |
 |---|---|
 | PostgreSQL · Redis 버전 | `docker-compose.yml` + `backend/src/test/.../TestcontainersConfig.java` + 운영 RDS · ElastiCache |
-| 새 환경변수 | `.env.example` + `application.yml`(로컬 기본값) + `application-aws.yml` + `infra/secrets-put.sh` 의 KEYS + Secrets Manager(dev · prod 둘 다) |
+| 새 환경변수 | `.env.example` + `application.yml`(로컬 기본값) + `application-aws.yml` + `infra/secrets/README.md` 키 목록 · 틀 파일 + Secrets Manager(dev · prod 둘 다) |
 | 엔티티 추가 · 수정 | `backend/src/main/resources/db/migration/V<연월일시분>__설명.sql` (예: `V202611201430__create_store.sql`). 🚨 머지된 파일은 고치지 않고 새 파일로 |
 | 외부 API 응답 모양 | `mock/mappings/*.json` (목업도 같은 PR 에서 함께 고친다) |
 | `app.*` 설정 추가 | `application.yml` + `common/AppProperties.java` (+ AWS 값이면 `application-aws.yml`) |
@@ -270,7 +284,7 @@ git switch -c <내 이름> && git push -u origin <내 이름>
 | `backend.yml` | 테스트 | 테스트 → arm64 이미지 빌드 → ECR → dev EC2 갱신 (SSM) | 테스트 → (같은 이미지 재사용) → 승인 → CodeDeploy 로 prod ASG 한 대씩 교체 |
 | `frontend.yml` | lint + build | nginx 화면 이미지 빌드 → ECR → dev EC2 갱신 (SSM) | build → 승인 → prod S3 · CloudFront |
 
-AWS 키는 저장하지 않습니다. Actions 가 OIDC 로 역할을 잠깐 빌려 씁니다 (역할 만들기는 [`infra/README.md`](infra/README.md)).
+AWS 키는 저장하지 않습니다. Actions 가 OIDC 로 역할을 잠깐 빌려 씁니다 (역할은 CloudFormation 스택이 만든다: [`infra/README.md`](infra/README.md)).
 
 **저장소 Settings > Secrets and variables > Actions > Variables** (공통)
 
