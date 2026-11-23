@@ -4,6 +4,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "./styles/woori-theme.css";   /* 우리은행 색 · 넥슨Lv1고딕 · Figma 토큰 */
 
 @custom-variant dark (&:is(.dark *));
 

@@ -2,8 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import '@kfonts/nexon-lv1-gothic'   // 넥슨Lv1고딕 (Light 300 · Regular 400 · Bold 700)
 import './index.css'
-import App from './App.jsx'
+import AppRouter from './AppRouter.jsx'   // 화면 라우터 (기존 환경 확인판 App 은 /dev 로 이동)
 
 // 🔄 TanStack Query: 서버 데이터를 가져오고 · 캐시하고 · 다시 가져오는 일을 맡긴다
 const queryClient = new QueryClient({
@@ -18,7 +19,7 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <AppRouter />
       <ReactQueryDevtools initialIsOpen={false} />   {/* 개발 중에만 보이는 쿼리 상태 창 (배포 빌드에서는 자동 제외) */}
     </QueryClientProvider>
   </StrictMode>,
