@@ -21,6 +21,7 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 
 | 문서 | 언제 보나 |
 |---|---|
+| [WONIT-A/07_cicd](https://github.com/WONIT-A/07_cicd) | **구조의 기준.** 새 패키지 · 폴더 · 클래스를 만들 때 같은 계층의 파일 모양을 먼저 참고한다 (백엔드 `src/main/java/com/example/wonit/`, 프론트 `frontend/src/`, 테스트 `src/test/…/TransferFlowTest.java`, 프롬프트 `src/main/resources/prompts/`) |
 | [README.md](README.md) | 실행 방법, 환경 변경 규칙, 브랜치 전략, 자주 나는 문제 |
 | [docs/notice/2026-11-23-개발-시작-안내.md](docs/notice/2026-11-23-개발-시작-안내.md) | 패키지 · 폴더 구조, 계층별 코드 규칙, 도메인 담당 |
 | [docs/notice/2026-11-23-2주-구현-계획서.md](docs/notice/2026-11-23-2주-구현-계획서.md) | 일자별 할 일 · 완료 기준, 2주 범위 / 3주차로 넘긴 것 |
@@ -104,7 +105,10 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 
 ### 3-1. 패키지 구조 (07_cicd 와 같은 계층별)
 
-> ⚠️ 2026-11-23 기준 `dev` 에는 아직 기능별 패키지(`auth/`, `inventory/` …)가 있고, **구조 정리 PR** 에서 아래 구조로 바뀝니다. 새 코드는 아래 구조를 기준으로 작성합니다. 지금 구조가 어느 쪽인지 먼저 확인하고, 애매하면 사용자에게 묻습니다.
+> [07_cicd](https://github.com/WONIT-A/07_cicd) 의 `src/main/java/com/example/wonit/` 와 같은 계층별 구조입니다 (2026-11-23 구조 정리 PR 에서 기능별 패키지 `auth/` · `inventory/` … 를 없앴습니다).
+> - **기능별 패키지(`com.nansogong.inventory` 등)를 새로 만들지 않는다.** 도메인은 패키지가 아니라 클래스 이름 접두사로 나눈다 ([2-1](#2-1-java-백엔드)).
+> - 아래 패키지 말고 새 패키지가 필요해 보이면 먼저 07_cicd 에 같은 역할의 패키지가 있는지 확인하고, 없으면 만들기 전에 사용자에게 묻는다.
+> - 클래스 모양이 애매하면 07_cicd 의 같은 계층 파일(`AccountController`, `AccountService`, `Account`, `AccountResponse`, `AccountNotFoundException`, `BankTools` 등)을 참고한다.
 
 ```
 backend/src/main/java/com/nansogong/
@@ -158,7 +162,7 @@ backend/src/main/resources/
 
 ### 4-1. 폴더 구조 (07_cicd 와 같은 종류별)
 
-> ⚠️ 지금의 `src/features/` 는 구조 정리 PR 에서 아래처럼 바뀝니다.
+> ⚠️ 지금의 `src/features/` 는 구조 정리 PR 에서 아래처럼 바뀝니다. 기준은 [07_cicd](https://github.com/WONIT-A/07_cicd) 의 `frontend/src/` (api · components · hooks · utils) 입니다.
 
 ```
 frontend/src/
