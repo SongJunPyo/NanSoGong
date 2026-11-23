@@ -209,7 +209,7 @@ frontend/src/
 
 - API 키 · 비밀번호는 **`.env` 에만**. 코드 · `application*.yml` · 커밋 메시지 · 로그에 넣지 않는다.
 - `.env` 는 커밋하지 않는다 (`.env.example` 만 커밋).
-- 새 환경변수를 추가하면 함께 바꿀 곳: `.env.example` + `application.yml`(로컬 기본값) + `application-aws.yml` + `infra/secrets-put.sh` 의 KEYS. (`app.*` 설정이면 `common/AppProperties.java` 도)
+- 새 환경변수를 추가하면 함께 바꿀 곳: `.env.example` + `application.yml`(로컬 기본값) + `application-aws.yml` + `infra/secrets/README.md` 의 키 목록 · `*.example.json`. (`app.*` 설정이면 `common/AppProperties.java` 도)
 - 외부 API 응답 모양을 바꾸면 `mock/mappings/*.json` 도 같은 PR 에서 고친다.
 
 ### 6-2. 브랜치

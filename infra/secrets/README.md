@@ -34,5 +34,5 @@
 | `AI_MODEL` · `DATA_GO_KR_SERVICE_KEY` · `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `VERIFICATION_MODE` | 선택 | 선택 | 필요할 때만 행 추가 |
 
 - 값이 없는 키는 **빈 값으로 두지 말고 아예 넣지 않습니다** (빈 값도 그대로 환경변수로 들어간다)
-- 🚨 `DB_URL` · `DB_USER` · `DB_PASSWORD` · `REDIS_HOST` 는 넣지 않습니다. prod 는 data · app 스택이 넣어 주고, dev 는 같은 EC2 의 컨테이너를 씁니다
+- 🚨 `DB_URL` · `DB_USER` · `DB_PASSWORD` · `REDIS_HOST` 는 넣지 않습니다. prod 는 prod 스택이 넣어 주고, dev 는 같은 EC2 의 컨테이너를 씁니다
 - 새 환경변수를 만들면 이 표와 틀 파일도 함께 고칩니다

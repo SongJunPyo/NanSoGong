@@ -298,7 +298,7 @@ AWS 키는 저장하지 않습니다. Actions 가 OIDC 로 역할을 잠깐 빌�
 |---|---|---|
 | dev · prod | `AWS_DEPLOY_ROLE_ARN` | 그 환경 전용 배포 역할 ARN |
 | dev | `DEV_INSTANCE_ID` | `nansogong-dev` 스택의 `InstanceId` |
-| prod | `CODEDEPLOY_APP` · `CODEDEPLOY_GROUP` · `ARTIFACT_BUCKET` | `nansogong-prod-app` 스택의 CodeDeploy 이름 · 배포 묶음 버킷 |
+| prod | `CODEDEPLOY_APP` · `CODEDEPLOY_GROUP` · `ARTIFACT_BUCKET` | `nansogong-prod` 스택의 CodeDeploy 이름 · 배포 묶음 버킷 |
 | prod | `WEB_BUCKET` · `CF_DISTRIBUTION_ID` | 같은 스택의 화면 S3 버킷 · CloudFront 배포 ID |
 
 `prod` 환경에는 **Required reviewers** 와 **Deployment branches: `main` 만** 을 설정한다.

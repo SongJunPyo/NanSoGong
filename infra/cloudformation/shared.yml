@@ -10,7 +10,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 #   이미지는 한 번만 빌드해서 dev 에서 검증한 것을 그대로 prod 에 쓴다 → 저장소는 환경별로 나누지 않는다
 #     nansogong-api : 서버 이미지 (dev EC2 · prod ASG)
 #     nansogong-web : 화면 이미지 (nginx, dev EC2 전용. prod 화면은 S3 + CloudFront)
-#   dev · app 스택이 이 스택의 Export(GitHub OIDC 공급자 · 저장소 이름)로 배포 역할을 만든다 → 이 스택을 가장 먼저, 가장 나중에 지운다
+#   dev · prod 스택이 이 스택의 Export(GitHub OIDC 공급자 · 저장소 이름)로 배포 역할을 만든다 → 이 스택을 가장 먼저, 가장 나중에 지운다
 #   🚨 스택을 지우기 전에 이미지를 지워야 한다 (EmptyOnDelete 로 자동 삭제)
 Description: nansogong shared (ECR repositories, monthly budget alert, GitHub OIDC + build role)
 
@@ -153,13 +153,13 @@ Outputs:
     Description: GitHub 저장소 Variables AWS_BUILD_ROLE_ARN
     Value: !GetAtt BuildRole.Arn
   GitHubOidcProviderArn:
-    Description: dev · app 스택의 배포 역할이 가져다 쓴다
+    Description: dev · prod 스택의 배포 역할이 가져다 쓴다
     Value: !If
       - CreateOidc
       - !Ref GitHubOidcProvider
       - !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
     Export: { Name: nansogong-GitHubOidcProviderArn }
   GitHubRepository:
-    Description: dev · app 스택의 배포 역할이 가져다 쓴다
+    Description: dev · prod 스택의 배포 역할이 가져다 쓴다
     Value: !Ref GitHubRepository
     Export: { Name: nansogong-GitHubRepository }
