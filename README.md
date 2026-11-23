@@ -16,7 +16,7 @@
 .
 ├── .github/workflows/   # GitHub Actions: backend.yml(서버) · frontend.yml(화면)
 ├── backend/             # Spring Boot 서버 (build.gradle · gradlew · Dockerfile · src)
-│   └── src/             #   도메인별 패키지, resources/db/migration = Flyway SQL, api.http = 요청 모음
+│   └── src/             #   계층별 패키지(controller · service · repository · model · dto · exception · ai · common), resources/db/migration = Flyway SQL, api.http = 요청 모음
 ├── frontend/            # React · Vite 화면 (src/features = 도메인별 폴더)
 ├── mock/                # 🎭 외부 연동 목업 (국세청 · 기상청 · 특일 · 네이버 · POS · 거래처 · 마이데이터)
 ├── ml/                  # 🤖 수요 예측 실험 (Python · LightGBM · Jupyter)
@@ -46,9 +46,9 @@
 | 인프라 | **경모** | 개발 환경 · CI/CD · AWS · 모니터링 · 목업 · 데모 데이터, `common/` 설정(보안 · 외부 API 클라이언트) |
 | AI | **후상** | `ai/` 공통 틀, 에이전트의 제안 · 실행 계획 생성 · Tool Calling, 수요 예측(`ml/`), 각 도메인의 AI 기능(레시피 · 신메뉴 · 쿠폰 문구 · 운영 제안) |
 
-도메인별 담당입니다. 각 패키지의 `package-info.java` 에도 같은 내용과 요구사항 번호 · 개발 메모가 있습니다.
+도메인별 담당입니다. 백엔드는 [07_cicd](https://github.com/WONIT-A/07_cicd) 처럼 **계층별 패키지**(`controller` · `service` · `repository` · `model` · `dto` · `exception` · `ai`)를 같이 쓰고, 클래스 이름 앞에 도메인 이름을 붙여 구분합니다 (예: `InventoryService`, `StoreController`). 개발 메모까지 포함한 전체 표는 [개발 시작 안내 7-2장](docs/notice/2026-11-23-개발-시작-안내.md) 에 있습니다.
 
-| 백엔드 패키지 · 프론트 폴더 | 백엔드 | 프론트엔드 | AI | 유저 플로우 | 요구사항 |
+| 도메인 | 백엔드 | 프론트엔드 | AI | 유저 플로우 | 요구사항 |
 |---|---|---|---|---|---|
 | `auth` | 예원 | 소정 | — | UF-01, 02 | 구현-1-1, 1-3, 1-4, 1-5, 7-1, 7-2 |
 | `store` | 예원 | 소정 | — | UF-01, 02 | 구현-1-2, 1-6 |
@@ -324,7 +324,7 @@ AWS 키는 저장하지 않습니다. Actions 가 OIDC 로 역할을 잠깐 빌�
 |---|---|---|
 | dev · prod | `AWS_DEPLOY_ROLE_ARN` | 그 환경 전용 배포 역할 ARN |
 | dev | `DEV_INSTANCE_ID` | `nansogong-dev` 스택의 `InstanceId` |
-| prod | `CODEDEPLOY_APP` · `CODEDEPLOY_GROUP` · `ARTIFACT_BUCKET` | `nansogong-prod-app` 스택의 CodeDeploy 이름 · 배포 묶음 버킷 |
+| prod | `CODEDEPLOY_APP` · `CODEDEPLOY_GROUP` · `ARTIFACT_BUCKET` | `nansogong-prod` 스택의 CodeDeploy 이름 · 배포 묶음 버킷 |
 | prod | `WEB_BUCKET` · `CF_DISTRIBUTION_ID` | 같은 스택의 화면 S3 버킷 · CloudFront 배포 ID |
 
 `prod` 환경에는 **Required reviewers** 와 **Deployment branches: `main` 만** 을 설정한다.

@@ -1,13 +1,17 @@
 AWSTemplateFormatVersion: '2010-09-09'
-# 🚀 3/3 app: ALB · WAF · Auto Scaling 그룹(Graviton) · CodeDeploy · CloudFront · S3 · Route 53 · CloudWatch 알람
+# 🚀 prod 전체를 스택 하나로: 네트워크(VPC · NAT · 보안 그룹) · 데이터(RDS · Redis) · 앱(ALB · WAF · ASG · CodeDeploy · CloudFront · S3 · Route 53 · 알람)
 #   생성 (콘솔): CloudFormation > 스택 생성 > 새 리소스 사용(표준) > 템플릿 파일 업로드 → 이 파일
-#     스택 이름  nansogong-prod-app
+#     스택 이름  nansogong-prod   (shared 스택이 먼저 있어야 한다: GitHub OIDC 공급자 · 저장소 이름을 가져다 쓴다)
 #     입력       Environment=prod, DomainName=<도메인>, ApiDomainName=api.<도메인>, HostedZoneId=<드롭다운에서 선택>,
 #                AlbCertificateArn=<서울 인증서 ARN>, CloudFrontCertificateArn=<버지니아 인증서 ARN>, AlarmEmail=<알람 받을 메일>
+#                나머지는 기본값 (CloudFrontPrefixListId · DbEngineVersion 은 칸 설명대로 먼저 확인)
+#     스택 옵션  "스택 실패 옵션" 에서 "성공적으로 프로비저닝된 리소스 보존" 을 고르면, 중간에 실패해도 RDS 등 다 만든 것을 지우지 않는다
+#                → 원인을 고친 뒤 스택 "업데이트" 로 이어서 만들 수 있다 (기본값 "모든 스택 리소스 롤백" 이면 처음부터 30~40분 다시)
 #     검토 화면  "사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 승인합니다" 체크
 #   만든 뒤     출력 DeployRoleArn · CodeDeployApplication · CodeDeployDeploymentGroup · ArtifactBucket · WebBucket · DistributionId
 #               → GitHub Environment prod 변수 6개
-#   CloudFront 배포에 10~20분. shared · network · data 스택이 먼저 있어야 한다
+#   다 되기까지 40~50분 (RDS Multi-AZ 20~30분 → 서버 · ALB → CloudFront 10~20분. CloudFormation 이 순서를 알아서 정한다)
+#   🚨 지우기 전에 S3 버킷 두 개(WebBucket · ArtifactBucket)를 비운다 (비어 있지 않으면 삭제 실패). RDS 는 마지막 스냅숏을 남긴다
 #
 #   요청 흐름
 #     사장님 브라우저 → CloudFront(https://<도메인>)
@@ -15,10 +19,17 @@ AWSTemplateFormatVersion: '2010-09-09'
 #        └─ 그 외   → S3 (화면 파일, CloudFront 만 읽을 수 있음)
 #   화면과 API 가 같은 주소(<도메인>)라서 CORS · 쿠키 문제가 없다 (프론트는 VITE_API_BASE=/api 로 빌드)
 #
+#   네트워크 구조 (가용 영역 2개 = 서울 a · c)
+#     public  서브넷 x2  : ALB · NAT 게이트웨이
+#     private 서브넷 x2  : 서버 EC2 (밖으로 나갈 때만 NAT 사용, 밖에서 직접 들어올 수 없음)
+#     data    서브넷 x2  : RDS · ElastiCache (인터넷 경로 없음)
+#
+#   비밀값: DB 비밀번호는 이 스택이 nansogong/<env>/db 에 자동 생성한다 (사람이 정하지 않는다)
+#     API 키 · JWT 등은 nansogong/<env> 비밀에 콘솔에서 직접 넣는다 (infra/secrets/README.md)
+#     서버는 배포될 때 두 비밀 + DB · Redis 주소를 합쳐 환경변수로 쓴다 (infra/codedeploy/scripts/start.sh)
 #   서버 배포는 CodeDeploy 가 한다 (.github/workflows/backend.yml → infra/codedeploy/appspec.yml)
 #   ASG 가 새 EC2 를 띄우면 CodeDeploy 가 마지막으로 성공한 버전을 자동으로 깔아 준다
-#   🚨 스택을 지우기 전에 S3 버킷 두 개를 비운다 (비어 있지 않으면 삭제 실패): infra/README.md 참고
-Description: nansogong app (ALB, WAF, ASG, CodeDeploy, CloudFront, S3, Route53, alarms)
+Description: nansogong prod (VPC, NAT x2, RDS PostgreSQL Multi-AZ, ElastiCache Redis, ALB, WAF, ASG, CodeDeploy, CloudFront, S3, Route53, alarms)
 
 # 콘솔에서 스택을 만들 때 입력 칸을 묶어서 보여 준다 (동작에는 영향 없음). 콘솔 글자는 한글이 깨질 수 있어 영어로
 Metadata:
@@ -28,9 +39,15 @@ Metadata:
         Parameters: [Environment]
       - Label: { default: '2. Domain and certificates (ACM certificates are created by hand)' }
         Parameters: [DomainName, ApiDomainName, HostedZoneId, CloudFrontCertificateArn, AlbCertificateArn]
-      - Label: { default: '3. App servers (Auto Scaling)' }
+      - Label: { default: '3. Network' }
+        Parameters: [VpcCidr, CloudFrontPrefixListId]
+      - Label: { default: '4. Database (RDS PostgreSQL)' }
+        Parameters: [DbEngineVersion, DbInstanceClass, DbAllocatedStorage, DbMultiAz]
+      - Label: { default: '5. Cache (ElastiCache Redis)' }
+        Parameters: [CacheNodeType]
+      - Label: { default: '6. App servers (Auto Scaling)' }
         Parameters: [InstanceType, AsgMinSize, AsgMaxSize]
-      - Label: { default: '4. Alarms' }
+      - Label: { default: '7. Alarms' }
         Parameters: [AlarmEmail]
 
 Parameters:
@@ -38,6 +55,30 @@ Parameters:
     Type: String
     AllowedValues: [dev, prod]
     Default: prod
+  VpcCidr:
+    Type: String
+    Default: 10.20.0.0/16
+  CloudFrontPrefixListId:
+    Type: String
+    Default: pl-22a6434b
+    Description: 서울 리전의 CloudFront origin-facing 관리형 접두사 목록 ID. 콘솔 VPC > 관리형 접두사 목록 에서 com.amazonaws.global.cloudfront.origin-facing 을 검색해 같은 값인지 확인. ALB 는 CloudFront 에서 오는 요청만 받는다
+  DbInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+  DbAllocatedStorage:
+    Type: Number
+    Default: 20
+  DbMultiAz:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+  CacheNodeType:
+    Type: String
+    Default: cache.t4g.micro
+  DbEngineVersion:
+    Type: String
+    Default: '17.11'
+    Description: PostgreSQL 17 의 세부 버전. 오래된 버전은 새로 만들 수 없다 → 콘솔 RDS > 데이터베이스 생성 > PostgreSQL > 엔진 버전 목록에서 17.x 확인 (만들지 말고 취소)
   DomainName:
     Type: String
     Description: 화면 주소 (예 nansogong.com). CloudFront 에 연결
@@ -73,9 +114,318 @@ Parameters:
     Description: CloudWatch 알람을 받을 메일 (비우면 알림 메일 없음, 메일 인증 링크를 눌러야 받기 시작)
 
 Conditions:
+  IsProd: !Equals [!Ref Environment, prod]
   HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, '']]
 
 Resources:
+  # ════════════════════════════════════════════════════════
+  # 1. 네트워크: VPC · 서브넷 · NAT · 보안 그룹
+  # ════════════════════════════════════════════════════════
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}' }
+        - { Key: Environment, Value: !Ref Environment }
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - { Key: Environment, Value: !Ref Environment }
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  # ── 서브넷 ──────────────────────────────────────────────
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Select [0, !Cidr [!Ref VpcCidr, 6, 8]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-public-a' }
+  PublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Select [1, !Cidr [!Ref VpcCidr, 6, 8]]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-public-c' }
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Select [2, !Cidr [!Ref VpcCidr, 6, 8]]
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-private-a' }
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Select [3, !Cidr [!Ref VpcCidr, 6, 8]]
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-private-c' }
+  DataSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Select [4, !Cidr [!Ref VpcCidr, 6, 8]]
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-data-a' }
+  DataSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Select [5, !Cidr [!Ref VpcCidr, 6, 8]]
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-data-c' }
+
+  # ── 라우팅: public → 인터넷 게이트웨이 ──────────────────
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnetARoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref PublicSubnetA, RouteTableId: !Ref PublicRouteTable }
+  PublicSubnetCRoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref PublicSubnetC, RouteTableId: !Ref PublicRouteTable }
+
+  # ── NAT 게이트웨이 2개 (가용 영역마다 1개: 한쪽 영역이 죽어도 다른 쪽 서버는 밖으로 나갈 수 있다) ──
+  #    서버가 Claude API · 공공데이터 · ECR · Secrets Manager 를 부를 때 쓴다. 시간당 과금이 가장 큰 항목
+  NatEipA:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachment
+    Properties: { Domain: vpc }
+  NatEipC:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachment
+    Properties: { Domain: vpc }
+  NatA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEipA.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-nat-a' }
+  NatC:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEipC.AllocationId
+      SubnetId: !Ref PublicSubnetC
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-nat-c' }
+
+  PrivateRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties: { VpcId: !Ref Vpc }
+  PrivateRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatA
+  PrivateSubnetARoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref PrivateSubnetA, RouteTableId: !Ref PrivateRouteTableA }
+
+  PrivateRouteTableC:
+    Type: AWS::EC2::RouteTable
+    Properties: { VpcId: !Ref Vpc }
+  PrivateRouteC:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableC
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatC
+  PrivateSubnetCRoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref PrivateSubnetC, RouteTableId: !Ref PrivateRouteTableC }
+
+  # data 서브넷은 인터넷 경로가 없는 전용 라우트 테이블
+  DataRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: { VpcId: !Ref Vpc }
+  DataSubnetARoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref DataSubnetA, RouteTableId: !Ref DataRouteTable }
+  DataSubnetCRoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { SubnetId: !Ref DataSubnetC, RouteTableId: !Ref DataRouteTable }
+
+  # ── 보안 그룹: CloudFront → ALB(443) → 서버(8080) → RDS(5432) · Redis(6379) ──
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB - HTTPS from CloudFront only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourcePrefixListId: !Ref CloudFrontPrefixListId
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-alb' }
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: App EC2 - 8080 from ALB only (shell access via SSM, no SSH)   # 설명에는 한글을 쓸 수 없다
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-app' }
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: RDS - 5432 from app only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref AppSecurityGroup
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-db' }
+
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ElastiCache - 6379 from app only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref AppSecurityGroup
+      Tags:
+        - { Key: Name, Value: !Sub 'nansogong-${Environment}-redis' }
+
+  # ════════════════════════════════════════════════════════
+  # 2. 데이터: RDS PostgreSQL · ElastiCache Redis · DB 비밀번호
+  # ════════════════════════════════════════════════════════
+  # 🔐 DB 마스터 계정 (username · password). 비밀번호는 32자 무작위
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'nansogong/${Environment}/db'
+      Description: RDS master credentials (auto-generated)
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"nansogong"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\''`:;?#%&=+$ '
+      Tags:
+        - { Key: Environment, Value: !Ref Environment }
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub 'nansogong ${Environment} data subnets'
+      SubnetIds: [!Ref DataSubnetA, !Ref DataSubnetC]
+
+  # 로컬 docker compose(TZ=Asia/Seoul)와 같게: 매출 집계 date_trunc 등이 한국 시간 기준이 된다
+  DbParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Family: postgres17
+      Description: !Sub 'nansogong ${Environment} - timezone Asia/Seoul'
+      Parameters:
+        timezone: Asia/Seoul
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot              # 스택을 지우면 마지막 스냅숏을 남긴다 (필요 없으면 콘솔에서 스냅숏 삭제)
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub 'nansogong-${Environment}'
+      Engine: postgres
+      EngineVersion: !Ref DbEngineVersion # 로컬 postgres:17-alpine · Testcontainers 와 같은 메이저 버전 17
+      DBInstanceClass: !Ref DbInstanceClass
+      AllocatedStorage: !Ref DbAllocatedStorage
+      StorageType: gp3
+      StorageEncrypted: true
+      MultiAZ: !Ref DbMultiAz             # Standby 를 다른 가용 영역에 두고 장애 시 자동 전환
+      DBName: nansogong
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DbSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DbSecret}:SecretString:password}}'
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      DBParameterGroupName: !Ref DbParameterGroup
+      VPCSecurityGroups:
+        - !Ref DbSecurityGroup
+      PubliclyAccessible: false
+      BackupRetentionPeriod: !If [IsProd, 7, 1]
+      DeletionProtection: false           # 발표 후 스택째 지우기 위해 꺼 둔다. 오래 운영하게 되면 true
+      AutoMinorVersionUpgrade: true
+      Tags:
+        - { Key: Environment, Value: !Ref Environment }
+
+  # 비밀에 접속 주소도 함께 기록해 둔다 (콘솔에서 한눈에 보기 · 데모 데이터 넣을 때)
+  DbSecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref DbSecret
+      TargetId: !Ref Database
+      TargetType: AWS::RDS::DBInstance
+
+  CacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: !Sub 'nansogong ${Environment} data subnets'
+      SubnetIds: [!Ref DataSubnetA, !Ref DataSubnetC]
+
+  # 🧠 Redis 2노드 (primary + replica, 다른 가용 영역). primary 가 죽으면 replica 가 자동 승격
+  #    전송 중 암호화(TLS)를 켠다 → 서버는 REDIS_SSL=true 로 접속한다 (이 스택의 User data 가 넣어 준다)
+  Redis:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupId: !Sub 'nansogong-${Environment}'
+      ReplicationGroupDescription: !Sub 'nansogong ${Environment} redis'
+      Engine: redis
+      EngineVersion: '7.1'                # 오픈소스 Redis 7.0 호환 → 로컬 redis:7.0-alpine
+      CacheNodeType: !Ref CacheNodeType
+      NumCacheClusters: 2
+      AutomaticFailoverEnabled: true
+      MultiAZEnabled: true
+      TransitEncryptionEnabled: true
+      AtRestEncryptionEnabled: true
+      CacheSubnetGroupName: !Ref CacheSubnetGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+      Tags:
+        - { Key: Environment, Value: !Ref Environment }
+
+  # ════════════════════════════════════════════════════════
+  # 3. 앱: 서버(ASG) · ALB · WAF · CodeDeploy · 화면(S3 + CloudFront) · 도메인 · 알람 · 배포 역할
+  # ════════════════════════════════════════════════════════
   # ── 서버 EC2 권한 ────────────────────────────────────────
   InstanceRole:
     Type: AWS::IAM::Role
@@ -131,7 +481,7 @@ Resources:
         InstanceType: !Ref InstanceType
         IamInstanceProfile: { Arn: !GetAtt InstanceProfile.Arn }
         SecurityGroupIds:
-          - !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-AppSg' }
+          - !Ref AppSecurityGroup
         MetadataOptions:
           HttpTokens: required              # IMDSv2 만 허용
         BlockDeviceMappings:
@@ -168,8 +518,8 @@ Resources:
               LOG_GROUP=${AppLogGroup}
               EOF
               chmod 600 /etc/nansogong/infra.env
-            - DbEndpoint: !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-DbEndpoint' }
-              RedisEndpoint: !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-RedisEndpoint' }
+            - DbEndpoint: !GetAtt Database.Endpoint.Address
+              RedisEndpoint: !GetAtt Redis.PrimaryEndPoint.Address
 
   # ── ALB ─────────────────────────────────────────────────
   Alb:
@@ -177,16 +527,16 @@ Resources:
     Properties:
       Name: !Sub 'nansogong-${Environment}'
       Scheme: internet-facing
-      Subnets: !Split [',', !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-PublicSubnets' }]
+      Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetC]
       SecurityGroups:
-        - !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-AlbSg' }
+        - !Ref AlbSecurityGroup
       LoadBalancerAttributes:
         - { Key: routing.http.drop_invalid_header_fields.enabled, Value: 'true' }
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      VpcId: !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-VpcId' }
+      VpcId: !Ref Vpc
       Protocol: HTTP
       Port: 8080
       TargetType: instance
@@ -282,9 +632,10 @@ Resources:
   #   ALB 는 헬스체크를 통과한 서버에만 요청을 보내므로 사용자 영향은 없다
   Asg:
     Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: [PrivateRouteA, PrivateRouteC, PrivateSubnetARoute, PrivateSubnetCRoute]   # NAT 경로가 생긴 뒤에 서버를 띄운다 (User data 가 dnf · CodeDeploy 에이전트를 받으려면 밖으로 나가야 한다)
     Properties:
       AutoScalingGroupName: !Sub 'nansogong-${Environment}-api'
-      VPCZoneIdentifier: !Split [',', !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-PrivateSubnets' }]
+      VPCZoneIdentifier: [!Ref PrivateSubnetA, !Ref PrivateSubnetC]
       LaunchTemplate:
         LaunchTemplateId: !Ref LaunchTemplate
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
@@ -570,7 +921,7 @@ Resources:
       MetricName: CPUUtilization
       Dimensions:
         - Name: DBInstanceIdentifier
-          Value: !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-DbInstanceId' }
+          Value: !Ref Database
       Statistic: Average
       Period: 300
       EvaluationPeriods: 2
@@ -587,7 +938,7 @@ Resources:
       MetricName: FreeStorageSpace
       Dimensions:
         - Name: DBInstanceIdentifier
-          Value: !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-DbInstanceId' }
+          Value: !Ref Database
       Statistic: Minimum
       Period: 300
       EvaluationPeriods: 1
@@ -670,3 +1021,11 @@ Outputs:
     Value: !Ref Distribution
   AppLogGroup:
     Value: !Ref AppLogGroup
+  DbEndpoint:
+    Description: RDS 주소 (서버 설정에는 이미 들어가 있다)
+    Value: !GetAtt Database.Endpoint.Address
+  RedisEndpoint:
+    Value: !GetAtt Redis.PrimaryEndPoint.Address
+  DbSecretArn:
+    Description: DB 계정 비밀 (Secrets Manager nansogong/<env>/db)
+    Value: !Ref DbSecret

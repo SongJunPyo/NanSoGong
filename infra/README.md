@@ -3,11 +3,11 @@
 | | dev (작게) | prod |
 |---|---|---|
 | 구성 | EC2 t4g.small **1대**에서 docker compose (화면 nginx · 서버 · PostgreSQL · Redis · 목업) | CloudFront · S3 · ALB · WAF · ASG(Graviton 2대) · RDS Multi-AZ · ElastiCache 2노드 · NAT 2개 |
-| 템플릿 | `cloudformation/dev.yml` | `cloudformation/network.yml` → `data.yml` → `app.yml` |
+| 템플릿 (스택) | `cloudformation/dev.yml` (`nansogong-dev`) | `cloudformation/prod.yml` (`nansogong-prod`, 스택 하나) |
 | 배포 시점 | `dev` 머지 | `main` 머지 + 승인 |
 | 배포 방식 | Actions → SSM Run Command → `dev/update.sh` (ECR 이미지로 compose 갱신) | Actions → CodeDeploy (`codedeploy/appspec.yml`, 한 대씩 교체 · 실패 시 자동 롤백) |
 | Spring 프로필 | `dev` (DB · Redis 가 같은 EC2 의 컨테이너) | `aws,prod` |
-| 비밀값 (Secrets Manager) | `nansogong/dev` | `nansogong/prod` + `nansogong/prod/db`(data 스택이 자동 생성) |
+| 비밀값 (Secrets Manager) | `nansogong/dev` | `nansogong/prod` + `nansogong/prod/db`(prod 스택이 자동 생성) |
 | 접속 | `http://<고정 IP>` (팀원 IP 만 허용) | `https://<도메인>` |
 | 하루 비용(대략) | $0.7 | $8.8 |
 
@@ -21,9 +21,7 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
 | 파일 | 용도 |
 |---|---|
 | `cloudformation/shared.yml` | (계정에 한 번) ECR 저장소 `nansogong-api` · `nansogong-web`, AWS Budgets $100 알림, GitHub OIDC 공급자, 빌드 역할 `nansogong-build` |
-| `cloudformation/network.yml` | VPC, public · private · data 서브넷 (각 2개 가용 영역), NAT 게이트웨이 2개, 보안 그룹 (CloudFront → ALB → 서버 → RDS · Redis) |
-| `cloudformation/data.yml` | RDS PostgreSQL 17 Multi-AZ (timezone=Asia/Seoul), ElastiCache Redis 7.1 2노드(TLS), DB 비밀번호 자동 생성 |
-| `cloudformation/app.yml` | ALB(HTTPS) · WAF · ASG(t4g, arm64) · CodeDeploy · S3(화면 · 배포 묶음) · CloudFront · Route 53 · CloudWatch 알람, 배포 역할 `nansogong-deploy-prod` |
+| `cloudformation/prod.yml` | prod 전체를 스택 하나로. ① 네트워크: VPC, public · private · data 서브넷 (각 2개 가용 영역), NAT 2개, 보안 그룹 (CloudFront → ALB → 서버 → RDS · Redis) ② 데이터: RDS PostgreSQL 17 Multi-AZ (timezone=Asia/Seoul), ElastiCache Redis 7.1 2노드(TLS), DB 비밀번호 자동 생성 ③ 앱: ALB(HTTPS) · WAF · ASG(t4g, arm64) · CodeDeploy · S3(화면 · 배포 묶음) · CloudFront · Route 53 · CloudWatch 알람, 배포 역할 `nansogong-deploy-prod` |
 | `cloudformation/dev.yml` | dev EC2 1대 (Docker · compose 설치, 고정 IP, SSM 접속, ECR · `nansogong/dev` 읽기 권한), 배포 역할 `nansogong-deploy-dev` |
 | `secrets/` | 서버 비밀값(API 키 · JWT 등)을 콘솔에서 넣는 방법과 붙여넣을 JSON 틀 (`secrets/README.md`) |
 | `codedeploy/` | prod 배포 설명서(`appspec.yml`)와 단계별 스크립트 (끄기 → 이미지 받기 → 비밀값으로 실행 → 헬스체크) |
@@ -37,9 +35,9 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
 |---|---|---|---|---|
 | `nansogong-build` | shared | `dev` · `main` 브랜치 | ECR 두 저장소에 이미지 올리기 | 저장소 Variables `AWS_BUILD_ROLE_ARN` (`BuildRoleArn`) |
 | `nansogong-deploy-dev` | dev | Environment `dev` | dev EC2 에 SSM 명령 보내기 | Environment `dev` → `AWS_DEPLOY_ROLE_ARN` (`DeployRoleArn`) |
-| `nansogong-deploy-prod` | app | Environment `prod` | CodeDeploy 배포 · 화면 S3 업로드 · CloudFront 캐시 비우기 | Environment `prod` → `AWS_DEPLOY_ROLE_ARN` (`DeployRoleArn`) |
+| `nansogong-deploy-prod` | prod | Environment `prod` | CodeDeploy 배포 · 화면 S3 업로드 · CloudFront 캐시 비우기 | Environment `prod` → `AWS_DEPLOY_ROLE_ARN` (`DeployRoleArn`) |
 
-역할 이름이 정해져 있어서, 스택 검토 화면에서 **"사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 승인합니다"** 를 체크해야 만들어집니다 (shared · dev · app).
+역할 이름이 정해져 있어서, 스택 검토 화면에서 **"사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 승인합니다"** 를 체크해야 만들어집니다 (shared · dev · prod).
 
 ## 콘솔에서 스택 만들기 (공통)
 
@@ -82,18 +80,17 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
 6. 스택 출력 `Url`(`http://<고정 IP>`) 에서 화면, `http://<고정 IP>/api/ping` 에서 연결 확인. 이후 `dev` 머지마다 자동 갱신
 7. 데모 데이터: `bash /opt/nansogong/infra/demo-data/load.sh local`
 
-## prod 만들기 (2~3시간)
+## prod 만들기 (약 1~2시간)
 
 1. 비밀값 `nansogong/prod`: [`secrets/README.md`](secrets/README.md) 대로 (`secrets/prod.example.json`). DB · Redis 값은 넣지 않는다
-2. 스택 3개를 순서대로 (앞 스택이 `CREATE_COMPLETE` 된 뒤 다음)
+2. 스택 `nansogong-prod` (`prod.yml`, 40~50분: RDS Multi-AZ 20~30분 + CloudFront 10~20분)
+   - 입력: `Environment=prod`, `DomainName=<도메인>`, `ApiDomainName=api.<도메인>`, `HostedZoneId`(드롭다운), `AlbCertificateArn=<서울 인증서>`, `CloudFrontCertificateArn=<버지니아 인증서>`, `AlarmEmail=<메일>`. 나머지는 기본값
+   - 만들기 전 확인: VPC > 관리형 접두사 목록에서 `com.amazonaws.global.cloudfront.origin-facing` 의 ID 가 `CloudFrontPrefixListId` 기본값(`pl-22a6434b`)과 같은지
+   - 스택 옵션 > **스택 실패 옵션: "성공적으로 프로비저닝된 리소스 보존"** 을 권장. 중간(예: CloudFront)에서 실패해도 다 만든 RDS 등을 지우지 않아서, 원인을 고친 뒤 스택 **업데이트**로 이어 갈 수 있다 (기본값이면 전부 지우고 처음부터 다시)
+   - IAM 승인 체크
+   - 실패하면 이벤트 탭의 `CREATE_FAILED` 사유 확인. PostgreSQL 버전 오류면 RDS > 데이터베이스 생성 화면의 엔진 버전 목록에서 17.x 를 확인해 `DbEngineVersion` 에
 
-   | 스택 이름 | 템플릿 | 입력 | 걸리는 시간 |
-   |---|---|---|---|
-   | `nansogong-prod-network` | `network.yml` | `Environment=prod`. 만들기 전에 VPC > 관리형 접두사 목록에서 `com.amazonaws.global.cloudfront.origin-facing` 의 ID 가 `CloudFrontPrefixListId` 기본값(`pl-22a6434b`)과 같은지 확인 | 약 5분 |
-   | `nansogong-prod-data` | `data.yml` | `Environment=prod`. 실패하면 RDS > 데이터베이스 생성 화면의 엔진 버전 목록에서 17.x 를 확인해 `DbEngineVersion` 에 | 20~30분 |
-   | `nansogong-prod-app` | `app.yml` | `Environment=prod`, `DomainName=<도메인>`, `ApiDomainName=api.<도메인>`, `HostedZoneId`(드롭다운), `AlbCertificateArn=<서울 인증서>`, `CloudFrontCertificateArn=<버지니아 인증서>`, `AlarmEmail=<메일>`. IAM 승인 체크 | 10~20분 |
-
-3. app 스택 출력값을 GitHub Environment `prod` 의 Variables 에
+3. prod 스택 출력값을 GitHub Environment `prod` 의 Variables 에
 
    | 변수 | 출력 |
    |---|---|
@@ -118,9 +115,9 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
 ## 지우기 (🚨 남겨 두면 계속 과금)
 
 1. prod: S3 > `WEB_BUCKET` · `ARTIFACT_BUCKET` 버킷을 각각 **비우기**
-2. CloudFormation 에서 스택 **삭제**: `nansogong-prod-app` → `nansogong-prod-data` → `nansogong-prod-network` (각각 `DELETE_COMPLETE` 확인 후 다음)
+2. CloudFormation 에서 `nansogong-prod` 스택 **삭제** (`DELETE_COMPLETE` 까지 20~30분)
 3. dev: `nansogong-dev` 삭제 (고정 IP 도 함께 반납)
-4. 다 끝났으면 `nansogong-shared` 삭제 (ECR 이미지 · 예산 알림 · 빌드 역할 · OIDC 공급자). dev · app 스택이 남아 있으면 Export 를 쓰는 중이라 삭제가 거절된다
+4. 다 끝났으면 `nansogong-shared` 삭제 (ECR 이미지 · 예산 알림 · 빌드 역할 · OIDC 공급자). dev · prod 스택이 남아 있으면 Export 를 쓰는 중이라 삭제가 거절된다
 5. 직접 지울 것
    - RDS 최종 스냅숏(`DeletionPolicy: Snapshot`): RDS > 스냅숏 (남기면 월 소액)
    - Secrets Manager 비밀(`nansogong/dev`, `nansogong/prod`): 작업 > 보안 암호 삭제 (7~30일 대기 후 삭제)
@@ -133,7 +130,7 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
 - 테이블은 Flyway 가 만든다. RDS 에서 손으로 표를 만들거나 고치지 않는다 (dev · prod 구조가 달라진다)
 - 비밀값을 바꾸면 다시 배포해야 반영된다 (prod: Actions 의 `deploy-prod` Re-run / dev: `update.sh`)
 - IAM 역할 권한을 바꿀 때는 콘솔에서 직접 고치지 말고 템플릿을 고친 뒤 스택 **업데이트**(현재 템플릿 교체 → 파일 업로드)로 반영한다. 직접 고치면 다음 업데이트 때 템플릿 내용으로 되돌아간다
-- ASG 헬스체크는 EC2 기준입니다. 첫 배포 전에는 서버 컨테이너가 없어서 ALB 헬스체크가 실패하는데, ELB 기준이면 ASG 가 EC2 를 계속 갈아 끼우기 때문 (`app.yml` 주석)
+- ASG 헬스체크는 EC2 기준입니다. 첫 배포 전에는 서버 컨테이너가 없어서 ALB 헬스체크가 실패하는데, ELB 기준이면 ASG 가 EC2 를 계속 갈아 끼우기 때문 (`prod.yml` 주석)
 - ALB 는 CloudFront 에서 오는 요청만 받는다 (보안 그룹 = CloudFront 관리형 접두사 목록). `api.<도메인>` 으로 직접 접속하면 연결되지 않는 것이 정상
 - POS · 거래처 · 마이데이터는 MVP 에서 목업이다. prod 에서 목업(WireMock)을 어디에 띄울지는 아직 정하지 않았다 → 정한 뒤 `POS_BASE_URL` 등을 `nansogong/prod` 에 넣는다 (넣지 않으면 서버가 뜨지 않는다)
 - prod 의 Prometheus · Grafana 는 아직 템플릿에 없다. 지금은 CloudWatch 지표 · 알람 · 로그로 본다

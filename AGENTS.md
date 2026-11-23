@@ -21,6 +21,7 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 
 | 문서 | 언제 보나 |
 |---|---|
+| [WONIT-A/07_cicd](https://github.com/WONIT-A/07_cicd) | **구조의 기준.** 새 패키지 · 폴더 · 클래스를 만들 때 같은 계층의 파일 모양을 먼저 참고한다 (백엔드 `src/main/java/com/example/wonit/`, 프론트 `frontend/src/`, 테스트 `src/test/…/TransferFlowTest.java`, 프롬프트 `src/main/resources/prompts/`) |
 | [README.md](README.md) | 실행 방법, 환경 변경 규칙, 브랜치 전략, 자주 나는 문제 |
 | [docs/notice/2026-11-23-개발-시작-안내.md](docs/notice/2026-11-23-개발-시작-안내.md) | 패키지 · 폴더 구조, 계층별 코드 규칙, 도메인 담당 |
 | [docs/notice/2026-11-23-2주-구현-계획서.md](docs/notice/2026-11-23-2주-구현-계획서.md) | 일자별 할 일 · 완료 기준, 2주 범위 / 3주차로 넘긴 것 |
@@ -104,7 +105,10 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 
 ### 3-1. 패키지 구조 (07_cicd 와 같은 계층별)
 
-> ⚠️ 2026-11-23 기준 `dev` 에는 아직 기능별 패키지(`auth/`, `inventory/` …)가 있고, **구조 정리 PR** 에서 아래 구조로 바뀝니다. 새 코드는 아래 구조를 기준으로 작성합니다. 지금 구조가 어느 쪽인지 먼저 확인하고, 애매하면 사용자에게 묻습니다.
+> [07_cicd](https://github.com/WONIT-A/07_cicd) 의 `src/main/java/com/example/wonit/` 와 같은 계층별 구조입니다 (2026-11-23 구조 정리 PR 에서 기능별 패키지 `auth/` · `inventory/` … 를 없앴습니다).
+> - **기능별 패키지(`com.nansogong.inventory` 등)를 새로 만들지 않는다.** 도메인은 패키지가 아니라 클래스 이름 접두사로 나눈다 ([2-1](#2-1-java-백엔드)).
+> - 아래 패키지 말고 새 패키지가 필요해 보이면 먼저 07_cicd 에 같은 역할의 패키지가 있는지 확인하고, 없으면 만들기 전에 사용자에게 묻는다.
+> - 클래스 모양이 애매하면 07_cicd 의 같은 계층 파일(`AccountController`, `AccountService`, `Account`, `AccountResponse`, `AccountNotFoundException`, `BankTools` 등)을 참고한다.
 
 ```
 backend/src/main/java/com/nansogong/
@@ -158,7 +162,7 @@ backend/src/main/resources/
 
 ### 4-1. 폴더 구조 (07_cicd 와 같은 종류별)
 
-> ⚠️ 지금의 `src/features/` 는 구조 정리 PR 에서 아래처럼 바뀝니다.
+> ⚠️ 지금의 `src/features/` 는 구조 정리 PR 에서 아래처럼 바뀝니다. 기준은 [07_cicd](https://github.com/WONIT-A/07_cicd) 의 `frontend/src/` (api · components · hooks · utils) 입니다.
 
 ```
 frontend/src/
@@ -209,7 +213,7 @@ frontend/src/
 
 - API 키 · 비밀번호는 **`.env` 에만**. 코드 · `application*.yml` · 커밋 메시지 · 로그에 넣지 않는다.
 - `.env` 는 커밋하지 않는다 (`.env.example` 만 커밋).
-- 새 환경변수를 추가하면 함께 바꿀 곳: `.env.example` + `application.yml`(로컬 기본값) + `application-aws.yml` + `infra/secrets-put.sh` 의 KEYS. (`app.*` 설정이면 `common/AppProperties.java` 도)
+- 새 환경변수를 추가하면 함께 바꿀 곳: `.env.example` + `application.yml`(로컬 기본값) + `application-aws.yml` + `infra/secrets/README.md` 의 키 목록 · `*.example.json`. (`app.*` 설정이면 `common/AppProperties.java` 도)
 - 외부 API 응답 모양을 바꾸면 `mock/mappings/*.json` 도 같은 PR 에서 고친다.
 
 ### 6-2. 브랜치
@@ -218,7 +222,7 @@ frontend/src/
 - 시작 전 `git fetch origin && git merge origin/dev`.
 - 🚨 **`rebase` · `push --force` · `dev`/`main` 직접 push 금지.** PR 은 **Create a merge commit** 으로만.
 - **기능 하나 = PR 하나.**
-- AI 도구는 사용자가 요청할 때만 커밋 · push 한다.
+- AI 도구는 **소기능이 끝날 때마다 커밋**한다 (아래 [커밋 단위](#커밋-단위-소기능마다-커밋)). **push 는 사용자가 요청할 때만** 한다.
 
 ### 6-3. 커밋 메시지
 
@@ -238,6 +242,16 @@ frontend/src/
 - 타입은 영문 대문자, 콜론 뒤 공백 한 칸.
 - 제목은 50자 이내, 마침표 없이, `추가` · `수정` · `개선` · `제거` 같은 **명사형**으로 끝낸다.
 - 한 커밋에는 **하나의 논리적 변경**만. 파일 이름 변경 · 삭제는 목적에 맞는 타입으로 분류한다.
+
+#### 커밋 단위 (소기능마다 커밋)
+
+기능 하나(PR 하나)를 끝까지 만든 뒤 한 번에 커밋하지 않고, **소기능이 하나 끝날 때마다 커밋**한다. 커밋이 잘게 남아 있어야 나중에 코드가 꼬이거나 문제가 생겼을 때 직전의 정상 상태로 쉽게 되돌리고, 어느 커밋에서 문제가 생겼는지 찾기 쉽다.
+
+- **소기능** = 따로 떼어도 의미가 있는 작은 단위. 예: 표 하나의 Flyway SQL + 엔티티, Repository, service 메서드 하나(+ 테스트), API 하나, 화면 컴포넌트 하나, 문서 수정 하나.
+- **커밋 전에 확인한다.** 백엔드는 최소 `./gradlew compileJava` (테스트가 있는 소기능은 `./gradlew test`), 프론트는 `npm run lint`. 빌드가 깨진 상태로는 커밋하지 않는다. 확인 못 한 검증이 있으면 커밋 후 보고에 그대로 적는다.
+- 커밋에는 **그 소기능의 파일만** 넣는다. `git add .` · `git add -A` 대신 파일을 골라서 add 하고, `.env` 같은 비밀값 파일이 섞이지 않았는지 `git status` 로 확인한다.
+- AI 도구는 소기능을 끝내면 사용자에게 다시 묻지 않고 커밋하고, 커밋 해시 · 메시지를 보고한다. 단, 사용자가 "커밋하지 마" 라고 하면 따른다.
+- 커밋은 내 브랜치에만 쌓이고, 원격 반영(push)은 사용자가 요청할 때만 한다. 이미 push 한 커밋은 고치거나 지우지 않는다 (`commit --amend` · `reset` 후 force push 금지). 되돌릴 때는 `git revert`.
 
 ### 6-4. 완료의 정의
 
