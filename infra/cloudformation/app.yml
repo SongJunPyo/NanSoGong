@@ -1,11 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
 # 🚀 3/3 app: ALB · WAF · Auto Scaling 그룹(Graviton) · CodeDeploy · CloudFront · S3 · Route 53 · CloudWatch 알람
-#   생성:  aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-prod-app \
-#            --template-file infra/cloudformation/app.yml --capabilities CAPABILITY_IAM \
-#            --parameter-overrides Environment=prod DomainName=<도메인> ApiDomainName=api.<도메인> \
-#              HostedZoneId=<Z...> AlbCertificateArn=<서울 인증서 ARN> CloudFrontCertificateArn=<버지니아 인증서 ARN> \
-#              AlarmEmail=<알람 받을 메일>
-#   CloudFront 배포에 10~20분. network · data 스택이 먼저 있어야 한다
+#   생성 (콘솔): CloudFormation > 스택 생성 > 새 리소스 사용(표준) > 템플릿 파일 업로드 → 이 파일
+#     스택 이름  nansogong-prod-app
+#     입력       Environment=prod, DomainName=<도메인>, ApiDomainName=api.<도메인>, HostedZoneId=<드롭다운에서 선택>,
+#                AlbCertificateArn=<서울 인증서 ARN>, CloudFrontCertificateArn=<버지니아 인증서 ARN>, AlarmEmail=<알람 받을 메일>
+#     검토 화면  "사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 승인합니다" 체크
+#   만든 뒤     출력 DeployRoleArn · CodeDeployApplication · CodeDeployDeploymentGroup · ArtifactBucket · WebBucket · DistributionId
+#               → GitHub Environment prod 변수 6개
+#   CloudFront 배포에 10~20분. shared · network · data 스택이 먼저 있어야 한다
 #
 #   요청 흐름
 #     사장님 브라우저 → CloudFront(https://<도메인>)
@@ -593,7 +595,60 @@ Resources:
       ComparisonOperator: LessThanThreshold
       AlarmActions: [!Ref AlarmTopic]
 
+  # ── GitHub Actions 의 배포 역할 ──────────────────────────
+  #   Environment prod 의 잡만: 배포 묶음 S3 업로드 · CodeDeploy 배포 · 화면 S3 업로드 · CloudFront 캐시 비우기
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'nansogong-deploy-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Federated: !ImportValue nansogong-GitHubOidcProviderArn }
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub: !Sub
+                  - 'repo:${Repo}:environment:${Environment}'      # 🚨 브랜치가 아니라 Environment 이름으로 확인한다
+                  - { Repo: !ImportValue nansogong-GitHubRepository }
+      Policies:
+        - PolicyName: deploy-nansogong
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: UploadDeployBundle
+                Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub '${ArtifactBucket.Arn}/*'
+              - Sid: StartAndWatchCodeDeploy
+                Effect: Allow
+                Action:
+                  - codedeploy:CreateDeployment
+                  - codedeploy:GetDeployment
+                  - codedeploy:GetDeploymentConfig
+                  - codedeploy:GetApplicationRevision
+                  - codedeploy:RegisterApplicationRevision
+                Resource:
+                  - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${CodeDeployApplication}'
+                  - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${CodeDeployApplication}/${DeploymentGroup}'
+                  - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:*'
+              - Sid: UploadWeb
+                Effect: Allow
+                Action: [s3:ListBucket, s3:PutObject, s3:DeleteObject]
+                Resource:
+                  - !GetAtt WebBucket.Arn
+                  - !Sub '${WebBucket.Arn}/*'
+              - Sid: InvalidateCloudFront
+                Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
 Outputs:
+  DeployRoleArn:
+    Description: GitHub Environments 변수 AWS_DEPLOY_ROLE_ARN
+    Value: !GetAtt DeployRole.Arn
   SiteUrl:
     Value: !Sub 'https://${DomainName}'
   AsgName:

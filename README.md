@@ -21,7 +21,7 @@
 ├── mock/                # 🎭 외부 연동 목업 (국세청 · 기상청 · 특일 · 네이버 · POS · 거래처 · 마이데이터)
 ├── ml/                  # 🤖 수요 예측 실험 (Python · LightGBM · Jupyter)
 ├── monitoring/          # 로컬 Prometheus 설정 · Grafana 상황판(JSON)
-├── infra/               # AWS: CloudFormation 템플릿 · CodeDeploy 배포 스크립트 · dev 갱신 스크립트 · 데모 데이터 · IAM 정책 · 비밀값 등록
+├── infra/               # AWS: CloudFormation 템플릿 · CodeDeploy 배포 스크립트 · dev 갱신 스크립트 · 데모 데이터 · 비밀값 틀
 ├── docs/                # 팀 문서 (changes/ = 개발 환경 변경 기록)
 ├── docker-compose.yml   # 🐳 로컬 개발용 서버 · PostgreSQL · Redis · 목업 (· 화면 nginx · Prometheus · Grafana · Jupyter)
 ├── docker-compose.dev.yml # AWS dev EC2 전용 덧씌우기 (ECR 이미지 · 80 포트 화면). 내 PC 에서는 쓰지 않는다
@@ -67,7 +67,7 @@
 | 1-14 메뉴명 유사도 연결 후보 · 3-4 품목 검색 | Flyway V1 에서 `pg_trgm` 확장 |
 | 1-13 · 3-6 · 6-1 · 6-9 주기 실행 | `@Scheduled` + ShedLock (서버 여러 대여도 한 번만), 시간대 Asia/Seoul 고정 |
 | 6-1 이동평균 → LightGBM, 시간 순서 검증 | `ml/` Jupyter 환경 (`docker compose --profile ml`) |
-| 6-2 · 7-1 API 키는 Secrets Manager | AWS 비밀값은 `nansogong/dev` · `nansogong/prod` 비밀 (`infra/secrets-put.sh`) |
+| 6-2 · 7-1 API 키는 Secrets Manager | AWS 비밀값은 `nansogong/dev` · `nansogong/prod` 비밀 (콘솔에서 넣기: `infra/secrets/README.md`) |
 | 7-3 React + Vite PWA 모바일 우선 | vite-plugin-pwa, Tailwind, shadcn/ui |
 
 ---
@@ -173,7 +173,7 @@ cd frontend && npm ci             # package-lock.json 이 바뀐 날만
 | 바꾸는 것 | 함께 바꿀 곳 |
 |---|---|
 | PostgreSQL · Redis 버전 | `docker-compose.yml` + `backend/src/test/.../TestcontainersConfig.java` + 운영 RDS · ElastiCache |
-| 새 환경변수 | `.env.example` + `application.yml`(로컬 기본값) + `application-aws.yml` + `infra/secrets-put.sh` 의 KEYS + Secrets Manager(dev · prod 둘 다) |
+| 새 환경변수 | `.env.example` + `application.yml`(로컬 기본값) + `application-aws.yml` + `infra/secrets/README.md` 키 목록 · 틀 파일 + Secrets Manager(dev · prod 둘 다) |
 | 엔티티 추가 · 수정 | `backend/src/main/resources/db/migration/V<연월일시분>__설명.sql` (예: `V202611201430__create_store.sql`). 🚨 머지된 파일은 고치지 않고 새 파일로 |
 | 외부 API 응답 모양 | `mock/mappings/*.json` (목업도 같은 PR 에서 함께 고친다) |
 | `app.*` 설정 추가 | `application.yml` + `common/AppProperties.java` (+ AWS 값이면 `application-aws.yml`) |
@@ -266,7 +266,7 @@ git switch -c <내 이름> && git push -u origin <내 이름>
 | `backend.yml` | 테스트 | 테스트 → arm64 이미지 빌드 → ECR → dev EC2 갱신 (SSM) | 테스트 → (같은 이미지 재사용) → 승인 → CodeDeploy 로 prod ASG 한 대씩 교체 |
 | `frontend.yml` | lint + build | nginx 화면 이미지 빌드 → ECR → dev EC2 갱신 (SSM) | build → 승인 → prod S3 · CloudFront |
 
-AWS 키는 저장하지 않습니다. Actions 가 OIDC 로 역할을 잠깐 빌려 씁니다 (역할 만들기는 [`infra/README.md`](infra/README.md)).
+AWS 키는 저장하지 않습니다. Actions 가 OIDC 로 역할을 잠깐 빌려 씁니다 (역할은 CloudFormation 스택이 만든다: [`infra/README.md`](infra/README.md)).
 
 **저장소 Settings > Secrets and variables > Actions > Variables** (공통)
 

@@ -14,60 +14,64 @@
 두 환경은 리소스 · 비밀값 · 배포 권한을 하나도 같이 쓰지 않습니다. 이미지 저장소(ECR)만 공용이고, dev 에서 검증한 이미지를 그대로 prod 에 씁니다.
 dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · HTTPS 인증서 · DNS 같은 문제는 dev 에서 드러나지 않습니다.** prod 를 발표 전에 미리 띄워 리허설로 확인합니다.
 
+**모든 작업은 AWS 웹 콘솔에서 합니다.** 내 PC 에 AWS CLI 를 설치하지 않아도 됩니다. 랜덤 값이 필요할 때만 콘솔 안의 CloudShell(`>_` 아이콘)을 씁니다.
+
 ## 파일
 
 | 파일 | 용도 |
 |---|---|
-| `cloudformation/shared.yml` | (계정에 한 번) ECR 저장소 `nansogong-api` · `nansogong-web`, AWS Budgets $100 알림 |
+| `cloudformation/shared.yml` | (계정에 한 번) ECR 저장소 `nansogong-api` · `nansogong-web`, AWS Budgets $100 알림, GitHub OIDC 공급자, 빌드 역할 `nansogong-build` |
 | `cloudformation/network.yml` | VPC, public · private · data 서브넷 (각 2개 가용 영역), NAT 게이트웨이 2개, 보안 그룹 (CloudFront → ALB → 서버 → RDS · Redis) |
 | `cloudformation/data.yml` | RDS PostgreSQL 17 Multi-AZ (timezone=Asia/Seoul), ElastiCache Redis 7.1 2노드(TLS), DB 비밀번호 자동 생성 |
-| `cloudformation/app.yml` | ALB(HTTPS) · WAF · ASG(t4g, arm64) · CodeDeploy · S3(화면 · 배포 묶음) · CloudFront · Route 53 · CloudWatch 알람 |
-| `cloudformation/dev.yml` | dev EC2 1대 (Docker · compose 설치, 고정 IP, SSM 접속, ECR · `nansogong/dev` 읽기 권한) |
+| `cloudformation/app.yml` | ALB(HTTPS) · WAF · ASG(t4g, arm64) · CodeDeploy · S3(화면 · 배포 묶음) · CloudFront · Route 53 · CloudWatch 알람, 배포 역할 `nansogong-deploy-prod` |
+| `cloudformation/dev.yml` | dev EC2 1대 (Docker · compose 설치, 고정 IP, SSM 접속, ECR · `nansogong/dev` 읽기 권한), 배포 역할 `nansogong-deploy-dev` |
+| `secrets/` | 서버 비밀값(API 키 · JWT 등)을 콘솔에서 넣는 방법과 붙여넣을 JSON 틀 (`secrets/README.md`) |
 | `codedeploy/` | prod 배포 설명서(`appspec.yml`)와 단계별 스크립트 (끄기 → 이미지 받기 → 비밀값으로 실행 → 헬스체크) |
 | `dev/update.sh` | dev EC2 에서 최신 설정 · 이미지로 compose 다시 띄우기 |
 | `dev/run-remote.sh` | Actions 가 dev EC2 의 `update.sh` 를 SSM 으로 원격 실행 |
 | `demo-data/` | 발표용 데모 데이터 SQL 과 넣기 스크립트 (`demo-data/README.md`) |
-| `secrets-put.sh` | 서버 비밀값(API 키 · JWT 등)을 Secrets Manager 에 넣는다: `./infra/secrets-put.sh dev` / `prod` |
-| `iam/github-build-role-*.json` | Actions 이미지 빌드 역할 (dev · main 브랜치만, ECR 푸시만) |
-| `iam/github-deploy-role-trust-{dev,prod}.json` | 배포 역할 **신뢰 정책**. 🚨 `environment:dev/prod` 로 적어야 한다 |
-| `iam/github-deploy-role-policy-dev.json` | dev 배포 역할 권한 (dev EC2 에 SSM 명령만) |
-| `iam/github-deploy-role-policy-prod.json` | prod 배포 역할 권한 (CodeDeploy 배포 · 화면 S3 업로드 · CloudFront 캐시 비우기) |
+
+### GitHub Actions 역할 (스택이 만든다)
+
+| 역할 | 만드는 스택 | 쓸 수 있는 곳 | 권한 | GitHub 에 넣을 곳 (스택 출력) |
+|---|---|---|---|---|
+| `nansogong-build` | shared | `dev` · `main` 브랜치 | ECR 두 저장소에 이미지 올리기 | 저장소 Variables `AWS_BUILD_ROLE_ARN` (`BuildRoleArn`) |
+| `nansogong-deploy-dev` | dev | Environment `dev` | dev EC2 에 SSM 명령 보내기 | Environment `dev` → `AWS_DEPLOY_ROLE_ARN` (`DeployRoleArn`) |
+| `nansogong-deploy-prod` | app | Environment `prod` | CodeDeploy 배포 · 화면 S3 업로드 · CloudFront 캐시 비우기 | Environment `prod` → `AWS_DEPLOY_ROLE_ARN` (`DeployRoleArn`) |
+
+역할 이름이 정해져 있어서, 스택 검토 화면에서 **"사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 승인합니다"** 를 체크해야 만들어집니다 (shared · dev · app).
+
+## 콘솔에서 스택 만들기 (공통)
+
+1. 콘솔 오른쪽 위 리전이 **서울(ap-northeast-2)** 인지 확인
+2. CloudFormation > **스택 생성** > **새 리소스 사용(표준)** > **기존 템플릿 선택** > **템플릿 파일 업로드** → `infra/cloudformation/<파일>.yml`
+3. 스택 이름 · 파라미터 입력 → 스택 옵션은 기본값 → 검토 화면에서 IAM 승인 체크(나오면) → **제출**
+4. **이벤트** 탭에서 `CREATE_COMPLETE` 까지 대기 → **출력** 탭에서 값 복사
+   - 실패(`ROLLBACK_COMPLETE`)하면 이벤트 탭의 `CREATE_FAILED` 사유를 보고, 스택을 삭제한 뒤 다시 만든다
+   - 템플릿을 업로드하면 S3 에 `cf-templates-...` 버킷이 자동으로 생긴다 (정리할 때 함께 삭제)
 
 ## 미리 준비 (계정에 한 번, 비용 거의 없음)
 
-1. 루트 계정 MFA 켜기, 작업용 IAM 사용자 만들기 (이후 작업은 이 사용자로)
+1. 루트 계정 MFA 켜기, 작업용 IAM 사용자 만들기 (콘솔 접근 허용, `AdministratorAccess`). 이후 작업은 이 사용자로
 2. 도메인: Route 53 에서 사거나 가진 도메인의 호스팅 영역을 만든다
-3. ACM 인증서 2개 (무료, DNS 검증 — 시간이 걸릴 수 있으니 미리)
+3. ACM 인증서 2개 (무료, DNS 검증 — 시간이 걸릴 수 있으니 미리). 인증서 상세의 **"Route 53에서 레코드 생성"** 으로 검증
    - CloudFront 용 `<도메인>`: 🚨 **버지니아(us-east-1)** 에서 발급. 서울에서 발급하면 CloudFront 에 붙지 않는다
    - ALB 용 `api.<도메인>`: 서울(ap-northeast-2) 에서 발급
-4. 공용 스택: ECR 저장소 + 예산 알림
-   ```bash
-   aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-shared \
-     --template-file infra/cloudformation/shared.yml --parameter-overrides BudgetEmail=<메일>
-   ```
-5. GitHub OIDC: IAM > Identity providers 에 `token.actions.githubusercontent.com` (Audience `sts.amazonaws.com`) 등록
-6. IAM 역할 3개를 `iam/` 의 JSON 으로 만든다 (`<ACCOUNT_ID>` 등 꺾쇠 값을 바꿔서)
-   | 역할 | 신뢰 정책 | 권한 | GitHub 에 넣을 곳 |
-   |---|---|---|---|
-   | `nansogong-build` | `github-build-role-trust.json` | `github-build-role-policy.json` | Variables `AWS_BUILD_ROLE_ARN` |
-   | `nansogong-deploy-dev` | `github-deploy-role-trust-dev.json` | `github-deploy-role-policy-dev.json` | Environment `dev` → `AWS_DEPLOY_ROLE_ARN` |
-   | `nansogong-deploy-prod` | `github-deploy-role-trust-prod.json` | `github-deploy-role-policy-prod.json` | Environment `prod` → `AWS_DEPLOY_ROLE_ARN` |
-
-   dev / prod 권한 JSON 의 인스턴스 ID · 버킷 이름은 스택을 만든 뒤 출력값(Outputs)으로 채운다
-7. GitHub 저장소 Settings > Environments: `dev`, `prod` 생성. `prod` 에는 **Required reviewers** 와 **Deployment branches: `main` 만**
+4. 공용 스택 `nansogong-shared` (`shared.yml`)
+   - `BudgetEmail`: 예산 알림 메일 / `GitHubRepository`: `SongJunPyo/NanSoGong`
+   - `CreateGitHubOidcProvider`: IAM > 자격 증명 공급자에 `token.actions.githubusercontent.com` 이 **이미 있으면 `false`**, 없으면 `true`
+   - IAM 승인 체크 → 만든 뒤 출력 `BuildRoleArn` 을 GitHub 저장소 Settings > Secrets and variables > Actions > Variables 의 `AWS_BUILD_ROLE_ARN` 에
+5. GitHub 저장소 Settings > Environments: `dev`, `prod` 생성. `prod` 에는 **Required reviewers** 와 **Deployment branches: `main` 만**
 
 ## dev 만들기 (약 1시간)
 
-1. 비밀값: `./infra/secrets-put.sh dev` (JWT_SECRET · CREDENTIAL_ENCRYPTION_KEY · ANTHROPIC_API_KEY 만 넣고 나머지는 Enter)
-2. 스택 생성 (기본 VPC 의 public 서브넷, 내 IP)
-   ```bash
-   aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-dev \
-     --template-file infra/cloudformation/dev.yml --capabilities CAPABILITY_IAM \
-     --parameter-overrides VpcId=<vpc-...> SubnetId=<subnet-...> AllowedCidr=<내 IP>/32
-   ```
-   팀원 IP 는 콘솔 > EC2 > 보안 그룹 `nansogong-dev` 에 80 포트로 한 줄씩 추가
-3. GitHub Environment `dev` 에 `DEV_INSTANCE_ID` (스택 출력 `InstanceId`) 입력, `iam/github-deploy-role-policy-dev.json` 의 `<DEV_INSTANCE_ID>` 도 같은 값으로
-4. EC2 콘솔 > 인스턴스 > 연결 > **Session Manager** 로 접속해서
+1. 비밀값 `nansogong/dev`: [`secrets/README.md`](secrets/README.md) 대로 콘솔에서 (`secrets/dev.example.json` 붙여넣기)
+2. 스택 `nansogong-dev` (`dev.yml`)
+   - `VpcId`: 기본 VPC / `SubnetId`: 기본 VPC 의 서브넷 아무거나 / `AllowedCidr`: `<내 IP>/32` (https://checkip.amazonaws.com)
+   - IAM 승인 체크
+   - 팀원 IP 는 EC2 > 보안 그룹 `nansogong-dev` > 인바운드 규칙 편집에서 HTTP 80 으로 한 줄씩 추가
+3. 스택 출력을 GitHub Environment `dev` 의 Variables 에: `DeployRoleArn` → `AWS_DEPLOY_ROLE_ARN`, `InstanceId` → `DEV_INSTANCE_ID`
+4. EC2 > 인스턴스 > `nansogong-dev` > 연결 > **Session Manager** 로 접속해서
    ```bash
    sudo -iu ec2-user
    git clone -b dev https://github.com/SongJunPyo/NanSoGong.git /opt/nansogong
@@ -75,28 +79,33 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
    (저장소가 private 이면 읽기 전용 fine-grained 토큰으로 clone: `https://<토큰>@github.com/...`)
 5. GitHub Actions 에서 `backend` · `frontend` 워크플로를 `dev` 으로 **Run workflow** → ECR 에 이미지가 생기고 dev 가 뜬다
    이미지가 이미 있으면 EC2 에서 바로 `bash /opt/nansogong/infra/dev/update.sh`
-6. `http://<고정 IP>` 에서 화면, `http://<고정 IP>/api/ping` 에서 연결 확인. 이후 `dev` 머지마다 자동 갱신
+6. 스택 출력 `Url`(`http://<고정 IP>`) 에서 화면, `http://<고정 IP>/api/ping` 에서 연결 확인. 이후 `dev` 머지마다 자동 갱신
 7. 데모 데이터: `bash /opt/nansogong/infra/demo-data/load.sh local`
 
 ## prod 만들기 (2~3시간)
 
-1. 비밀값: `./infra/secrets-put.sh prod` — DB · Redis 값은 넣지 않는다. `CORS_ALLOWED_ORIGINS=https://<도메인>`
-2. 스택 3개를 순서대로
-   ```bash
-   aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-prod-network \
-     --template-file infra/cloudformation/network.yml --parameter-overrides Environment=prod          # 약 5분
-   aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-prod-data \
-     --template-file infra/cloudformation/data.yml --parameter-overrides Environment=prod             # 20~30분 (RDS Multi-AZ)
-   aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-prod-app \
-     --template-file infra/cloudformation/app.yml --capabilities CAPABILITY_IAM \
-     --parameter-overrides Environment=prod DomainName=<도메인> ApiDomainName=api.<도메인> \
-       HostedZoneId=<Z...> AlbCertificateArn=<서울 인증서> CloudFrontCertificateArn=<버지니아 인증서> \
-       AlarmEmail=<메일>                                                                          # 10~20분 (CloudFront)
-   ```
-3. app 스택 출력값을 GitHub Environment `prod` 에 입력: `CODEDEPLOY_APP` · `CODEDEPLOY_GROUP` · `ARTIFACT_BUCKET` · `WEB_BUCKET` · `CF_DISTRIBUTION_ID`
-   (`iam/github-deploy-role-policy-prod.json` 의 꺾쇠 값도 같은 값으로)
+1. 비밀값 `nansogong/prod`: [`secrets/README.md`](secrets/README.md) 대로 (`secrets/prod.example.json`). DB · Redis 값은 넣지 않는다
+2. 스택 3개를 순서대로 (앞 스택이 `CREATE_COMPLETE` 된 뒤 다음)
+
+   | 스택 이름 | 템플릿 | 입력 | 걸리는 시간 |
+   |---|---|---|---|
+   | `nansogong-prod-network` | `network.yml` | `Environment=prod`. 만들기 전에 VPC > 관리형 접두사 목록에서 `com.amazonaws.global.cloudfront.origin-facing` 의 ID 가 `CloudFrontPrefixListId` 기본값(`pl-22a6434b`)과 같은지 확인 | 약 5분 |
+   | `nansogong-prod-data` | `data.yml` | `Environment=prod`. 실패하면 RDS > 데이터베이스 생성 화면의 엔진 버전 목록에서 17.x 를 확인해 `DbEngineVersion` 에 | 20~30분 |
+   | `nansogong-prod-app` | `app.yml` | `Environment=prod`, `DomainName=<도메인>`, `ApiDomainName=api.<도메인>`, `HostedZoneId`(드롭다운), `AlbCertificateArn=<서울 인증서>`, `CloudFrontCertificateArn=<버지니아 인증서>`, `AlarmEmail=<메일>`. IAM 승인 체크 | 10~20분 |
+
+3. app 스택 출력값을 GitHub Environment `prod` 의 Variables 에
+
+   | 변수 | 출력 |
+   |---|---|
+   | `AWS_DEPLOY_ROLE_ARN` | `DeployRoleArn` |
+   | `CODEDEPLOY_APP` | `CodeDeployApplication` |
+   | `CODEDEPLOY_GROUP` | `CodeDeployDeploymentGroup` |
+   | `ARTIFACT_BUCKET` | `ArtifactBucket` |
+   | `WEB_BUCKET` | `WebBucket` |
+   | `CF_DISTRIBUTION_ID` | `DistributionId` |
+
 4. `dev` → `main` 머지 → Actions 에서 승인 → CodeDeploy 첫 배포 + 화면 S3 업로드
-5. 데모 데이터: SSM 으로 prod 서버 EC2 한 대에 접속 → `sudo bash /opt/nansogong/deploy/demo-data/load.sh aws`
+5. 데모 데이터: EC2 > prod 서버 한 대 > 연결 > Session Manager → `sudo bash /opt/nansogong/deploy/demo-data/load.sh aws`
 6. 확인
    - `https://<도메인>` 접속 · 로그인
    - `https://<도메인>/api/...` 응답 (`/actuator/*` 는 밖에서 403 이 정상)
@@ -108,31 +117,22 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
 
 ## 지우기 (🚨 남겨 두면 계속 과금)
 
-```bash
-# prod: 버킷을 비운 뒤 app → data → network 순서
-aws s3 rm s3://<WEB_BUCKET> --recursive && aws s3 rm s3://<ARTIFACT_BUCKET> --recursive
-aws cloudformation delete-stack --region ap-northeast-2 --stack-name nansogong-prod-app
-aws cloudformation wait stack-delete-complete --region ap-northeast-2 --stack-name nansogong-prod-app
-aws cloudformation delete-stack --region ap-northeast-2 --stack-name nansogong-prod-data      # RDS 마지막 스냅숏을 남긴다
-aws cloudformation wait stack-delete-complete --region ap-northeast-2 --stack-name nansogong-prod-data
-aws cloudformation delete-stack --region ap-northeast-2 --stack-name nansogong-prod-network
-
-# dev: 고정 IP 도 함께 반납된다
-aws cloudformation delete-stack --region ap-northeast-2 --stack-name nansogong-dev
-
-# 다 끝났으면: ECR 이미지 · 예산 알림
-aws cloudformation delete-stack --region ap-northeast-2 --stack-name nansogong-shared
-```
-
-- RDS 최종 스냅숏(`DeletionPolicy: Snapshot`)은 RDS 콘솔 > 스냅숏에서 직접 지운다 (남기면 월 소액)
-- Secrets Manager 비밀(`nansogong/dev`, `nansogong/prod`)은 삭제 예약(7~30일 대기)으로 지운다
-- 며칠 뒤 결제 콘솔(Billing > Bills)에서 남은 과금 항목이 없는지 확인
+1. prod: S3 > `WEB_BUCKET` · `ARTIFACT_BUCKET` 버킷을 각각 **비우기**
+2. CloudFormation 에서 스택 **삭제**: `nansogong-prod-app` → `nansogong-prod-data` → `nansogong-prod-network` (각각 `DELETE_COMPLETE` 확인 후 다음)
+3. dev: `nansogong-dev` 삭제 (고정 IP 도 함께 반납)
+4. 다 끝났으면 `nansogong-shared` 삭제 (ECR 이미지 · 예산 알림 · 빌드 역할 · OIDC 공급자). dev · app 스택이 남아 있으면 Export 를 쓰는 중이라 삭제가 거절된다
+5. 직접 지울 것
+   - RDS 최종 스냅숏(`DeletionPolicy: Snapshot`): RDS > 스냅숏 (남기면 월 소액)
+   - Secrets Manager 비밀(`nansogong/dev`, `nansogong/prod`): 작업 > 보안 암호 삭제 (7~30일 대기 후 삭제)
+   - ACM 인증서 2개 (서울 · 버지니아 각각), S3 의 `cf-templates-...` 버킷 (비우기 후 삭제)
+6. 며칠 뒤 결제 콘솔(Billing > Bills)에서 남은 과금 항목이 없는지 확인
 
 ## 주의
 
 - 서버 이미지는 **arm64(Graviton)** 입니다. Actions 가 만든 이미지만 배포하고, 내 PC 에서 만든 이미지(amd64)는 올리지 않는다
 - 테이블은 Flyway 가 만든다. RDS 에서 손으로 표를 만들거나 고치지 않는다 (dev · prod 구조가 달라진다)
 - 비밀값을 바꾸면 다시 배포해야 반영된다 (prod: Actions 의 `deploy-prod` Re-run / dev: `update.sh`)
+- IAM 역할 권한을 바꿀 때는 콘솔에서 직접 고치지 말고 템플릿을 고친 뒤 스택 **업데이트**(현재 템플릿 교체 → 파일 업로드)로 반영한다. 직접 고치면 다음 업데이트 때 템플릿 내용으로 되돌아간다
 - ASG 헬스체크는 EC2 기준입니다. 첫 배포 전에는 서버 컨테이너가 없어서 ALB 헬스체크가 실패하는데, ELB 기준이면 ASG 가 EC2 를 계속 갈아 끼우기 때문 (`app.yml` 주석)
 - ALB 는 CloudFront 에서 오는 요청만 받는다 (보안 그룹 = CloudFront 관리형 접두사 목록). `api.<도메인>` 으로 직접 접속하면 연결되지 않는 것이 정상
 - POS · 거래처 · 마이데이터는 MVP 에서 목업이다. prod 에서 목업(WireMock)을 어디에 띄울지는 아직 정하지 않았다 → 정한 뒤 `POS_BASE_URL` 등을 `nansogong/prod` 에 넣는다 (넣지 않으면 서버가 뜨지 않는다)

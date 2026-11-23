@@ -1,13 +1,27 @@
 AWSTemplateFormatVersion: '2010-09-09'
-# 📦 공용 (dev · prod 가 함께 쓰는 것, 계정에 한 번): ECR 저장소 2개 · AWS Budgets 알림
-#   생성:  aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-shared \
-#            --template-file infra/cloudformation/shared.yml --parameter-overrides BudgetEmail=<메일>
+# 📦 공용 (dev · prod 가 함께 쓰는 것, 계정에 한 번): ECR 저장소 2개 · AWS Budgets 알림 · GitHub Actions 빌드 역할
+#   생성 (콘솔): CloudFormation > 스택 생성 > 새 리소스 사용(표준) > 템플릿 파일 업로드 → 이 파일
+#     스택 이름  nansogong-shared
+#     입력       BudgetEmail=<메일>, GitHubRepository=SongJunPyo/NanSoGong,
+#                CreateGitHubOidcProvider=true (계정에 GitHub OIDC 공급자가 이미 있으면 false)
+#     검토 화면  "사용자 지정 이름으로 IAM 리소스를 생성할 수 있음을 승인합니다" 체크
+#   만든 뒤     출력 BuildRoleArn → GitHub 저장소 Variables AWS_BUILD_ROLE_ARN
 #
 #   이미지는 한 번만 빌드해서 dev 에서 검증한 것을 그대로 prod 에 쓴다 → 저장소는 환경별로 나누지 않는다
 #     nansogong-api : 서버 이미지 (dev EC2 · prod ASG)
 #     nansogong-web : 화면 이미지 (nginx, dev EC2 전용. prod 화면은 S3 + CloudFront)
+#   dev · app 스택이 이 스택의 Export(GitHub OIDC 공급자 · 저장소 이름)로 배포 역할을 만든다 → 이 스택을 가장 먼저, 가장 나중에 지운다
 #   🚨 스택을 지우기 전에 이미지를 지워야 한다 (EmptyOnDelete 로 자동 삭제)
-Description: nansogong shared (ECR repositories, monthly budget alert)
+Description: nansogong shared (ECR repositories, monthly budget alert, GitHub OIDC + build role)
+
+# 콘솔에서 스택을 만들 때 입력 칸을 묶어서 보여 준다 (동작에는 영향 없음)
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: '1. Budget alert' }
+        Parameters: [BudgetEmail, MonthlyBudgetUsd]
+      - Label: { default: '2. GitHub Actions (OIDC)' }
+        Parameters: [GitHubRepository, CreateGitHubOidcProvider]
 
 Parameters:
   BudgetEmail:
@@ -16,6 +30,20 @@ Parameters:
   MonthlyBudgetUsd:
     Type: Number
     Default: 100
+  GitHubRepository:
+    Type: String
+    Default: SongJunPyo/NanSoGong
+    AllowedPattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+    ConstraintDescription: 'must be <owner>/<repo>, e.g. SongJunPyo/NanSoGong'
+    Description: Actions 가 AWS 역할을 쓸 수 있는 GitHub 저장소 (<소유자>/<저장소>)
+  CreateGitHubOidcProvider:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+    Description: IAM > 자격 증명 공급자에 token.actions.githubusercontent.com 이 이미 있으면 false (계정에 하나만 만들 수 있다)
+
+Conditions:
+  CreateOidc: !Equals [!Ref CreateGitHubOidcProvider, 'true']
 
 Resources:
   ApiRepository:
@@ -59,8 +87,79 @@ Resources:
         - Notification: { NotificationType: FORECASTED, ComparisonOperator: GREATER_THAN, Threshold: 100, ThresholdType: PERCENTAGE }
           Subscribers: [{ SubscriptionType: EMAIL, Address: !Ref BudgetEmail }]
 
+  # ── GitHub Actions 가 키 없이 AWS 역할을 쓰게 하는 OIDC 공급자 (계정에 하나) ──
+  #   지문(Thumbprint)은 AWS 가 GitHub 인증서를 직접 확인해서 실제로는 쓰지 않지만, 칸을 비울 수 없는 경우가 있어 GitHub 공개 값을 적는다
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOidc
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  # 이미지 빌드 역할: dev · main 브랜치의 Actions 만, ECR 두 저장소에 이미지 올리기만
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: nansogong-build
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateOidc
+                - !Ref GitHubOidcProvider
+                - !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub:
+                  - !Sub 'repo:${GitHubRepository}:ref:refs/heads/dev'
+                  - !Sub 'repo:${GitHubRepository}:ref:refs/heads/main'
+      Policies:
+        - PolicyName: push-nansogong-images
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: EcrLogin
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Sid: PushNansogongImages
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:DescribeImages
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                Resource:
+                  - !GetAtt ApiRepository.Arn
+                  - !GetAtt WebRepository.Arn
+
 Outputs:
   ApiRepositoryUri:
     Value: !GetAtt ApiRepository.RepositoryUri
   WebRepositoryUri:
     Value: !GetAtt WebRepository.RepositoryUri
+  BuildRoleArn:
+    Description: GitHub 저장소 Variables AWS_BUILD_ROLE_ARN
+    Value: !GetAtt BuildRole.Arn
+  GitHubOidcProviderArn:
+    Description: dev · app 스택의 배포 역할이 가져다 쓴다
+    Value: !If
+      - CreateOidc
+      - !Ref GitHubOidcProvider
+      - !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
+    Export: { Name: nansogong-GitHubOidcProviderArn }
+  GitHubRepository:
+    Description: dev · app 스택의 배포 역할이 가져다 쓴다
+    Value: !Ref GitHubRepository
+    Export: { Name: nansogong-GitHubRepository }
