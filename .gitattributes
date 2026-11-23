@@ -1,0 +1,5 @@
+# Windows 에서 받아도 gradlew 는 LF 로 유지 (CRLF 가 되면 Mac · Linux · Docker 에서 실행 실패)
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.jar binary

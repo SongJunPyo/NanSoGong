@@ -1,0 +1,6 @@
+// 팀원 PC 에 Java 21 이 없으면 Gradle 이 알아서 내려받는다 (build.gradle 의 toolchain 과 짝)
+plugins {
+	id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'nansogong'

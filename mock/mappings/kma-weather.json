@@ -1,0 +1,28 @@
+{
+  "mappings": [
+    {
+      "name": "기상청 단기예보 (getVilageFcst) - 오늘 날짜로 응답, nx·ny 는 요청값 그대로",
+      "request": { "method": "GET", "urlPath": "/kma/getVilageFcst" },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "body": "{\"response\":{\"header\":{\"resultCode\":\"00\",\"resultMsg\":\"NORMAL_SERVICE\"},\"body\":{\"dataType\":\"JSON\",\"items\":{\"item\":[{\"baseDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"baseTime\":\"0500\",\"category\":\"TMP\",\"fcstDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"fcstTime\":\"1200\",\"fcstValue\":\"8\",\"nx\":{{request.query.nx}},\"ny\":{{request.query.ny}}},{\"baseDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"baseTime\":\"0500\",\"category\":\"SKY\",\"fcstDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"fcstTime\":\"1200\",\"fcstValue\":\"3\",\"nx\":{{request.query.nx}},\"ny\":{{request.query.ny}}},{\"baseDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"baseTime\":\"0500\",\"category\":\"PTY\",\"fcstDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"fcstTime\":\"1200\",\"fcstValue\":\"0\",\"nx\":{{request.query.nx}},\"ny\":{{request.query.ny}}},{\"baseDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"baseTime\":\"0500\",\"category\":\"POP\",\"fcstDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"fcstTime\":\"1200\",\"fcstValue\":\"20\",\"nx\":{{request.query.nx}},\"ny\":{{request.query.ny}}},{\"baseDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"baseTime\":\"0500\",\"category\":\"TMN\",\"fcstDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"fcstTime\":\"0600\",\"fcstValue\":\"1.0\",\"nx\":{{request.query.nx}},\"ny\":{{request.query.ny}}},{\"baseDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"baseTime\":\"0500\",\"category\":\"TMX\",\"fcstDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"fcstTime\":\"1500\",\"fcstValue\":\"11.0\",\"nx\":{{request.query.nx}},\"ny\":{{request.query.ny}}}]},\"pageNo\":1,\"numOfRows\":1000,\"totalCount\":6}}}"
+      }
+    },
+    {
+      "name": "기상청 초단기실황 (getUltraSrtNcst)",
+      "request": { "method": "GET", "urlPath": "/kma/getUltraSrtNcst" },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "body": "{\"response\":{\"header\":{\"resultCode\":\"00\",\"resultMsg\":\"NORMAL_SERVICE\"},\"body\":{\"dataType\":\"JSON\",\"items\":{\"item\":[{\"baseDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"baseTime\":\"{{now timezone='Asia/Seoul' format='HH'}}00\",\"category\":\"T1H\",\"obsrValue\":\"7.4\",\"nx\":{{request.query.nx}},\"ny\":{{request.query.ny}}},{\"baseDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"baseTime\":\"{{now timezone='Asia/Seoul' format='HH'}}00\",\"category\":\"PTY\",\"obsrValue\":\"0\",\"nx\":{{request.query.nx}},\"ny\":{{request.query.ny}}},{\"baseDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"baseTime\":\"{{now timezone='Asia/Seoul' format='HH'}}00\",\"category\":\"REH\",\"obsrValue\":\"55\",\"nx\":{{request.query.nx}},\"ny\":{{request.query.ny}}},{\"baseDate\":\"{{now timezone='Asia/Seoul' format='yyyyMMdd'}}\",\"baseTime\":\"{{now timezone='Asia/Seoul' format='HH'}}00\",\"category\":\"RN1\",\"obsrValue\":\"0\",\"nx\":{{request.query.nx}},\"ny\":{{request.query.ny}}}]},\"pageNo\":1,\"numOfRows\":1000,\"totalCount\":4}}}"
+      }
+    },
+    {
+      "name": "기상청 장애 흉내 - nx=0 이면 503 (수집 실패 시 마지막 값 표시 테스트용)",
+      "priority": 1,
+      "request": { "method": "GET", "urlPathPattern": "/kma/.*", "queryParameters": { "nx": { "equalTo": "0" } } },
+      "response": { "status": 503, "body": "Service Unavailable" }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "mappings": [
+    {
+      "name": "네이버 데이터랩 검색어 트렌드 - 헤더 없으면 401",
+      "priority": 1,
+      "request": {
+        "method": "POST",
+        "urlPath": "/naver/v1/datalab/search",
+        "headers": { "X-Naver-Client-Id": { "absent": true } }
+      },
+      "response": {
+        "status": 401,
+        "jsonBody": { "errorMessage": "Authentication failed. (인증에 실패했습니다.)", "errorCode": "024" }
+      }
+    },
+    {
+      "name": "네이버 데이터랩 검색어 트렌드 - 첫 번째 키워드 그룹 이름으로 응답",
+      "priority": 5,
+      "request": { "method": "POST", "urlPath": "/naver/v1/datalab/search" },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "body": "{\"startDate\":\"{{jsonPath request.body '$.startDate'}}\",\"endDate\":\"{{jsonPath request.body '$.endDate'}}\",\"timeUnit\":\"{{jsonPath request.body '$.timeUnit'}}\",\"results\":[{\"title\":\"{{jsonPath request.body '$.keywordGroups[0].groupName'}}\",\"keywords\":[\"{{jsonPath request.body '$.keywordGroups[0].groupName'}}\"],\"data\":[{\"period\":\"2026-10-05\",\"ratio\":42.1},{\"period\":\"2026-10-12\",\"ratio\":48.7},{\"period\":\"2026-10-19\",\"ratio\":55.3},{\"period\":\"2026-10-26\",\"ratio\":63.9},{\"period\":\"2026-11-02\",\"ratio\":71.4},{\"period\":\"2026-11-09\",\"ratio\":86.2},{\"period\":\"2026-11-16\",\"ratio\":100}]}]}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "mappings": [
+    {
+      "name": "마이데이터 목업 - 사업자 계좌 거래내역 (구현-1-8 비용 자동 분류용)",
+      "request": { "method": "GET", "urlPath": "/mydata/v1/transactions" },
+      "response": {
+        "status": 200,
+        "jsonBody": {
+          "accountMasked": "1002-***-***901",
+          "transactions": [
+            { "transactionId": "T-0001", "tradedAt": "2026-11-01T09:00:00+09:00", "type": "OUT", "amount": 1800000, "counterparty": "김건물", "memo": "11월 임대료" },
+            { "transactionId": "T-0002", "tradedAt": "2026-11-05T14:20:00+09:00", "type": "IN",  "amount": 3125400, "counterparty": "토스플레이스", "memo": "카드매출 정산" },
+            { "transactionId": "T-0003", "tradedAt": "2026-11-10T10:00:00+09:00", "type": "OUT", "amount": 2100000, "counterparty": "박알바", "memo": "10월 급여" },
+            { "transactionId": "T-0004", "tradedAt": "2026-11-12T16:45:00+09:00", "type": "OUT", "amount": 186000,  "counterparty": "한국전력공사", "memo": "전기요금" },
+            { "transactionId": "T-0005", "tradedAt": "2026-11-15T11:30:00+09:00", "type": "OUT", "amount": 412000,  "counterparty": "가나다식자재", "memo": "거래처 대금" },
+            { "transactionId": "T-0006", "tradedAt": "2026-11-17T20:10:00+09:00", "type": "OUT", "amount": 55000,   "counterparty": "주식회사 OO", "memo": "이체" }
+          ]
+        }
+      }
+    }
+  ]
+}

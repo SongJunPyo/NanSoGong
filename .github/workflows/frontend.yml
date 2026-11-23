@@ -1,0 +1,144 @@
+# 화면(프론트엔드) CI/CD — 개발(dev) · 운영(prod) 분리
+#
+#   PR (→ dev / main)   lint + build 확인만
+#   dev 에 머지          nginx 화면 이미지(arm64) 빌드 → ECR → dev EC2 갱신 (dev 는 EC2 한 대에서 화면 · 서버를 함께 띄운다)
+#   main 에 머지             build → 승인 대기 → prod S3 업로드 → prod CloudFront 캐시 비우기
+#
+# 필요한 값 (저장소 Settings, 자세한 건 infra/README.md)
+#   Variables (저장소 공통)  AWS_BUILD_ROLE_ARN
+#   Environments > dev      AWS_DEPLOY_ROLE_ARN, DEV_INSTANCE_ID
+#   Environments > prod     AWS_DEPLOY_ROLE_ARN, WEB_BUCKET, CF_DISTRIBUTION_ID
+#   값을 넣기 전에는 배포 잡이 "건너뜀" 으로 끝난다
+name: frontend
+
+on:
+  push:
+    branches: [main, dev]
+    paths: ['frontend/**', '.github/workflows/frontend.yml']    # 화면 코드가 바뀐 push 에서만 돈다
+  pull_request:
+    branches: [main, dev]
+    paths: ['frontend/**', '.github/workflows/frontend.yml']
+  workflow_dispatch:
+
+permissions:
+  id-token: write                   # OIDC: AWS 키 없이 역할로 들어간다
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2        # 서울 리전 (CloudFront 는 글로벌이지만 S3 버킷은 서울)
+  REPOSITORY: nansogong-web
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc   # 팀원 PC 와 같은 Node 버전
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  # dev → 화면 이미지(nginx) 빌드 → ECR. 같은 frontend 내용이면 다시 빌드하지 않는다
+  build-dev-image:
+    needs: check
+    if: vars.AWS_BUILD_ROLE_ARN != '' && github.event_name != 'pull_request' && github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: meta
+        run: echo "tag=tree-$(git rev-parse HEAD:frontend | cut -c1-12)" >> "$GITHUB_OUTPUT"
+      - id: exists
+        run: |
+          if aws ecr describe-images --repository-name "$REPOSITORY" --image-ids imageTag=${{ steps.meta.outputs.tag }} > /dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.exists.outputs.found != 'true'
+        uses: docker/setup-buildx-action@v3
+      - if: steps.exists.outputs.found != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          platforms: linux/arm64      # dev EC2(t4g) 용. npm build 는 $BUILDPLATFORM 에서 한다
+          push: true
+          build-args: VITE_APP_ENV=dev
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.REPOSITORY }}:${{ steps.meta.outputs.tag }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  deploy-dev:
+    needs: build-dev-image
+    runs-on: ubuntu-latest
+    environment: dev
+    concurrency: { group: deploy-dev, cancel-in-progress: false }
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - if: vars.DEV_INSTANCE_ID == ''
+        run: echo "dev 환경 변수 DEV_INSTANCE_ID 가 아직 없어서 배포를 건너뜁니다"
+      - if: vars.DEV_INSTANCE_ID != ''
+        uses: actions/checkout@v4
+      - if: vars.DEV_INSTANCE_ID != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - if: vars.DEV_INSTANCE_ID != ''
+        env:
+          DEV_INSTANCE_ID: ${{ vars.DEV_INSTANCE_ID }}
+        run: bash infra/dev/run-remote.sh web ${{ needs.build-dev-image.outputs.tag }}
+
+  # main → 승인 → S3 + CloudFront
+  deploy-prod:
+    needs: check
+    if: github.event_name != 'pull_request' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    environment: prod
+    concurrency: { group: web-prod, cancel-in-progress: false }
+    steps:
+      - if: vars.WEB_BUCKET == ''
+        working-directory: .        # 아직 checkout 전이라 frontend 폴더가 없다
+        run: echo "prod 환경 변수 WEB_BUCKET 이 아직 없어서 배포를 건너뜁니다"
+      - if: vars.WEB_BUCKET != ''
+        uses: actions/checkout@v4
+      - if: vars.WEB_BUCKET != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - if: vars.WEB_BUCKET != ''
+        run: npm ci && npm run build
+        env:
+          VITE_API_BASE: /api       # 화면이 API 를 "지금 주소의 /api" 로 부른다 (CloudFront 가 /api/* 를 ALB 로 보낸다)
+          VITE_APP_ENV: prod
+      - if: vars.WEB_BUCKET != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      # dist "안의 파일들" 을 버킷 맨 위에 올리고, 버킷에만 남은 옛 파일은 지운다
+      - if: vars.WEB_BUCKET != ''
+        run: aws s3 sync dist s3://${{ vars.WEB_BUCKET }} --delete
+      # CloudFront 가 복사해 둔 옛 화면(index.html)을 버린다
+      - if: vars.WEB_BUCKET != ''
+        run: aws cloudfront create-invalidation --distribution-id ${{ vars.CF_DISTRIBUTION_ID }} --paths '/*'
