@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: '2010-09-09'
+# 🐘 2/3 data: RDS PostgreSQL 17 (Multi-AZ) · ElastiCache Redis (2노드) · DB 비밀번호(Secrets Manager)
+#   생성:  aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-prod-data \
+#            --template-file infra/cloudformation/data.yml --parameter-overrides Environment=prod
+#   RDS Multi-AZ 는 20~30분 걸린다. network 스택이 먼저 있어야 한다
+#
+#   DB 비밀번호는 사람이 정하지 않는다: 이 스택이 nansogong/<env>/db 비밀을 자동 생성하고, RDS 가 그 값을 쓴다
+#   서버는 배포될 때 이 비밀 + nansogong/<env>(API 키 등, infra/secrets-put.sh) 를 합쳐 환경변수로 쓴다
+#   DB 주소 · Redis 주소는 app 스택이 이 스택의 Export 를 읽어 서버에 넣는다 → secrets-put.sh 에 적지 않는다
+Description: nansogong data (RDS PostgreSQL Multi-AZ, ElastiCache Redis, DB secret)
+
+# 콘솔에서 스택을 만들 때 입력 칸을 묶어서 보여 준다 (동작에는 영향 없음)
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: '1. Environment' }
+        Parameters: [Environment]
+      - Label: { default: '2. Database (RDS PostgreSQL)' }
+        Parameters: [DbEngineVersion, DbInstanceClass, DbAllocatedStorage, DbMultiAz]
+      - Label: { default: '3. Cache (ElastiCache Redis)' }
+        Parameters: [CacheNodeType]
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues: [dev, prod]
+    Default: prod
+  DbInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+  DbAllocatedStorage:
+    Type: Number
+    Default: 20
+  DbMultiAz:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+  CacheNodeType:
+    Type: String
+    Default: cache.t4g.micro
+  DbEngineVersion:
+    Type: String
+    Default: '17.11'
+    Description: PostgreSQL 17 의 세부 버전. 오래된 버전은 새로 만들 수 없다 → 만들기 전에 확인 aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[?starts_with(EngineVersion,'17.')].EngineVersion"
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, prod]
+
+Resources:
+  # 🔐 DB 마스터 계정 (username · password). 비밀번호는 32자 무작위
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub 'nansogong/${Environment}/db'
+      Description: RDS master credentials (auto-generated)
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"nansogong"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\''`:;?#%&=+$ '
+      Tags:
+        - { Key: Environment, Value: !Ref Environment }
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub 'nansogong ${Environment} data subnets'
+      SubnetIds: !Split [',', !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-DataSubnets' }]
+
+  # 로컬 docker compose(TZ=Asia/Seoul)와 같게: 매출 집계 date_trunc 등이 한국 시간 기준이 된다
+  DbParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Family: postgres17
+      Description: !Sub 'nansogong ${Environment} - timezone Asia/Seoul'
+      Parameters:
+        timezone: Asia/Seoul
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot              # 스택을 지우면 마지막 스냅숏을 남긴다 (필요 없으면 콘솔에서 스냅숏 삭제)
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub 'nansogong-${Environment}'
+      Engine: postgres
+      EngineVersion: !Ref DbEngineVersion # 로컬 postgres:17-alpine · Testcontainers 와 같은 메이저 버전 17
+      DBInstanceClass: !Ref DbInstanceClass
+      AllocatedStorage: !Ref DbAllocatedStorage
+      StorageType: gp3
+      StorageEncrypted: true
+      MultiAZ: !Ref DbMultiAz             # Standby 를 다른 가용 영역에 두고 장애 시 자동 전환
+      DBName: nansogong
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DbSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DbSecret}:SecretString:password}}'
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      DBParameterGroupName: !Ref DbParameterGroup
+      VPCSecurityGroups:
+        - !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-DbSg' }
+      PubliclyAccessible: false
+      BackupRetentionPeriod: !If [IsProd, 7, 1]
+      DeletionProtection: false           # 발표 후 스택째 지우기 위해 꺼 둔다. 오래 운영하게 되면 true
+      AutoMinorVersionUpgrade: true
+      Tags:
+        - { Key: Environment, Value: !Ref Environment }
+
+  # 비밀에 접속 주소도 함께 기록해 둔다 (콘솔에서 한눈에 보기 · 데모 데이터 넣을 때)
+  DbSecretAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref DbSecret
+      TargetId: !Ref Database
+      TargetType: AWS::RDS::DBInstance
+
+  CacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: !Sub 'nansogong ${Environment} data subnets'
+      SubnetIds: !Split [',', !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-DataSubnets' }]
+
+  # 🧠 Redis 2노드 (primary + replica, 다른 가용 영역). primary 가 죽으면 replica 가 자동 승격
+  #    전송 중 암호화(TLS)를 켠다 → 서버는 REDIS_SSL=true 로 접속한다 (app 스택이 넣어 준다)
+  Redis:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupId: !Sub 'nansogong-${Environment}'
+      ReplicationGroupDescription: !Sub 'nansogong ${Environment} redis'
+      Engine: redis
+      EngineVersion: '7.1'                # 오픈소스 Redis 7.0 호환 → 로컬 redis:7.0-alpine
+      CacheNodeType: !Ref CacheNodeType
+      NumCacheClusters: 2
+      AutomaticFailoverEnabled: true
+      MultiAZEnabled: true
+      TransitEncryptionEnabled: true
+      AtRestEncryptionEnabled: true
+      CacheSubnetGroupName: !Ref CacheSubnetGroup
+      SecurityGroupIds:
+        - !ImportValue { 'Fn::Sub': 'nansogong-${Environment}-RedisSg' }
+      Tags:
+        - { Key: Environment, Value: !Ref Environment }
+
+Outputs:
+  DbEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+    Export: { Name: !Sub 'nansogong-${Environment}-DbEndpoint' }
+  DbInstanceId:
+    Value: !Ref Database
+    Export: { Name: !Sub 'nansogong-${Environment}-DbInstanceId' }
+  DbSecretArn:
+    Value: !Ref DbSecret
+    Export: { Name: !Sub 'nansogong-${Environment}-DbSecretArn' }
+  RedisEndpoint:
+    Value: !GetAtt Redis.PrimaryEndPoint.Address
+    Export: { Name: !Sub 'nansogong-${Environment}-RedisEndpoint' }

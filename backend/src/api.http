@@ -1,0 +1,28 @@
+### IntelliJ HTTP Client (Boomerang · Postman 대신 파일로 요청을 남겨 두고 팀원과 공유)
+
+### 환경 세팅 확인: 서버 · PostgreSQL · Redis 연결 상태
+GET http://localhost:8080/api/ping
+
+### 서버 상태 (ALB 헬스체크와 같은 주소)
+GET http://localhost:8080/actuator/health
+
+### ─── 외부 연동 목업 (docker compose 의 mock, 8089) ───
+
+### 국세청 상태조회 (9999999999 = 폐업, 7777777777 = 휴업)
+POST http://localhost:8089/nts/v1/status?serviceKey=mock-key
+Content-Type: application/json
+
+{"b_no": ["1234567890"]}
+
+### 기상청 단기예보 (nx=0 이면 503 장애)
+GET http://localhost:8089/kma/getVilageFcst?serviceKey=mock-key&dataType=JSON&base_date=20261119&base_time=0500&nx=60&ny=127
+
+### 가상 거래처 발주 (X-Mock-Scenario: out-of-stock | partial | timeout)
+POST http://localhost:8089/supplier/v1/orders
+Content-Type: application/json
+Idempotency-Key: 11111111-2222-3333-4444-555555555555
+
+{"items": [{"sku": "A-100", "packs": 2}]}
+
+### 목업이 받은 요청 기록 (내 서버가 외부로 뭘 보냈는지)
+GET http://localhost:8089/__admin/requests

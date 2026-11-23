@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: '2010-09-09'
+# 📦 공용 (dev · prod 가 함께 쓰는 것, 계정에 한 번): ECR 저장소 2개 · AWS Budgets 알림
+#   생성:  aws cloudformation deploy --region ap-northeast-2 --stack-name nansogong-shared \
+#            --template-file infra/cloudformation/shared.yml --parameter-overrides BudgetEmail=<메일>
+#
+#   이미지는 한 번만 빌드해서 dev 에서 검증한 것을 그대로 prod 에 쓴다 → 저장소는 환경별로 나누지 않는다
+#     nansogong-api : 서버 이미지 (dev EC2 · prod ASG)
+#     nansogong-web : 화면 이미지 (nginx, dev EC2 전용. prod 화면은 S3 + CloudFront)
+#   🚨 스택을 지우기 전에 이미지를 지워야 한다 (EmptyOnDelete 로 자동 삭제)
+Description: nansogong shared (ECR repositories, monthly budget alert)
+
+Parameters:
+  BudgetEmail:
+    Type: String
+    Description: 예산 알림을 받을 메일
+  MonthlyBudgetUsd:
+    Type: Number
+    Default: 100
+
+Resources:
+  ApiRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: nansogong-api
+      EmptyOnDelete: true
+      ImageScanningConfiguration: { ScanOnPush: true }
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep last 30 images",
+            "selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},
+            "action":{"type":"expire"}}]}
+
+  WebRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: nansogong-web
+      EmptyOnDelete: true
+      ImageScanningConfiguration: { ScanOnPush: true }
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep last 30 images",
+            "selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},
+            "action":{"type":"expire"}}]}
+
+  # 💸 이번 달 실제 비용이 80% · 100%, 예상 비용이 100% 를 넘으면 메일
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: nansogong-monthly
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit: { Amount: !Ref MonthlyBudgetUsd, Unit: USD }
+      NotificationsWithSubscribers:
+        - Notification: { NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 80, ThresholdType: PERCENTAGE }
+          Subscribers: [{ SubscriptionType: EMAIL, Address: !Ref BudgetEmail }]
+        - Notification: { NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 100, ThresholdType: PERCENTAGE }
+          Subscribers: [{ SubscriptionType: EMAIL, Address: !Ref BudgetEmail }]
+        - Notification: { NotificationType: FORECASTED, ComparisonOperator: GREATER_THAN, Threshold: 100, ThresholdType: PERCENTAGE }
+          Subscribers: [{ SubscriptionType: EMAIL, Address: !Ref BudgetEmail }]
+
+Outputs:
+  ApiRepositoryUri:
+    Value: !GetAtt ApiRepository.RepositoryUri
+  WebRepositoryUri:
+    Value: !GetAtt WebRepository.RepositoryUri

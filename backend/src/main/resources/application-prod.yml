@@ -1,0 +1,12 @@
+# 🏪 AWS 운영 서버 (SPRING_PROFILES_ACTIVE=aws,prod). main 브랜치에 머지 + 승인되면 배포된다
+# aws 공통 설정 위에 "보안 · 비용" 쪽만 덮어쓴다
+springdoc:
+  api-docs:
+    enabled: false            # 🏦 주소 목록이 곧 공격 지도 → 운영은 Swagger 를 끈다
+  swagger-ui:
+    enabled: false
+
+management:
+  tracing:
+    sampling:
+      probability: 0.1        # 요청의 10% 만 추적 (비용 · 성능)

@@ -1,0 +1,175 @@
+# 서버(백엔드) CI/CD — 개발(dev) · 운영(prod) 분리, ECR + CodeDeploy, Graviton(arm64)
+#
+#   PR (→ dev / main)   테스트만 (깨진 코드가 들어오지 않게)
+#   dev 에 머지          테스트 → arm64 이미지 빌드 → ECR → dev EC2 갱신 (SSM 으로 infra/dev/update.sh 원격 실행)
+#   main 에 머지             테스트 → (dev 에서 쓴 이미지 재사용) → 승인 대기 → CodeDeploy 로 prod ASG 에 한 대씩 배포
+#
+# 🧱 "이미지는 한 번만 빌드" : 이미지 이름표를 backend 폴더 내용의 지문(git tree 해시)으로 붙인다
+#    dev → main 으로 그대로 올라온 코드는 지문이 같으므로 새로 빌드하지 않고 dev 에서 검증한 이미지를 그대로 prod 에 쓴다
+#    (main 에 직접 고친 hotfix 처럼 내용이 다르면 지문이 달라 새로 빌드한다)
+#
+# 필요한 값 (저장소 Settings, 자세한 건 infra/README.md)
+#   Secrets and variables > Actions > Variables (저장소 공통)
+#     AWS_BUILD_ROLE_ARN    ECR 에 이미지를 올리는 역할 (dev · main 브랜치만 사용 가능)
+#   Environments > dev     AWS_DEPLOY_ROLE_ARN, DEV_INSTANCE_ID
+#   Environments > prod    AWS_DEPLOY_ROLE_ARN, CODEDEPLOY_APP, CODEDEPLOY_GROUP, ARTIFACT_BUCKET
+#                          Required reviewers(승인자) 지정 → 운영 배포 전에 사람이 한 번 확인한다
+#   값을 넣기 전(프로젝트 초반)에는 빌드 · 배포가 "건너뜀" 으로 끝나고 테스트만 돈다
+#
+# 롤백 = Actions 에서 예전 성공 실행(main)을 열어 "Re-run all jobs"
+#        (그 코드의 이미지가 ECR 에 남아 있으므로 빌드 없이 그 이미지로 다시 배포한다)
+name: backend
+
+on:
+  push:
+    branches: [main, dev]
+    paths: ['backend/**', 'infra/codedeploy/**', 'infra/demo-data/**', '.github/workflows/backend.yml']   # 서버 관련이 바뀐 push 에서만
+  pull_request:
+    branches: [main, dev]
+    paths: ['backend/**', 'infra/codedeploy/**', 'infra/demo-data/**', '.github/workflows/backend.yml']
+  workflow_dispatch:      # Actions 탭에서 손으로 실행 (dev 또는 main 을 골라서)
+
+permissions:
+  id-token: write         # GitHub 가 AWS 에 "이 저장소의 dev/main · dev/prod 환경입니다" 증명서(OIDC 토큰)를 받는다
+  contents: read
+
+env:
+  REPOSITORY: nansogong-api
+  AWS_REGION: ap-northeast-2    # 서울 리전
+
+defaults:
+  run:
+    working-directory: backend    # gradlew · build.gradle 이 backend/ 안에 있다
+
+jobs:
+  # 테스트가 깨지면 빨간 X → 아래 단계는 실행되지 않는다
+  # Testcontainers 가 PostgreSQL · Redis 를 띄우고, Flyway 가 마이그레이션을 실제로 돌려 본다
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            backend/*.gradle*
+            backend/gradle/wrapper/gradle-wrapper.properties
+      - run: chmod +x gradlew && ./gradlew test
+
+  # 코드 지문(tree 해시) 이름표의 이미지가 ECR 에 이미 있으면 건너뛰고, 없을 때만 빌드한다
+  build:
+    needs: test
+    if: vars.AWS_BUILD_ROLE_ARN != '' && github.event_name != 'pull_request' && (github.ref_name == 'dev' || github.ref_name == 'main')
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_BUILD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: meta
+        run: |
+          TAG="tree-$(git rev-parse HEAD:backend | cut -c1-12)"      # backend 폴더 내용의 지문
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${{ steps.ecr.outputs.registry }}/$REPOSITORY:$TAG" >> "$GITHUB_OUTPUT"
+      - id: exists
+        run: |
+          if aws ecr describe-images --repository-name "$REPOSITORY" --image-ids imageTag=${{ steps.meta.outputs.tag }} > /dev/null 2>&1; then
+            echo "같은 코드로 만든 이미지가 이미 있다 → 빌드 건너뜀 (dev 에서 쓴 이미지를 그대로 쓴다)"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.exists.outputs.found != 'true'
+        uses: docker/setup-buildx-action@v3
+      - if: steps.exists.outputs.found != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          platforms: linux/arm64      # Graviton(t4g) 용. Dockerfile 의 빌드 단계는 $BUILDPLATFORM 이라 에뮬레이션 없이 컴파일한다
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+  # dev → dev EC2 (docker compose) 갱신
+  deploy-dev:
+    needs: build
+    if: github.ref_name == 'dev'
+    runs-on: ubuntu-latest
+    environment: dev
+    concurrency: { group: deploy-dev, cancel-in-progress: false }
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - if: vars.DEV_INSTANCE_ID == ''
+        run: echo "dev 환경 변수 DEV_INSTANCE_ID 가 아직 없어서 배포를 건너뜁니다"
+      - if: vars.DEV_INSTANCE_ID != ''
+        uses: actions/checkout@v4
+      - if: vars.DEV_INSTANCE_ID != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}     # dev 전용 역할 (dev EC2 에 명령만 보낼 수 있다)
+          aws-region: ${{ env.AWS_REGION }}
+      - if: vars.DEV_INSTANCE_ID != ''
+        env:
+          DEV_INSTANCE_ID: ${{ vars.DEV_INSTANCE_ID }}
+        run: bash infra/dev/run-remote.sh api ${{ needs.build.outputs.tag }}
+
+  # main → 승인 → CodeDeploy 로 prod ASG 배포 (한 대씩 ALB 에서 빼고 교체, 실패하면 자동 롤백)
+  deploy-prod:
+    needs: build
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    environment: prod
+    concurrency: { group: deploy-prod, cancel-in-progress: false }
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - if: vars.CODEDEPLOY_APP == ''
+        run: echo "prod 환경 변수 CODEDEPLOY_APP 이 아직 없어서 배포를 건너뜁니다"
+      - if: vars.CODEDEPLOY_APP != ''
+        uses: actions/checkout@v4
+      - if: vars.CODEDEPLOY_APP != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}     # prod 전용 역할
+          aws-region: ${{ env.AWS_REGION }}
+      # 배포 묶음 = appspec · 스크립트 + 이번 이미지 주소(image.env) + 데모 데이터 SQL
+      - if: vars.CODEDEPLOY_APP != ''
+        id: bundle
+        run: |
+          mkdir -p bundle && cp -r infra/codedeploy/. bundle/ && cp -r infra/demo-data bundle/demo-data
+          echo "IMAGE=${{ needs.build.outputs.image }}" > bundle/image.env
+          chmod +x bundle/scripts/*.sh bundle/demo-data/*.sh
+          KEY="api/${{ needs.build.outputs.tag }}-${{ github.run_id }}-${{ github.run_attempt }}.zip"
+          (cd bundle && zip -qr ../bundle.zip .)
+          aws s3 cp bundle.zip "s3://${{ vars.ARTIFACT_BUCKET }}/$KEY"
+          echo "key=$KEY" >> "$GITHUB_OUTPUT"
+      - if: vars.CODEDEPLOY_APP != ''
+        run: |
+          ID=$(aws deploy create-deployment \
+                 --application-name "${{ vars.CODEDEPLOY_APP }}" \
+                 --deployment-group-name "${{ vars.CODEDEPLOY_GROUP }}" \
+                 --s3-location bucket=${{ vars.ARTIFACT_BUCKET }},key=${{ steps.bundle.outputs.key }},bundleType=zip \
+                 --description "${{ github.sha }} ${{ needs.build.outputs.tag }}" \
+                 --query deploymentId --output text)
+          echo "CodeDeploy 배포 $ID (콘솔: CodeDeploy > 배포 에서 진행 상황 확인)"
+          for i in $(seq 1 60); do
+            STATUS=$(aws deploy get-deployment --deployment-id "$ID" --query deploymentInfo.status --output text)
+            case "$STATUS" in
+              Succeeded) echo "✅ prod 배포 완료"; exit 0 ;;
+              Failed|Stopped) aws deploy get-deployment --deployment-id "$ID" --query deploymentInfo.errorInformation; exit 1 ;;
+              *) echo "진행 중 ($STATUS, $((i*20))초)"; sleep 20 ;;
+            esac
+          done
+          echo "🚨 20분 안에 끝나지 않았습니다"; exit 1

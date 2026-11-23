@@ -1,0 +1,21 @@
+{
+  // ☕ Java: backend 폴더의 Gradle 프로젝트를 자동으로 불러온다 (gradlew 사용 → 팀원 모두 같은 Gradle 버전)
+  "java.import.gradle.enabled": true,
+  "java.import.gradle.wrapper.enabled": true,
+  "java.configuration.updateBuildConfiguration": "automatic",
+
+  // ⚛️ 프론트 lint 는 frontend 폴더 기준 (eslint.config.js 가 거기 있다)
+  "eslint.workingDirectories": ["frontend"],
+
+  // 📏 줄바꿈 LF 통일 (Windows 에서도). 나머지 들여쓰기 규칙은 .editorconfig 가 정한다
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+
+  // 🙈 탐색기에서 빌드 결과물 숨기기
+  "files.exclude": {
+    "**/build": true,
+    "**/.gradle": true,
+    "**/node_modules": true,
+    "**/dist": true
+  }
+}

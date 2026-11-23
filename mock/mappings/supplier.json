@@ -1,0 +1,72 @@
+{
+  "mappings": [
+    {
+      "name": "가상 거래처 - 공급 품목·단가·주문 단위·배송 정보",
+      "request": { "method": "GET", "urlPath": "/supplier/v1/products" },
+      "response": {
+        "status": 200,
+        "jsonBody": {
+          "supplierId": "SUP-A", "supplierName": "가나다 식자재",
+          "products": [
+            { "sku": "A-100", "name": "원두 (브라질 산토스)", "category": "원재료", "unit": "g", "packSize": 1000, "unitPrice": 21000, "minOrderPacks": 1, "leadTimeDays": 2, "shippingFee": 3000, "inStock": true },
+            { "sku": "A-200", "name": "우유 1L", "category": "원재료", "unit": "ml", "packSize": 1000, "unitPrice": 2600, "minOrderPacks": 10, "leadTimeDays": 1, "shippingFee": 3000, "inStock": true },
+            { "sku": "A-300", "name": "말차 파우더", "category": "원재료", "unit": "g", "packSize": 500, "unitPrice": 18500, "minOrderPacks": 1, "leadTimeDays": 3, "shippingFee": 3000, "inStock": false },
+            { "sku": "A-900", "name": "아이스컵 16oz (50개입)", "category": "포장재", "unit": "ea", "packSize": 50, "unitPrice": 4900, "minOrderPacks": 2, "leadTimeDays": 2, "shippingFee": 3000, "inStock": true }
+          ]
+        }
+      }
+    },
+    {
+      "name": "가상 거래처 - 발주 접수 (정상)",
+      "priority": 5,
+      "request": { "method": "POST", "urlPath": "/supplier/v1/orders", "headers": { "Idempotency-Key": { "matches": ".+" } } },
+      "response": {
+        "status": 202,
+        "headers": { "Content-Type": "application/json" },
+        "body": "{\"supplierOrderId\":\"SO-{{randomValue length=8 type='NUMERIC'}}\",\"status\":\"ACCEPTED\",\"idempotencyKey\":\"{{request.headers.Idempotency-Key}}\",\"expectedArrivalDate\":\"{{now offset='2 days' timezone='Asia/Seoul' format='yyyy-MM-dd'}}\"}"
+      }
+    },
+    {
+      "name": "가상 거래처 - Idempotency-Key 없으면 400 (중복 전송 방지 규칙)",
+      "priority": 1,
+      "request": { "method": "POST", "urlPath": "/supplier/v1/orders", "headers": { "Idempotency-Key": { "absent": true } } },
+      "response": { "status": 400, "jsonBody": { "code": "IDEMPOTENCY_KEY_REQUIRED", "message": "Idempotency-Key 헤더가 필요합니다." } }
+    },
+    {
+      "name": "가상 거래처 - 품절 (X-Mock-Scenario: out-of-stock) → 신규 판매처 탐색 테스트",
+      "priority": 1,
+      "request": { "method": "POST", "urlPath": "/supplier/v1/orders", "headers": { "X-Mock-Scenario": { "equalTo": "out-of-stock" } } },
+      "response": { "status": 409, "jsonBody": { "code": "OUT_OF_STOCK", "message": "요청한 품목 중 품절 상품이 있습니다.", "skus": ["A-300"] } }
+    },
+    {
+      "name": "가상 거래처 - 일부만 접수 (X-Mock-Scenario: partial) → 부분 성공 테스트",
+      "priority": 1,
+      "request": { "method": "POST", "urlPath": "/supplier/v1/orders", "headers": { "X-Mock-Scenario": { "equalTo": "partial" } } },
+      "response": { "status": 207, "jsonBody": { "supplierOrderId": "SO-PARTIAL1", "status": "PARTIALLY_ACCEPTED", "accepted": ["A-100"], "rejected": [ { "sku": "A-300", "reason": "OUT_OF_STOCK" } ] } }
+    },
+    {
+      "name": "가상 거래처 - 응답 지연 (X-Mock-Scenario: timeout) → '결과 확인 중' 테스트",
+      "priority": 1,
+      "request": { "method": "POST", "urlPath": "/supplier/v1/orders", "headers": { "X-Mock-Scenario": { "equalTo": "timeout" } } },
+      "response": { "status": 202, "fixedDelayMilliseconds": 30000, "jsonBody": { "supplierOrderId": "SO-LATE0001", "status": "ACCEPTED" } }
+    },
+    {
+      "name": "가상 거래처 - 주문 상태 조회",
+      "request": { "method": "GET", "urlPathPattern": "/supplier/v1/orders/[^/]+" },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "body": "{\"supplierOrderId\":\"{{request.pathSegments.[3]}}\",\"status\":\"SHIPPED\",\"trackingNo\":\"123456789012\",\"expectedArrivalDate\":\"{{now offset='1 days' timezone='Asia/Seoul' format='yyyy-MM-dd'}}\"}"
+      }
+    },
+    {
+      "name": "가상 거래처 - 정정 요청 접수 (UF-14)",
+      "request": { "method": "POST", "urlPath": "/supplier/v1/claims" },
+      "response": {
+        "status": 202,
+        "headers": { "Content-Type": "application/json" },
+        "body": "{\"claimId\":\"CL-{{randomValue length=6 type='NUMERIC'}}\",\"status\":\"RECEIVED\"}"
+      }
+    }
+  ]
+}

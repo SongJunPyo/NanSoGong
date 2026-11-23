@@ -1,0 +1,82 @@
+{
+  "mappings": [
+    {
+      "name": "국세청 상태조회 - 폐업자 (b_no 9999999999)",
+      "priority": 1,
+      "request": {
+        "method": "POST",
+        "urlPath": "/nts/v1/status",
+        "bodyPatterns": [{ "matchesJsonPath": "$.b_no[?(@ == '9999999999')]" }]
+      },
+      "response": {
+        "status": 200,
+        "jsonBody": {
+          "request_cnt": 1, "match_cnt": 1, "status_code": "OK",
+          "data": [{
+            "b_no": "9999999999", "b_stt": "폐업자", "b_stt_cd": "03",
+            "tax_type": "부가가치세 일반과세자", "tax_type_cd": "01",
+            "end_dt": "20251231", "utcc_yn": "N", "tax_type_change_dt": "", "invoice_apply_dt": "",
+            "rbf_tax_type": "", "rbf_tax_type_cd": ""
+          }]
+        }
+      }
+    },
+    {
+      "name": "국세청 상태조회 - 휴업자 (b_no 7777777777)",
+      "priority": 1,
+      "request": {
+        "method": "POST",
+        "urlPath": "/nts/v1/status",
+        "bodyPatterns": [{ "matchesJsonPath": "$.b_no[?(@ == '7777777777')]" }]
+      },
+      "response": {
+        "status": 200,
+        "jsonBody": {
+          "request_cnt": 1, "match_cnt": 1, "status_code": "OK",
+          "data": [{
+            "b_no": "7777777777", "b_stt": "휴업자", "b_stt_cd": "02",
+            "tax_type": "부가가치세 간이과세자", "tax_type_cd": "02",
+            "end_dt": "", "utcc_yn": "N", "tax_type_change_dt": "", "invoice_apply_dt": "",
+            "rbf_tax_type": "", "rbf_tax_type_cd": ""
+          }]
+        }
+      }
+    },
+    {
+      "name": "국세청 상태조회 - 그 외 번호는 계속사업자",
+      "priority": 5,
+      "request": { "method": "POST", "urlPath": "/nts/v1/status" },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "body": "{\"request_cnt\":1,\"match_cnt\":1,\"status_code\":\"OK\",\"data\":[{\"b_no\":\"{{jsonPath request.body '$.b_no[0]'}}\",\"b_stt\":\"계속사업자\",\"b_stt_cd\":\"01\",\"tax_type\":\"부가가치세 일반과세자\",\"tax_type_cd\":\"01\",\"end_dt\":\"\",\"utcc_yn\":\"N\",\"tax_type_change_dt\":\"\",\"invoice_apply_dt\":\"\",\"rbf_tax_type\":\"\",\"rbf_tax_type_cd\":\"\"}]}"
+      }
+    },
+    {
+      "name": "국세청 진위확인 - 불일치 (b_no 8888888888)",
+      "priority": 1,
+      "request": {
+        "method": "POST",
+        "urlPath": "/nts/v1/validate",
+        "bodyPatterns": [{ "matchesJsonPath": "$.businesses[?(@.b_no == '8888888888')]" }]
+      },
+      "response": {
+        "status": 200,
+        "jsonBody": {
+          "request_cnt": 1, "valid_cnt": 0, "status_code": "OK",
+          "data": [{ "b_no": "8888888888", "valid": "02", "valid_msg": "확인할 수 없습니다." }]
+        }
+      }
+    },
+    {
+      "name": "국세청 진위확인 - 그 외 번호는 일치",
+      "priority": 5,
+      "request": { "method": "POST", "urlPath": "/nts/v1/validate" },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "body": "{\"request_cnt\":1,\"valid_cnt\":1,\"status_code\":\"OK\",\"data\":[{\"b_no\":\"{{jsonPath request.body '$.businesses[0].b_no'}}\",\"valid\":\"01\",\"request_param\":{\"b_no\":\"{{jsonPath request.body '$.businesses[0].b_no'}}\",\"start_dt\":\"{{jsonPath request.body '$.businesses[0].start_dt'}}\",\"p_nm\":\"{{jsonPath request.body '$.businesses[0].p_nm'}}\"},\"status\":{\"b_no\":\"{{jsonPath request.body '$.businesses[0].b_no'}}\",\"b_stt\":\"계속사업자\",\"b_stt_cd\":\"01\"}}]}"
+      }
+    }
+  ]
+}

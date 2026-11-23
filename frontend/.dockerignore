@@ -1,0 +1,6 @@
+# 이미지에 넣지 않을 것들 (설치 · 빌드 결과물, 개인 환경변수)
+node_modules
+dist
+dev-dist
+.env.local
+.env.*.local
