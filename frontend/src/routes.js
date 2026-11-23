@@ -29,6 +29,9 @@ import WeeklyCheckPushPage from '@/features/inventory/pages/WeeklyCheckPushPage'
 import AdjustPage from '@/features/inventory/pages/AdjustPage'
 import DiscardPage from '@/features/inventory/pages/DiscardPage'
 import OrderRecommendationPage from '@/features/purchase/pages/OrderRecommendationPage'
+import PriceComparePage from '@/features/purchase/pages/PriceComparePage'
+import AgentOrderSettingsPage from '@/features/purchase/pages/AgentOrderSettingsPage'
+import AgentOrderPage from '@/features/purchase/pages/AgentOrderPage'
 import OrderEditPage from '@/features/purchase/pages/OrderEditPage'
 import OrderListPage from '@/features/purchase/pages/OrderListPage'
 import OrderStatusPage from '@/features/purchase/pages/OrderStatusPage'
@@ -88,6 +91,9 @@ export const ROUTES = [
   ['23 실사 등록', '/inventory/adjust', AdjustPage, 'UF-11'],
   ['23-1 폐기·손실 등록', '/inventory/adjust/discard', DiscardPage, 'UF-11'],
   ['24 발주 추천', '/orders/recommendation', OrderRecommendationPage, 'UF-12'],
+  ['24-1 가격 비교', '/orders/recommendation/compare', PriceComparePage, 'UF-12'],
+  ['24-6 AI 대신 주문 설정', '/settings/agent-order', AgentOrderSettingsPage, 'UF-13'],
+  ['24-7 AI 대신 주문', '/orders/agent', AgentOrderPage, 'UF-13'],
   ['25 발주 조건 수정', '/orders/recommendation/edit', OrderEditPage, 'UF-12'],
   ['26-0 발주 목록', '/orders', OrderListPage, 'UF-13'],
   ['26 발주 상태', '/orders/:id', OrderStatusPage, 'UF-13'],

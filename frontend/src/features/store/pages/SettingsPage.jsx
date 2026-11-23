@@ -33,6 +33,7 @@ export default function SettingsPage() {
       </Group>
       <Group title="연동">
         <ListRow title="POS·외부 서비스 연동" value="2/3 연결" to="/settings/integrations" />
+        <ListRow title="쇼핑몰 AI 대신 주문" value="쿠팡 연결" to="/settings/agent-order" />
       </Group>
       <Group title="운영">
         <ListRow title="프로모션 운영 설정" value="월 30만원" to="/settings/promotion" />

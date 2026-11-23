@@ -12,3 +12,7 @@ const useMockQuery = (key, data) => {
 
 export const useOrderRecommendation = () => useMockQuery(['purchase', 'orderRecommendation'], mock.orderRecommendation)
 export const useOrders = () => useMockQuery(['purchase', 'orders'], mock.orders)
+export const usePriceCompare = (itemId) =>
+  useMockQuery(['purchase', 'priceCompare', itemId], mock.priceCompare[itemId] ?? null)
+export const useAgentOrderSettings = () => useMockQuery(['purchase', 'agentOrderSettings'], mock.agentOrderSettings)
+export const useAgentOrder = () => useMockQuery(['purchase', 'agentOrder'], mock.agentOrder)
