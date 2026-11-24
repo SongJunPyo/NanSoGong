@@ -161,6 +161,8 @@ backend/src/main/resources/
 ### 3-5. 데이터 계약 (11/24 계약 회의 결정)
 
 > 공용 표와 판매 → 재고 차감 연결의 약속입니다. 바꾸려면 새 마이그레이션을 만들고 사용자에게 "단톡 공유 필요"라고 안내한다 ([3-3](#3-3-db--flyway)).
+>
+> 전체 표 구조(27개)는 [docs/pjt_source/store-agent-db.sql](docs/pjt_source/store-agent-db.sql) 에 있고, 같은 내용이 마이그레이션 `V202611241000__create_store_agent_schema.sql` 에 있다 (원본 설계: `docs/pjt_source/store-agent-db-desc.md`). 표 · 칸 이름이 궁금하면 추측하지 말고 이 파일을 본다.
 
 #### 이름 · 타입
 
@@ -174,18 +176,23 @@ backend/src/main/resources/
 | 재고 · 레시피 수량 | `DECIMAL(19,3)` / `BigDecimal` (예: 18.5g) |
 | 판매 수량 | `INTEGER` (잔 수는 정수) |
 | 시간 | `TIMESTAMPTZ`. 매출 집계용 영업일은 한국 시간 기준 `business_date DATE` 칸을 따로 둔다 |
-| 상태 값 | DB · API 는 영어 대문자 코드 (`NEEDS_FIX`). 한글 표시는 프론트가 바꾼다 (v0.7 문서의 한글 상태값도 코드로 바꿔 쓴다) |
+| 상태 값 | DB · API 는 영어 대문자 코드 (`NEEDS_FIX`) + DB `CHECK`. 한글 표시는 프론트가 바꾼다 (v0.7 문서의 한글 상태값도 코드로 바꿔 쓴다). 코드를 늘릴 때는 새 마이그레이션으로 `CHECK` 를 바꾼다 |
+| 매장 분리 칸 | `member` 를 뺀 **모든 표에 `store_id`**. 하위 표(`sales_order_item`, `inventory_transaction`, `approval` …)도 부모 행과 같은 값을 넣는다 ([3-2](#3-2-계층별-규칙)) |
+| JSONB 칸 | 칸 수를 줄이는 대신 **안의 구조는 백엔드 DTO 로 고정하고 저장 전에 검증**한다. 비밀값(토큰 · 세션 원문)은 넣지 않는다 |
 
 #### 품목 · 단가 · 연동
 
 - `unit` 값은 `G` · `ML` · `EA` 3개만.
 - `pack_size` = 구매 단위 1개가 관리 단위로 얼마인지 (원두 1봉 = `1000` G).
 - 단가는 항상 **관리 단위 1당 가격** (원두 1g당 25원). 단가 이력은 `item_cost` (예원), 현재 단가 캐시는 `item.unit_cost` (준표).
-- `integration` 칸: `store_id`, `provider` (`TOSS_PLACE` · `OPEN_BANKING` · `SUPPLIER`), `status`, `external_store_id`, `auth_ref`, `last_synced_at`, `last_error`. **인증값 원문은 DB 에 넣지 않고** `.env` · Secrets 에만 둔다.
+- `integration` 계약 칸: `store_id`, `provider` (`TOSS_PLACE` · `OPEN_BANKING` · `SUPPLIER`), `status`, `external_store_id`, `auth_ref`, `last_synced_at`, `last_error`. 설계 칸 `external_user_ref`, `token_expires_at`, `data_scope`, `capabilities`, `connected_at`, `disconnected_at`, `sync_state` 도 함께 둔다.
+  - **인증값 원문(키 · 토큰 · 로그인 세션)은 DB 에 넣지 않고** `.env` · Secrets 등 별도 저장소에만 둔다. `auth_ref` 에는 그 저장 위치 참조만.
+  - 공급처 로그인 상태 · 재로그인 필요 여부는 `status` (`EXPIRED` = 재로그인 · 재인증 필요) 로 표시한다.
 
 #### Flyway 머지 순서
 
-① 예원 회원 · 매장 · 연동 → ② 준표 품목 → ③ 예원 메뉴 → ④ 경모 매출. 파일 이름의 시각도 이 순서로 맞춘다 (예: `V202611241000__…` → `…1100__…` → `…1300__…` → `…1400__…`).
+- 11/24 계약 원안: ① 예원 회원 · 매장 · 연동 → ② 준표 품목 → ③ 예원 메뉴 → ④ 경모 매출 (담당별 파일).
+- 지금: `V202611241000__create_store_agent_schema.sql` 한 파일이 27개 표를 모두 만든다 (jpyo → dev PR 에서 **팀 합의 필요**). 합의되면 머지 이후 표 변경은 담당과 관계없이 **새 마이그레이션 파일을 추가**하고, `store-agent-db.sql` 에도 같은 변경을 반영한다.
 
 #### 판매 항목 `sales_order_item`
 
@@ -194,6 +201,7 @@ backend/src/main/resources/
 | 칸 | 타입 · 제약 | 뜻 |
 |---|---|---|
 | `sales_order_id` | `BIGINT NOT NULL` FK | 주문 |
+| `store_id` | `BIGINT NOT NULL` FK | 매장 (주문과 같은 값, 저장할 때 경모가 채움) |
 | `line_no` | `INTEGER NOT NULL`, `UNIQUE (sales_order_id, line_no)` | POS 주문 안의 줄 번호 |
 | `pos_menu_code` | `VARCHAR(100) NOT NULL` | POS 코드 원문 |
 | `menu_id` | `BIGINT` FK, NULL 가능 | `resolve` 결과. 못 찾으면 NULL |
@@ -204,8 +212,10 @@ backend/src/main/resources/
 | `option_price` | `DECIMAL(19,2) NOT NULL DEFAULT 0` | 메뉴 1개당 옵션 가격 합 |
 | `discount_amount` | `DECIMAL(19,2) NOT NULL DEFAULT 0` | 할인 |
 | `amount` | `DECIMAL(19,2) NOT NULL` | 실제 결제된 줄 금액 |
+| `refunded_amount` | `DECIMAL(19,2) NOT NULL DEFAULT 0` | 항목 누적 환불액 |
 | `options` | `JSONB NOT NULL DEFAULT '[]'` | 옵션 배열 (아래) |
 | `deduct_status` | `VARCHAR(20) NOT NULL DEFAULT 'PENDING'` | 재고 차감 상태 (아래) |
+| `processing_error` | `VARCHAR(255)` | `NEEDS_FIX` 사유 (메뉴 미연결 · 레시피 누락 등) |
 
 `options` 모양 (키는 camelCase):
 
@@ -232,8 +242,26 @@ backend/src/main/resources/
 6. 사용량 = Σ(기본 레시피 + 옵션 레시피 × `qty`) × 차감 수량. 단위는 품목의 관리 단위만 쓴다.
 7. 메뉴나 옵션 코드가 매핑되지 않았으면 **차감하지 않고 `NEEDS_FIX`**. 매핑에서 '제외'로 정한 옵션(예: 얼음 적게)은 사용량 0 으로 정상 처리.
 8. 취소는 **기존 행을 고치지 않는다.** `canceled_quantity` 를 늘리고 재고 장부에 '취소 환원'을 추가한다.
-9. 중복 방지 키: 판매 차감 `SALE:{orderItemId}`, 취소 환원 `CANCEL:{orderItemId}:{누적취소수량}` (재처리해도 1번만 반영).
+9. 중복 방지 키: 판매 차감 `SALE:{orderItemId}`, 취소 환원 `CANCEL:{orderItemId}:{누적취소수량}` (재처리해도 1번만 반영). 판매 1건이 재료 여러 행을 만들므로 `inventory_transaction` 의 UQ 는 `(idempotency_key, item_id)`.
 10. 콤보 · 세트는 이번 범위 밖. 들어오면 `NEEDS_FIX` 로 둔다 (3주차).
+
+#### 공급처 발주 · 결제 (브라우저 주문 최소 구성)
+
+| 표.칸 | 타입 | 담는 것 |
+|---|---|---|
+| `item.purchase_config` | JSONB | 기본 거래처 구매 설정: 기본 상품 코드 · URL, 옵션, 관리 단위당 최대 가격, 허용 가격 상승률, 비교 기준, 대체 허용 브랜드 · 용량 · 보관 방식 |
+| `supplier.order_channel` | `API` · `BROWSER` · `MANUAL` (기본 `MANUAL`) | 거래처 주문 방식 |
+| `suggestion.generation_context` | JSONB | 승인 **전** 기본 거래처 확인 · 대안 탐색 작업의 단계, 작업 ID, 재시도 횟수, 만료 시각, 재개 정보 |
+| `execution.runtime_context` | JSONB | 승인 **후** 주문 실행 단계, 작업 ID, 보호된 브라우저 세션 참조, 사용자 개입 사유, 인증 대기 만료 시각 |
+| `purchase_order.payment_status` | `PENDING` · `PAID` · `FAILED` · `UNKNOWN` · `NOT_REQUIRED` (기본 `PENDING`) | 주문 상태(`status`)와 별도인 결제 상태 |
+| `purchase_order.paid_amount` · `paid_at` | `DECIMAL(19,2)` · `TIMESTAMPTZ` | 실제 결제 완료가 확인된 금액 · 시각 |
+| `purchase_order_item.product_options` | JSONB | 주문 당시 선택한 상품 옵션 사본 (옵션 코드, 용량, 묶음 구성, 냉장 · 멸균) |
+
+- 값 확장: `purchase_order.order_method` 에 `BROWSER`, `execution.exec_status` 에 `WAITING_AUTH` (사용자 인증 대기).
+- **결제 완료는 확인했을 때만** `PAID` 로 바꾸고 `paid_amount` · `paid_at` 을 채운다. 확인 전에는 둘 다 NULL (DB `CHECK` 로 막음). 외부 주문번호(`external_order_ref`)가 발급됐다고 `PAID` 로 처리하지 않고, 기존 데이터도 확인 없이 `PAID` 로 채우지 않는다.
+- 새 칸을 만들지 않고 기존 칸을 쓴다: 주 거래처 `item.default_supplier_id`, 최종 상품 · 수량 · 가격 · 배송 조건 `suggestion.payload`, 기본 거래처 확인 결과 · 대체 사유 · 후보 비교 `suggestion.evidence`, 승인 범위 `approval.approved_scope`, 실행 직전 조건 변경 `execution.scope_check`, 상품 코드 · URL · 포장 환산 `purchase_order_item.product_ref` · `units_per_order`, AI 추적 `langsmith_trace_id`.
+- 우유 예: `purchase_config` "A우유 1L 우선, 가격 기준 초과 시 냉장 우유만 대체" → `generation_context` "기본 거래처 가격 초과 확인, 대체 탐색 중" → `runtime_context` "승인된 상품 주문 화면에서 결제 앱 인증 대기" → `product_options` "B우유 900mL × 12개".
+- 여러 워커 처리 · 장애 후 자동 인계를 만들 때만 `suggestion` · `execution` 에 `lease_owner VARCHAR(100)`, `lease_expires_at TIMESTAMPTZ` 추가를 따로 검토한다 (지금은 없음).
 
 #### 도메인 사이 메서드 계약
 
