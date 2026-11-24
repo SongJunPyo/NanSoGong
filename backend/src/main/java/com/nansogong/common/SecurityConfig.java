@@ -55,7 +55,6 @@ public class SecurityConfig {
                 .oauth2ResourceServer(o -> o.jwt(Customizer.withDefaults()))     // Authorization: Bearer 토큰 검사
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/api/auth/**", "/api/ping").permitAll()
-                        .requestMatchers("/error").permitAll()                            // 에러 응답(400 · 409 등)이 401 로 가려지지 않게
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()   // 로드밸런서(ALB) 상태 확인용
                         .requestMatchers("/actuator/prometheus").permitAll()                // 밖에서는 ALB 가 /actuator/* 를 막는다
