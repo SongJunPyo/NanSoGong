@@ -1,0 +1,86 @@
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Bell, X } from 'lucide-react'
+import { HOME_SEVERITIES, sortHomeNotifications } from '@/utils/home'
+import { formatNotificationTime } from '@/utils/format'
+
+export default function HomeNotifications({ notifications, unreadCount, onRead, onReadAll, isPending, isSaving, error }) {
+  const [open, setOpen] = useState(false)
+  const container = useRef(null)
+  const trigger = useRef(null)
+  const panel = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    panel.current?.focus()
+    const onOutsideClick = (event) => {
+      if (!container.current?.contains(event.target)) setOpen(false)
+    }
+    const onEscape = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        trigger.current?.focus()
+      }
+    }
+    document.addEventListener('pointerdown', onOutsideClick)
+    document.addEventListener('keydown', onEscape)
+    return () => {
+      document.removeEventListener('pointerdown', onOutsideClick)
+      document.removeEventListener('keydown', onEscape)
+    }
+  }, [open])
+
+  return (
+    <div ref={container}>
+      <button
+        ref={trigger} type="button" aria-label={`알림, 읽지 않은 알림 ${unreadCount}개`}
+        aria-haspopup="dialog" aria-expanded={open} aria-controls="home-notification-panel"
+        onClick={() => setOpen((value) => !value)}
+        className="relative flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-woori-blue"
+      >
+        <Bell size={22} strokeWidth={1.8} aria-hidden="true" />
+        {unreadCount > 0 && <span aria-hidden="true" data-unread-indicator className="absolute top-2 right-2 size-2 rounded-full bg-danger ring-2 ring-white" />}
+      </button>
+      {open && (
+        <div
+          ref={panel} id="home-notification-panel" role="dialog" aria-label="알림 목록" tabIndex={-1}
+          className="absolute top-[calc(100%+8px)] right-0 z-50 w-[min(360px,calc(100vw-40px))] overflow-hidden rounded-card border border-line bg-white shadow-lg outline-none"
+        >
+          <div className="flex items-center gap-2 border-b border-line px-4 py-3">
+            <h2 className="text-base font-bold text-ink">알림</h2>
+            <span aria-live="polite" className="text-caption font-bold text-woori-blue">읽지 않음 {unreadCount}개</span>
+            <button type="button" disabled={unreadCount === 0 || isSaving} onClick={onReadAll} className="ml-auto text-caption font-bold text-woori-blue disabled:text-ink-mute">모두 읽음</button>
+            <button type="button" aria-label="알림 닫기" onClick={() => { setOpen(false); trigger.current?.focus() }} className="rounded p-1 text-ink-sub hover:bg-surface-muted">
+              <X size={18} aria-hidden="true" />
+            </button>
+          </div>
+          {error && <p role="alert" className="px-4 py-2 text-caption text-danger">{error.message}</p>}
+          <ul className="max-h-[min(60dvh,420px)] overflow-y-auto overscroll-contain">
+            {sortHomeNotifications(notifications, false).map((notification) => {
+              const severity = HOME_SEVERITIES[notification.severity]
+              return (
+                <li key={notification.id}>
+                  <Link
+                    to={notification.to} onClick={() => { onRead(notification.id); setOpen(false) }}
+                    className={`flex gap-2.5 border-b border-line px-4 py-3 last:border-b-0 hover:bg-surface-muted ${notification.read ? 'bg-white' : 'bg-woori-tint/70'}`}
+                  >
+                    <span aria-hidden="true" className={`mt-1.5 size-1.5 shrink-0 rounded-full ${severity.dot}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-label text-ink ${notification.read ? 'font-medium' : 'font-bold'}`}>
+                        <span className={`mr-1.5 text-caption font-bold ${severity.text}`}>{severity.label}</span>
+                        {notification.title}
+                      </p>
+                      <p className="mt-1 text-caption text-ink-sub">{notification.description}</p>
+                      <time dateTime={notification.createdAt} className="mt-1 block text-caption text-ink-mute">{formatNotificationTime(notification.createdAt)}</time>
+                    </div>
+                  </Link>
+                </li>
+              )
+            })}
+            {notifications.length === 0 && <li role="status" className="px-4 py-8 text-center text-label text-ink-sub">{isPending ? '알림을 불러오는 중이에요.' : '아직 알림이 없어요.'}</li>}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
