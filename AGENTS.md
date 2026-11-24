@@ -136,7 +136,7 @@ backend/src/main/resources/
 | DTO | `record` + `static from(Entity)`. **Entity 를 그대로 응답하지 않는다** |
 | 검증 | 요청 DTO 에 `@NotNull` · `@Positive` 등 + Controller 에서 `@Valid` |
 | Entity | `@Data` 금지, `@Getter` 사용. 값 변경은 setter 대신 업무 메서드(`approve()`, `cancel()`) |
-| 돈 | `BigDecimal`, DB 는 `DECIMAL(19,2)`. 비교는 `compareTo` (`equals` 금지) |
+| 돈 | `BigDecimal`, DB 는 `DECIMAL(19,2)` (관리 단위당 단가만 `DECIMAL(19,4)`, [3-5](#3-5-데이터-계약-1124-계약-회의-결정)). 비교는 `compareTo` (`equals` 금지) |
 | 예외 | `BusinessException(HttpStatus, code, message)` 를 상속한 업무 예외만 추가한다. **`GlobalExceptionHandler` 는 고치지 않는다** |
 | 로그 | `@Slf4j`, `log.info("… {}", 값)`. 문자열 `+` 연결 금지. 개인정보 · 토큰 로그 금지 |
 | 매장 분리 | 모든 업무 표에 `store_id`. 서비스 맨 앞에서 `StoreService.checkOwner(memberId, storeId)` 로 내 매장인지 확인 (남의 매장 → 403) |
@@ -166,10 +166,11 @@ backend/src/main/resources/
 
 | 대상 | 규칙 |
 |---|---|
-| 표 · 칸 이름 | 표는 **단수** snake_case (`menu`, `sales_order_item`). PK 는 `id`, FK 는 `<표>_id` |
+| 표 · 칸 이름 | 표는 **단수** snake_case (`menu`, `sales_order_item`). PK 는 **`<표>_id`** (`menu.menu_id`), FK 는 참조하는 PK 와 같은 이름 (`sales_order_item.menu_id`). 역할이 있으면 `<역할>_<표>_id` (`parent_menu_id`, `default_supplier_id`) |
 | JSON 키 | API 응답과 DB 의 JSONB 칸 안 모두 camelCase (`posMenuCode`). snake_case 는 DB 칸 이름에만 |
 | ID | `BIGINT GENERATED ALWAYS AS IDENTITY` |
 | 금액 | `DECIMAL(19,2)` / `BigDecimal` |
+| 관리 단위당 단가 | `DECIMAL(19,4)` / `BigDecimal` (`item.unit_cost`, `item_cost.unit_cost`, `inventory_transaction.unit_cost`). 1g · 1ml 단가는 소수점 둘째 자리에서 끊으면 오차가 커서 따로 둔다 |
 | 재고 · 레시피 수량 | `DECIMAL(19,3)` / `BigDecimal` (예: 18.5g) |
 | 판매 수량 | `INTEGER` (잔 수는 정수) |
 | 시간 | `TIMESTAMPTZ`. 매출 집계용 영업일은 한국 시간 기준 `business_date DATE` 칸을 따로 둔다 |
