@@ -1,6 +1,6 @@
 -- 매장 에이전트 DB 설계 v1.1 · PostgreSQL 17 DDL
--- 원본: MySQL 8 DDL (docs/store-agent-db-v1.1.html 의 27개 업무 테이블, ERDCloud 가져오기용) 을 PostgreSQL 로 옮기고
---       11/24 계약 회의 결정(AGENTS.md 3-5 데이터 계약)을 적용했습니다.
+-- 원본 설계: docs/pjt_source/store-agent-db-desc.md (v1.1, MySQL 8 기준, 27개 표)
+-- 원칙: 원본 설계를 그대로 따르고, AGENTS.md (2-2 명명 · 3-2 계층 규칙 · 3-5 데이터 계약) 와 부딪히는 곳만 바꿨습니다.
 --
 -- 📌 같은 내용이 두 곳에 있습니다 (두 파일은 항상 같아야 합니다)
 --    - docs/pjt_source/store-agent-db.sql                                              설계 문서
@@ -15,7 +15,20 @@
 --   - 상태 값: 영어 대문자 코드 + CHECK. 한글 표시는 프론트가 담당 (각 칸 COMMENT 에 코드 ↔ 한글 대응)
 --   - JSON 칸은 JSONB, 안의 키는 camelCase
 --   - 품목 unit 은 G / ML / EA 만
---   - integration · sales_order_item 은 계약 확정안의 칸으로 맞춤 (v1.1 에서 빠진 칸은 각 표 위 주석에 적음)
+--   - users → member: 단수 규칙을 따르면 user 인데 PostgreSQL 예약어라 매번 "user" 로 감싸야 함.
+--     AGENTS.md 의 공용 표 이름 · 클래스 접두사(Member…) 와 맞춰 member 로 함
+--   - 모든 업무 표에 store_id (AGENTS.md 3-2 매장 분리): 하위 표 12개에 store_id 추가 (부모 행과 같은 값)
+--   - integration · sales_order_item: 계약 확정안 칸 + 계약과 부딪히지 않는 설계 칸은 유지. 바뀐 칸은 각 표 위 주석에 적음
+--   - 각 표 위 주석에 도메인과 담당 (AGENTS.md 7장) 표시
+--
+-- 공급처 브라우저 주문 · 결제 확인 (최소 구성)
+--   - 추가 칸: item.purchase_config, supplier.order_channel, suggestion.generation_context, execution.runtime_context,
+--             purchase_order.payment_status · paid_amount · paid_at, purchase_order_item.product_options
+--   - 값 확장: supplier.order_channel · purchase_order.order_method 에 BROWSER, execution.exec_status 에 WAITING_AUTH
+--   - 나머지는 기존 칸 사용: 주 거래처 item.default_supplier_id, 로그인 상태 integration.status, 세션 참조 integration.auth_ref,
+--     최종 제안 suggestion.payload, 확인 결과·대체 사유 suggestion.evidence, 승인 범위 approval.approved_scope,
+--     실행 직전 조건 execution.scope_check, 외부 주문번호 purchase_order.external_order_ref, AI 추적 langsmith_trace_id
+--   - 여러 워커 · 장애 후 자동 인계를 만들 때만 suggestion · execution 에 lease_owner VARCHAR(100), lease_expires_at TIMESTAMPTZ 추가 검토
 --
 -- MySQL → PostgreSQL 변환 메모
 --   - 백틱·ENGINE·CHARSET 제거, 칸 설명은 COMMENT ON 으로
@@ -24,6 +37,7 @@
 
 -- ----------------------------------------------------------------------
 -- member: 사장님 계정 (v1.1 users)
+--   도메인: 계정·매장·연동 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE member (
   member_id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -53,6 +67,7 @@ COMMENT ON COLUMN member.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- store: 매장 (사업자등록 1건 = 매장 1개)
+--   도메인: 계정·매장·연동 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE store (
   store_id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -95,8 +110,9 @@ COMMENT ON COLUMN store.created_at IS '생성 시각';
 COMMENT ON COLUMN store.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
--- integration: POS·공급처·금융(오픈뱅킹) 연결. 칸 목록은 11/24 계약
---   v1.1 대비: provider_type·provider_name(→ provider), external_store_ref(→ external_store_id), external_user_ref, token_expires_at, data_scope, capabilities, connected_at, disconnected_at, sync_state
+-- integration: POS·공급처·금융(오픈뱅킹) 연결. provider·status 코드는 11/24 계약
+--   도메인: 계정·매장·연동 · 담당: 예원
+--   v1.1 대비: provider_type·provider_name → provider (계약 코드), external_store_ref → external_store_id
 -- ----------------------------------------------------------------------
 CREATE TABLE integration (
   integration_id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -104,28 +120,43 @@ CREATE TABLE integration (
   provider           VARCHAR(20) NOT NULL CHECK (provider IN ('TOSS_PLACE', 'OPEN_BANKING', 'SUPPLIER')),
   status             VARCHAR(20) NOT NULL DEFAULT 'CONNECTED' CHECK (status IN ('CONNECTED', 'ERROR', 'EXPIRED', 'DISCONNECTED')),
   external_store_id  VARCHAR(100),
+  external_user_ref  VARCHAR(100),
   auth_ref           VARCHAR(255) NOT NULL,
+  token_expires_at   TIMESTAMPTZ,
+  data_scope         JSONB,
+  capabilities       JSONB,
+  connected_at       TIMESTAMPTZ NOT NULL,
+  disconnected_at    TIMESTAMPTZ,
   last_synced_at     TIMESTAMPTZ,
   last_error         TEXT,
+  sync_state         JSONB NOT NULL DEFAULT '{}',
   created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (provider, external_store_id)
 );
 
-COMMENT ON TABLE integration IS 'POS·공급처·금융(오픈뱅킹) 연결. 칸 목록은 11/24 계약';
+COMMENT ON TABLE integration IS 'POS·공급처·금융(오픈뱅킹) 연결. provider·status 코드는 11/24 계약';
 COMMENT ON COLUMN integration.integration_id IS '연동 ID';
 COMMENT ON COLUMN integration.store_id IS '매장';
 COMMENT ON COLUMN integration.provider IS 'TOSS_PLACE 토스플레이스(POS) / OPEN_BANKING 오픈뱅킹(금융) / SUPPLIER 공급처';
-COMMENT ON COLUMN integration.status IS 'CONNECTED 연결됨 / ERROR 오류 / EXPIRED 만료 / DISCONNECTED 해제';
+COMMENT ON COLUMN integration.status IS 'CONNECTED 연결됨 / ERROR 오류 / EXPIRED 만료(재로그인·재인증 필요) / DISCONNECTED 해제. 공급처 브라우저 로그인 상태도 이 칸으로 표시';
 COMMENT ON COLUMN integration.external_store_id IS '외부 서비스의 매장 식별자. 토스플레이스 merchantId (provider와 묶어서 UQ)';
-COMMENT ON COLUMN integration.auth_ref IS '인증 정보 참조값. 원문(키·토큰)은 DB에 넣지 않고 .env·Secrets에만 보관';
+COMMENT ON COLUMN integration.external_user_ref IS '외부 서비스의 사용자 식별자. 오픈뱅킹 사용자 일련번호';
+COMMENT ON COLUMN integration.auth_ref IS '인증 정보 참조값. 공급처는 암호화된 로그인 세션의 저장 위치 참조. 원문(키·토큰·세션)은 DB에 넣지 않고 .env·Secrets 등 별도 저장소에만 보관';
+COMMENT ON COLUMN integration.token_expires_at IS '접근 토큰 만료 시각. 만료 전 갱신·연동 만료 안내(41-2)에 사용';
+COMMENT ON COLUMN integration.data_scope IS '제공 데이터 종류 코드 배열. 예: ["ORDER","PAYMENT","MENU","OPTION","COUPON_USE"]';
+COMMENT ON COLUMN integration.capabilities IS '지원 기능. 예: {"couponSync":false,"orderSend":false,"correctionSend":false}. 화면 표시와 실행 가능 여부 판단에 사용';
+COMMENT ON COLUMN integration.connected_at IS '연결 시각';
+COMMENT ON COLUMN integration.disconnected_at IS '연결 해제 시각. 해제 후 데이터 보존 범위는 미정';
 COMMENT ON COLUMN integration.last_synced_at IS '최근 동기화 성공 시각';
 COMMENT ON COLUMN integration.last_error IS '최근 실패 사유';
+COMMENT ON COLUMN integration.sync_state IS '데이터 종류별 현재 동기화 상태. 각 값은 cursor, completeThrough, requestedFrom/To, status, lastAttemptAt, errorCode/Message';
 COMMENT ON COLUMN integration.created_at IS '생성 시각';
 COMMENT ON COLUMN integration.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- menu: 메뉴와 해당 메뉴의 옵션
+--   도메인: 메뉴·레시피 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE menu (
   menu_id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -158,6 +189,7 @@ COMMENT ON COLUMN menu.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- supplier: 공급처
+--   도메인: 거래처·발주·입고 · 담당: 준표
 -- ----------------------------------------------------------------------
 CREATE TABLE supplier (
   supplier_id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -165,6 +197,7 @@ CREATE TABLE supplier (
   name            VARCHAR(100) NOT NULL,
   source          VARCHAR(20) NOT NULL CHECK (source IN ('REGISTERED', 'DISCOVERED')),
   integration_id  BIGINT REFERENCES integration (integration_id),
+  order_channel   VARCHAR(20) NOT NULL DEFAULT 'MANUAL' CHECK (order_channel IN ('API', 'BROWSER', 'MANUAL')),
   contact         VARCHAR(255),
   lead_time_days  INTEGER,
   verify_status   VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED' CHECK (verify_status IN ('UNVERIFIED', 'VERIFIED', 'EXCLUDED')),
@@ -179,6 +212,7 @@ COMMENT ON COLUMN supplier.store_id IS '매장';
 COMMENT ON COLUMN supplier.name IS '공급처명';
 COMMENT ON COLUMN supplier.source IS 'REGISTERED 등록 / DISCOVERED 신규탐색';
 COMMENT ON COLUMN supplier.integration_id IS '연동 발주가 가능하면 값, NULL이면 직접 주문';
+COMMENT ON COLUMN supplier.order_channel IS '거래처 주문 방식: API 연동 API / BROWSER 브라우저 자동 주문 / MANUAL 사장님 직접 주문';
 COMMENT ON COLUMN supplier.contact IS '연락처·사이트 URL';
 COMMENT ON COLUMN supplier.lead_time_days IS '주문부터 도착까지 기본 일수. 사장님 입력 또는 과거 발주의 주문~첫 정상 입고 간격으로 추정';
 COMMENT ON COLUMN supplier.verify_status IS 'UNVERIFIED 미검증 / VERIFIED 검증완료 / EXCLUDED 제외';
@@ -188,6 +222,7 @@ COMMENT ON COLUMN supplier.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- item: 재고 품목 (원재료·포장재)
+--   도메인: 재고·원가 · 담당: 준표
 -- ----------------------------------------------------------------------
 CREATE TABLE item (
   item_id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -200,6 +235,7 @@ CREATE TABLE item (
   pack_size            DECIMAL(19,3) CHECK (pack_size > 0),
   unit_cost            DECIMAL(19,4),
   default_supplier_id  BIGINT REFERENCES supplier (supplier_id),
+  purchase_config      JSONB,
   is_active            BOOLEAN NOT NULL DEFAULT TRUE,
   reorder_point        DECIMAL(19,3),
   target_qty           DECIMAL(19,3),
@@ -218,7 +254,8 @@ COMMENT ON COLUMN item.unit IS '관리 단위 G / ML / EA. 재고·레시피 수
 COMMENT ON COLUMN item.purchase_unit IS '구매 단위 표시명 (팩/박스)';
 COMMENT ON COLUMN item.pack_size IS '구매 단위 1개 = 관리 단위 몇 개. 예: 원두 1봉 = 1000 (G)';
 COMMENT ON COLUMN item.unit_cost IS '현재 관리 단위 1당 원가 캐시 (item_cost 최신값 사본). 예: 원두 1g당 25원';
-COMMENT ON COLUMN item.default_supplier_id IS '기본 공급처';
+COMMENT ON COLUMN item.default_supplier_id IS '기본 공급처 (주 거래처)';
+COMMENT ON COLUMN item.purchase_config IS '기본 거래처 구매 설정: 기본 상품 코드·URL, 옵션, 관리 단위당 최대 가격, 허용 가격 상승률, 비교 기준, 대체 허용 브랜드·용량·보관 방식. 예: A우유 1L 우선, 가격 기준을 넘으면 냉장 우유만 대체 허용. 내부 구조는 백엔드 DTO 로 고정·검증, 키는 camelCase';
 COMMENT ON COLUMN item.is_active IS '사용 여부';
 COMMENT ON COLUMN item.reorder_point IS '현재 발주 검토 기준 수량. NULL이면 미산정';
 COMMENT ON COLUMN item.target_qty IS '현재 목표 확보 수량';
@@ -228,9 +265,11 @@ COMMENT ON COLUMN item.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- recipe_item: 메뉴·옵션별 레시피와 적용 기간
+--   도메인: 메뉴·레시피 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE recipe_item (
   recipe_item_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id        BIGINT NOT NULL REFERENCES store (store_id),
   menu_id         BIGINT NOT NULL REFERENCES menu (menu_id),
   item_id         BIGINT NOT NULL REFERENCES item (item_id),
   quantity        DECIMAL(19,3) NOT NULL,
@@ -246,6 +285,7 @@ CREATE TABLE recipe_item (
 
 COMMENT ON TABLE recipe_item IS '메뉴·옵션별 레시피와 적용 기간';
 COMMENT ON COLUMN recipe_item.recipe_item_id IS '레시피 항목 ID';
+COMMENT ON COLUMN recipe_item.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN recipe_item.menu_id IS '기본 메뉴 또는 옵션 행. 옵션이면 해당 옵션 선택 시에만 적용';
 COMMENT ON COLUMN recipe_item.item_id IS '사용 재료·포장재';
 COMMENT ON COLUMN recipe_item.quantity IS '메뉴 1개당 사용량 (관리 단위). 기본 메뉴는 양수, 옵션은 기본 대비 증감량';
@@ -258,9 +298,11 @@ COMMENT ON COLUMN recipe_item.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- pos_menu_mapping: POS 메뉴·옵션 ↔ 앱 메뉴·옵션 연결
+--   도메인: 메뉴·레시피 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE pos_menu_mapping (
   pos_menu_mapping_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id             BIGINT NOT NULL REFERENCES store (store_id),
   integration_id       BIGINT NOT NULL REFERENCES integration (integration_id),
   pos_menu_code        VARCHAR(100) NOT NULL,
   pos_option_code      VARCHAR(100) NOT NULL DEFAULT '',
@@ -274,6 +316,7 @@ CREATE TABLE pos_menu_mapping (
 
 COMMENT ON TABLE pos_menu_mapping IS 'POS 메뉴·옵션 ↔ 앱 메뉴·옵션 연결';
 COMMENT ON COLUMN pos_menu_mapping.pos_menu_mapping_id IS '매핑 ID';
+COMMENT ON COLUMN pos_menu_mapping.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN pos_menu_mapping.integration_id IS 'POS 연동';
 COMMENT ON COLUMN pos_menu_mapping.pos_menu_code IS 'POS 메뉴 코드';
 COMMENT ON COLUMN pos_menu_mapping.pos_option_code IS '기본 메뉴 연결이면 빈 문자열, 옵션 연결이면 POS 옵션 코드';
@@ -285,9 +328,11 @@ COMMENT ON COLUMN pos_menu_mapping.updated_at IS '수정 시각 (앱에서 갱�
 
 -- ----------------------------------------------------------------------
 -- item_cost: 품목 단가 이력 (적용 시점 관리)
+--   도메인: 재고·원가 · 담당: 예원 (단가 이력, 계약) · 추가만 하고 수정하지 않는 표
 -- ----------------------------------------------------------------------
 CREATE TABLE item_cost (
   item_cost_id    BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id        BIGINT NOT NULL REFERENCES store (store_id),
   item_id         BIGINT NOT NULL REFERENCES item (item_id),
   unit_cost       DECIMAL(19,4) NOT NULL,
   effective_from  TIMESTAMPTZ NOT NULL,
@@ -299,6 +344,7 @@ CREATE TABLE item_cost (
 
 COMMENT ON TABLE item_cost IS '품목 단가 이력 (적용 시점 관리)';
 COMMENT ON COLUMN item_cost.item_cost_id IS '단가 이력 ID';
+COMMENT ON COLUMN item_cost.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN item_cost.item_id IS '품목';
 COMMENT ON COLUMN item_cost.unit_cost IS '관리 단위 1당 원가';
 COMMENT ON COLUMN item_cost.effective_from IS '적용 시작 시각';
@@ -308,6 +354,7 @@ COMMENT ON COLUMN item_cost.created_at IS '생성 시각';
 
 -- ----------------------------------------------------------------------
 -- sales_order: POS 주문
+--   도메인: 판매·매출 · 담당: 경모 (POS 저장) · 예원 (매출 집계)
 --   v1.1 대비: pos_order_no(→ external_order_id), sales_date(→ business_date). raw_payload 추가
 -- ----------------------------------------------------------------------
 CREATE TABLE sales_order (
@@ -353,10 +400,12 @@ COMMENT ON COLUMN sales_order.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- sales_order_item: 주문 항목. 모양은 11/24 계약 확정안
---   v1.1 대비: pos_line_id(→ line_no), refunded_qty(→ canceled_quantity), inventory_status(→ deduct_status), restock_policy(취소는 항상 환원 장부 추가), refunded_amount, processing_error. menu_name·option_price·discount_amount 추가
+--   도메인: 판매·매출 · 담당: 경모 (POS 저장) · 준표 (재고 차감 상태)
+--   v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, inventory_status → deduct_status, restock_policy 삭제 (계약: 취소는 항상 환원 장부 추가). menu_name·option_price·discount_amount 추가 (계약)
 -- ----------------------------------------------------------------------
 CREATE TABLE sales_order_item (
   sales_order_item_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id             BIGINT NOT NULL REFERENCES store (store_id),
   sales_order_id       BIGINT NOT NULL REFERENCES sales_order (sales_order_id),
   line_no              INTEGER NOT NULL,
   pos_menu_code        VARCHAR(100) NOT NULL,
@@ -369,7 +418,9 @@ CREATE TABLE sales_order_item (
   discount_amount      DECIMAL(19,2) NOT NULL DEFAULT 0,
   amount               DECIMAL(19,2) NOT NULL,
   options              JSONB NOT NULL DEFAULT '[]',
+  refunded_amount      DECIMAL(19,2) NOT NULL DEFAULT 0,
   deduct_status        VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (deduct_status IN ('PENDING', 'DONE', 'NEEDS_FIX', 'SKIPPED')),
+  processing_error     VARCHAR(255),
   created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (sales_order_id, line_no),
@@ -378,6 +429,7 @@ CREATE TABLE sales_order_item (
 
 COMMENT ON TABLE sales_order_item IS '주문 항목. 모양은 11/24 계약 확정안';
 COMMENT ON COLUMN sales_order_item.sales_order_item_id IS '주문 항목 ID';
+COMMENT ON COLUMN sales_order_item.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN sales_order_item.sales_order_id IS '주문';
 COMMENT ON COLUMN sales_order_item.line_no IS 'POS 주문 안의 줄 번호';
 COMMENT ON COLUMN sales_order_item.pos_menu_code IS 'POS 코드 원문';
@@ -390,12 +442,15 @@ COMMENT ON COLUMN sales_order_item.option_price IS '메뉴 1개당 옵션 가격
 COMMENT ON COLUMN sales_order_item.discount_amount IS '할인 금액';
 COMMENT ON COLUMN sales_order_item.amount IS '실제 결제된 줄 금액 = (unit_price + option_price) × quantity − discount_amount';
 COMMENT ON COLUMN sales_order_item.options IS '옵션 배열 [{code, name, qty, price, menuId}]. qty는 메뉴 1개당 수량, menuId는 resolve로 찾은 옵션 메뉴(못 찾으면 null)';
+COMMENT ON COLUMN sales_order_item.refunded_amount IS '항목 누적 환불액';
 COMMENT ON COLUMN sales_order_item.deduct_status IS 'PENDING 차감 전 / DONE 차감 완료 / NEEDS_FIX 메뉴·옵션 미매핑 또는 레시피 누락 / SKIPPED 재고를 쓰지 않는 메뉴';
+COMMENT ON COLUMN sales_order_item.processing_error IS 'NEEDS_FIX 사유 (메뉴 미연결·옵션 단위·레시피 누락 등). 단가 누락은 원가만 계산불가로 두고 차감은 진행';
 COMMENT ON COLUMN sales_order_item.created_at IS '생성 시각';
 COMMENT ON COLUMN sales_order_item.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- suggestion: 발주·쿠폰·메뉴·재고 제안의 버전별 결과
+--   도메인: 제안·승인·실행 · 담당: 예원 (승인 공통)
 -- ----------------------------------------------------------------------
 CREATE TABLE suggestion (
   suggestion_id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -412,6 +467,7 @@ CREATE TABLE suggestion (
   summary               VARCHAR(500),
   payload               JSONB NOT NULL,
   evidence              JSONB NOT NULL,
+  generation_context    JSONB,
   status                VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ON_HOLD', 'REJECTED', 'APPROVED', 'ACKNOWLEDGED', 'NEEDS_FIX', 'EXPIRED', 'SUPERSEDED')),
   business_date         DATE NOT NULL,
   langsmith_trace_id    VARCHAR(64),
@@ -435,8 +491,9 @@ COMMENT ON COLUMN suggestion.urgency_level IS 'URGENT 긴급 / WARNING 주의 / 
 COMMENT ON COLUMN suggestion.priority IS '같은 긴급도 안의 표시 순서';
 COMMENT ON COLUMN suggestion.title IS '제안 제목';
 COMMENT ON COLUMN suggestion.summary IS '사용자 안내·보류 사유 요약';
-COMMENT ON COLUMN suggestion.payload IS '유형별 최종 제안 내용. 키는 camelCase';
-COMMENT ON COLUMN suggestion.evidence IS '사용자에게 보여줄 근거·출처·기준 시각·예상 효과 사본. 키는 camelCase';
+COMMENT ON COLUMN suggestion.payload IS '유형별 최종 제안 내용. 발주면 최종 상품·수량·가격·배송 조건. 키는 camelCase';
+COMMENT ON COLUMN suggestion.evidence IS '사용자에게 보여줄 근거·출처·기준 시각·예상 효과 사본. 발주면 기본 거래처 확인 결과, 기본 거래처를 못 쓴 이유, 대체 후보 비교 근거. 키는 camelCase';
+COMMENT ON COLUMN suggestion.generation_context IS '승인 전 기본 거래처 확인·대안 탐색 작업의 진행·복구 정보: 현재 확인·탐색 단계, 작업 ID, 재시도 횟수, 작업 만료 시각, 재개에 필요한 정보. 예: 기본 거래처 가격 초과 확인, 대체 상품 탐색 중. 내부 구조는 백엔드 DTO 로 고정·검증, 키는 camelCase';
 COMMENT ON COLUMN suggestion.status IS 'PENDING 검토대기 / ON_HOLD 보류 / REJECTED 반려 / APPROVED 승인 / ACKNOWLEDGED 확인완료 / NEEDS_FIX 보완필요 / EXPIRED 만료 / SUPERSEDED 대체됨';
 COMMENT ON COLUMN suggestion.business_date IS '한국 기준 제안 기준일';
 COMMENT ON COLUMN suggestion.langsmith_trace_id IS 'AI 추적 연결값. 서비스 원본이나 FK가 아님';
@@ -446,9 +503,11 @@ COMMENT ON COLUMN suggestion.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- approval: 사용자의 승인·보류·반려 결정
+--   도메인: 제안·승인·실행 · 담당: 예원 (승인 공통) · 추가만 하고 수정하지 않는 표
 -- ----------------------------------------------------------------------
 CREATE TABLE approval (
   approval_id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id              BIGINT NOT NULL REFERENCES store (store_id),
   suggestion_id         BIGINT NOT NULL REFERENCES suggestion (suggestion_id),
   decided_by_member_id  BIGINT NOT NULL REFERENCES member (member_id),
   decision              VARCHAR(10) NOT NULL CHECK (decision IN ('APPROVED', 'ON_HOLD', 'REJECTED')),
@@ -460,6 +519,7 @@ CREATE TABLE approval (
 
 COMMENT ON TABLE approval IS '사용자의 승인·보류·반려 결정';
 COMMENT ON COLUMN approval.approval_id IS '결정 ID';
+COMMENT ON COLUMN approval.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN approval.suggestion_id IS '결정한 제안 버전';
 COMMENT ON COLUMN approval.decided_by_member_id IS '실제로 결정한 사용자 (v1.1 decided_by)';
 COMMENT ON COLUMN approval.decision IS 'APPROVED 승인 / ON_HOLD 보류 / REJECTED 반려';
@@ -470,16 +530,20 @@ COMMENT ON COLUMN approval.created_at IS '생성 시각';
 
 -- ----------------------------------------------------------------------
 -- purchase_order: 발주 (연동 전송·직접 주문)
+--   도메인: 거래처·발주·입고 · 담당: 준표
 -- ----------------------------------------------------------------------
 CREATE TABLE purchase_order (
   purchase_order_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   store_id            BIGINT NOT NULL REFERENCES store (store_id),
   supplier_id         BIGINT NOT NULL REFERENCES supplier (supplier_id),
-  order_method        VARCHAR(20) NOT NULL CHECK (order_method IN ('API', 'MANUAL')),
+  order_method        VARCHAR(20) NOT NULL CHECK (order_method IN ('API', 'BROWSER', 'MANUAL')),
   status              VARCHAR(20) NOT NULL CHECK (status IN ('READY_TO_SEND', 'REQUESTED', 'ACCEPTED', 'SHIPPING', 'PARTIALLY_RECEIVED', 'NEEDS_CHECK', 'RECEIVED', 'CLOSED', 'CANCELED')),
   subtotal            DECIMAL(19,2) NOT NULL,
   shipping_fee        DECIMAL(19,2),
   total_amount        DECIMAL(19,2) NOT NULL,
+  payment_status      VARCHAR(30) NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING', 'PAID', 'FAILED', 'UNKNOWN', 'NOT_REQUIRED')),
+  paid_amount         DECIMAL(19,2) CHECK (paid_amount >= 0),
+  paid_at             TIMESTAMPTZ,
   ordered_at          TIMESTAMPTZ,
   expected_arrival    DATE,
   external_order_ref  VARCHAR(100),
@@ -487,21 +551,25 @@ CREATE TABLE purchase_order (
   workflow_key        VARCHAR(64) NOT NULL,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (workflow_key)
+  UNIQUE (workflow_key),
+  CHECK ((payment_status = 'PAID') = (paid_amount IS NOT NULL AND paid_at IS NOT NULL))
 );
 
 COMMENT ON TABLE purchase_order IS '발주 (연동 전송·직접 주문)';
 COMMENT ON COLUMN purchase_order.purchase_order_id IS '발주 ID';
 COMMENT ON COLUMN purchase_order.store_id IS '매장';
 COMMENT ON COLUMN purchase_order.supplier_id IS '공급처';
-COMMENT ON COLUMN purchase_order.order_method IS 'API API전송 / MANUAL 직접주문';
+COMMENT ON COLUMN purchase_order.order_method IS '실제 주문에 사용한 방식: API API전송 / BROWSER 브라우저 자동 주문 / MANUAL 직접주문';
 COMMENT ON COLUMN purchase_order.status IS 'READY_TO_SEND 전송대기 / REQUESTED 요청 / ACCEPTED 접수 / SHIPPING 배송중 / PARTIALLY_RECEIVED 부분입고 / NEEDS_CHECK 확인필요 / RECEIVED 입고완료 / CLOSED 종료(일부 품목을 거절·잔량종료로 마친 주문) / CANCELED 취소';
 COMMENT ON COLUMN purchase_order.subtotal IS '상품 금액';
 COMMENT ON COLUMN purchase_order.shipping_fee IS '배송비';
 COMMENT ON COLUMN purchase_order.total_amount IS '총액';
+COMMENT ON COLUMN purchase_order.payment_status IS '주문 상태(status)와 별도인 결제 상태: PENDING 결제 대기·진행 중 / PAID 결제 완료 확인 / FAILED 결제 실패 확인 / UNKNOWN 결제 여부 확인 필요 / NOT_REQUIRED 외상·후불 등 선결제 불필요. 외부 주문번호 발급만으로 PAID 처리하지 않음';
+COMMENT ON COLUMN purchase_order.paid_amount IS '실제 결제 완료가 확인된 금액. 확인 전까지 NULL';
+COMMENT ON COLUMN purchase_order.paid_at IS '실제 결제 완료 시각. 확인 전까지 NULL';
 COMMENT ON COLUMN purchase_order.ordered_at IS '외부 요청 또는 직접 주문 시각. READY_TO_SEND이면 NULL';
 COMMENT ON COLUMN purchase_order.expected_arrival IS '도착 예정일';
-COMMENT ON COLUMN purchase_order.external_order_ref IS '공급처 주문번호';
+COMMENT ON COLUMN purchase_order.external_order_ref IS '공급처 주문번호 (외부 주문번호). 발급됐다고 결제 완료는 아님';
 COMMENT ON COLUMN purchase_order.approval_id IS '발주에 사용한 승인. 승인 없이 이미 주문한 내용을 등록한 경우만 NULL';
 COMMENT ON COLUMN purchase_order.workflow_key IS '한 발주 업무의 식별자. 재승인·재시도에도 유지';
 COMMENT ON COLUMN purchase_order.created_at IS '생성 시각';
@@ -509,9 +577,11 @@ COMMENT ON COLUMN purchase_order.updated_at IS '수정 시각 (앱에서 갱신)
 
 -- ----------------------------------------------------------------------
 -- purchase_order_item: 발주 품목
+--   도메인: 거래처·발주·입고 · 담당: 준표
 -- ----------------------------------------------------------------------
 CREATE TABLE purchase_order_item (
   purchase_order_item_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id                BIGINT NOT NULL REFERENCES store (store_id),
   purchase_order_id       BIGINT NOT NULL REFERENCES purchase_order (purchase_order_id),
   item_id                 BIGINT NOT NULL REFERENCES item (item_id),
   quantity                DECIMAL(19,3) NOT NULL CHECK (quantity > 0),
@@ -519,6 +589,7 @@ CREATE TABLE purchase_order_item (
   unit_price              DECIMAL(19,2) NOT NULL,
   product_name            VARCHAR(100) NOT NULL,
   product_ref             VARCHAR(255),
+  product_options         JSONB,
   purchase_unit           VARCHAR(10) NOT NULL,
   line_status             VARCHAR(20) NOT NULL DEFAULT 'ORDERED' CHECK (line_status IN ('ORDERED', 'ACCEPTED', 'REJECTED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED_REMAINING')),
   closed_at               TIMESTAMPTZ,
@@ -529,6 +600,7 @@ CREATE TABLE purchase_order_item (
 
 COMMENT ON TABLE purchase_order_item IS '발주 품목';
 COMMENT ON COLUMN purchase_order_item.purchase_order_item_id IS '발주 품목 ID';
+COMMENT ON COLUMN purchase_order_item.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN purchase_order_item.purchase_order_id IS '발주 (v1.1 po_id)';
 COMMENT ON COLUMN purchase_order_item.item_id IS '품목';
 COMMENT ON COLUMN purchase_order_item.quantity IS '주문 수량 (구매 단위)';
@@ -536,6 +608,7 @@ COMMENT ON COLUMN purchase_order_item.units_per_order IS '발주 당시 구매 �
 COMMENT ON COLUMN purchase_order_item.unit_price IS '단가 (구매 단위)';
 COMMENT ON COLUMN purchase_order_item.product_name IS '주문 당시 공급처 상품명';
 COMMENT ON COLUMN purchase_order_item.product_ref IS '공급처 상품 코드 또는 URL 사본';
+COMMENT ON COLUMN purchase_order_item.product_options IS '주문 당시 선택한 상품 옵션 사본: 옵션 코드, 용량, 묶음 구성, 냉장·멸균 구분 등. 예: B우유 900mL × 12개. 관리 단위 환산은 units_per_order. 내부 구조는 백엔드 DTO 로 고정·검증, 키는 camelCase';
 COMMENT ON COLUMN purchase_order_item.purchase_unit IS '주문 당시 구매 단위';
 COMMENT ON COLUMN purchase_order_item.line_status IS 'ORDERED 주문 / ACCEPTED 접수 / REJECTED 거절 / PARTIALLY_RECEIVED 부분입고 / RECEIVED 입고완료 / CLOSED_REMAINING 잔량종료';
 COMMENT ON COLUMN purchase_order_item.closed_at IS '거절·잔량종료 처리 시각';
@@ -545,9 +618,11 @@ COMMENT ON COLUMN purchase_order_item.updated_at IS '수정 시각 (앱에서 �
 
 -- ----------------------------------------------------------------------
 -- receipt_item: 입고 확인 (도착분을 정상·파손·오배송으로 구분)
+--   도메인: 거래처·발주·입고 · 담당: 준표 · 추가만 하고 수정하지 않는 표
 -- ----------------------------------------------------------------------
 CREATE TABLE receipt_item (
   receipt_item_id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id                BIGINT NOT NULL REFERENCES store (store_id),
   purchase_order_item_id  BIGINT NOT NULL REFERENCES purchase_order_item (purchase_order_item_id),
   arrived_qty             DECIMAL(19,3) NOT NULL,
   arrived_at              TIMESTAMPTZ,
@@ -564,6 +639,7 @@ CREATE TABLE receipt_item (
 
 COMMENT ON TABLE receipt_item IS '입고 확인 (도착분을 정상·파손·오배송으로 구분)';
 COMMENT ON COLUMN receipt_item.receipt_item_id IS '입고 확인 ID';
+COMMENT ON COLUMN receipt_item.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN receipt_item.purchase_order_item_id IS '발주 품목 (v1.1 po_item_id)';
 COMMENT ON COLUMN receipt_item.arrived_qty IS '이번에 도착한 수량 (구매 단위)';
 COMMENT ON COLUMN receipt_item.arrived_at IS '실제 도착 시각. 입력하지 않으면 confirmed_at과 같음';
@@ -578,9 +654,11 @@ COMMENT ON COLUMN receipt_item.created_at IS '생성 시각';
 
 -- ----------------------------------------------------------------------
 -- inventory_transaction: 재료별 재고 변동 장부와 판매 원가 사본
+--   도메인: 재고·원가 · 담당: 준표 · 추가만 하고 수정하지 않는 표
 -- ----------------------------------------------------------------------
 CREATE TABLE inventory_transaction (
   inventory_transaction_id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id                           BIGINT NOT NULL REFERENCES store (store_id),
   item_id                            BIGINT NOT NULL REFERENCES item (item_id),
   txn_type                           VARCHAR(20) NOT NULL CHECK (txn_type IN ('SALE', 'CANCEL', 'RECEIPT', 'DISPOSAL', 'LOSS')),
   qty_delta                          DECIMAL(19,3) NOT NULL,
@@ -598,6 +676,7 @@ CREATE TABLE inventory_transaction (
 
 COMMENT ON TABLE inventory_transaction IS '재료별 재고 변동 장부와 판매 원가 사본';
 COMMENT ON COLUMN inventory_transaction.inventory_transaction_id IS '변동 ID';
+COMMENT ON COLUMN inventory_transaction.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN inventory_transaction.item_id IS '재료·포장재';
 COMMENT ON COLUMN inventory_transaction.txn_type IS 'SALE 판매차감 / CANCEL 취소환원 / RECEIPT 입고 / DISPOSAL 폐기 / LOSS 손실';
 COMMENT ON COLUMN inventory_transaction.qty_delta IS '관리 단위 증감량. 입고·환원은 양수, 차감·폐기·손실은 음수';
@@ -613,6 +692,7 @@ COMMENT ON COLUMN inventory_transaction.created_at IS '생성 시각';
 
 -- ----------------------------------------------------------------------
 -- stock_count: 실사 기록 (초기 재고 포함)
+--   도메인: 재고·원가 · 담당: 준표 · 추가만 하고 수정하지 않는 표
 -- ----------------------------------------------------------------------
 CREATE TABLE stock_count (
   stock_count_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -640,6 +720,7 @@ COMMENT ON COLUMN stock_count.created_at IS '생성 시각';
 
 -- ----------------------------------------------------------------------
 -- bank_account: 금융 연동 계좌 (사장님이 등록·관리)
+--   도메인: 입출금·비용 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE bank_account (
   bank_account_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -686,9 +767,11 @@ COMMENT ON COLUMN bank_account.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- bank_transaction: 입출금 거래 (금융 거래일 기준)
+--   도메인: 입출금·비용 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE bank_transaction (
   bank_transaction_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id             BIGINT NOT NULL REFERENCES store (store_id),
   bank_account_id      BIGINT NOT NULL REFERENCES bank_account (bank_account_id),
   external_txn_id      VARCHAR(100) NOT NULL,
   txn_at               TIMESTAMPTZ NOT NULL,
@@ -708,6 +791,7 @@ CREATE TABLE bank_transaction (
 
 COMMENT ON TABLE bank_transaction IS '입출금 거래 (금융 거래일 기준)';
 COMMENT ON COLUMN bank_transaction.bank_transaction_id IS '거래 ID';
+COMMENT ON COLUMN bank_transaction.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN bank_transaction.bank_account_id IS '계좌 (v1.1 account_id)';
 COMMENT ON COLUMN bank_transaction.external_txn_id IS '연동 서비스의 거래 식별자 (bank_account_id와 묶어서 UQ). 중복 수집 방지. 오픈뱅킹에 거래 고유 ID가 없으면 거래일시·입출금구분·금액·거래후잔액·적요 해시로 생성';
 COMMENT ON COLUMN bank_transaction.txn_at IS '금융 거래일시. 날짜만 제공되면 한국 시간 해당일 00:00:00';
@@ -725,9 +809,11 @@ COMMENT ON COLUMN bank_transaction.updated_at IS '수정 시각 (앱에서 갱�
 
 -- ----------------------------------------------------------------------
 -- sales_payment: POS 결제 내역과 통장 입금 대사
+--   도메인: 판매·매출 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE sales_payment (
   sales_payment_id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id                 BIGINT NOT NULL REFERENCES store (store_id),
   sales_order_id           BIGINT NOT NULL REFERENCES sales_order (sales_order_id),
   external_payment_id      VARCHAR(100) NOT NULL,
   method                   VARCHAR(20) NOT NULL CHECK (method IN ('CARD', 'CASH', 'EASY_PAY', 'OTHER')),
@@ -748,6 +834,7 @@ CREATE TABLE sales_payment (
 
 COMMENT ON TABLE sales_payment IS 'POS 결제 내역과 통장 입금 대사';
 COMMENT ON COLUMN sales_payment.sales_payment_id IS '결제 ID';
+COMMENT ON COLUMN sales_payment.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN sales_payment.sales_order_id IS '주문 (v1.1 order_id)';
 COMMENT ON COLUMN sales_payment.external_payment_id IS 'POS 결제 식별자. 토스플레이스 paymentId (sales_order_id와 묶어서 UQ)';
 COMMENT ON COLUMN sales_payment.method IS 'CARD 카드 / CASH 현금 / EASY_PAY 간편결제 / OTHER 기타';
@@ -766,6 +853,7 @@ COMMENT ON COLUMN sales_payment.updated_at IS '수정 시각 (앱에서 갱신)'
 
 -- ----------------------------------------------------------------------
 -- expense: 운영 비용 (수동 입력·금융 거래 연결)
+--   도메인: 입출금·비용 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE expense (
   expense_id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -802,6 +890,7 @@ COMMENT ON COLUMN expense.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- coupon: 승인된 쿠폰과 POS 반영 상태
+--   도메인: 쿠폰 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE coupon (
   coupon_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -845,17 +934,20 @@ COMMENT ON COLUMN coupon.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- execution: 승인된 발주·쿠폰 요청의 외부 처리 상태
+--   도메인: 제안·승인·실행 · 담당: 예원 (승인 공통)
 -- ----------------------------------------------------------------------
 CREATE TABLE execution (
   execution_id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id            BIGINT NOT NULL REFERENCES store (store_id),
   approval_id         BIGINT NOT NULL REFERENCES approval (approval_id),
   purchase_order_id   BIGINT REFERENCES purchase_order (purchase_order_id),
   coupon_id           BIGINT REFERENCES coupon (coupon_id),
   operation           VARCHAR(20) NOT NULL CHECK (operation IN ('PURCHASE_ORDER_SEND', 'COUPON_CREATE', 'COUPON_UPDATE')),
   idempotency_key     VARCHAR(100) NOT NULL,
-  exec_status         VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (exec_status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'PARTIALLY_SUCCEEDED', 'CHECKING', 'MANUALLY_CLOSED')),
+  exec_status         VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (exec_status IN ('PENDING', 'RUNNING', 'WAITING_AUTH', 'SUCCEEDED', 'FAILED', 'PARTIALLY_SUCCEEDED', 'CHECKING', 'MANUALLY_CLOSED')),
   scope_check         JSONB,
   request_body        JSONB NOT NULL,
+  runtime_context     JSONB,
   external_ref        VARCHAR(100),
   result_summary      JSONB,
   error_msg           VARCHAR(500),
@@ -870,14 +962,16 @@ CREATE TABLE execution (
 
 COMMENT ON TABLE execution IS '승인된 발주·쿠폰 요청의 외부 처리 상태';
 COMMENT ON COLUMN execution.execution_id IS '외부 요청 ID';
+COMMENT ON COLUMN execution.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN execution.approval_id IS '승인 결정';
 COMMENT ON COLUMN execution.purchase_order_id IS '발주 전송 대상 (v1.1 po_id)';
 COMMENT ON COLUMN execution.coupon_id IS '쿠폰 POS 등록·변경 대상';
 COMMENT ON COLUMN execution.operation IS 'PURCHASE_ORDER_SEND 발주전송 / COUPON_CREATE 쿠폰등록 / COUPON_UPDATE 쿠폰변경';
 COMMENT ON COLUMN execution.idempotency_key IS '업무 대상·작업·요청 내용에 대한 안정적인 중복 방지 키';
-COMMENT ON COLUMN execution.exec_status IS 'PENDING 대기 / RUNNING 처리중 / SUCCEEDED 성공 / FAILED 실패 / PARTIALLY_SUCCEEDED 부분성공 / CHECKING 결과확인중 / MANUALLY_CLOSED 수동종료';
+COMMENT ON COLUMN execution.exec_status IS 'PENDING 대기 / RUNNING 처리중 / WAITING_AUTH 사용자 인증 대기 / SUCCEEDED 성공 / FAILED 실패 / PARTIALLY_SUCCEEDED 부분성공 / CHECKING 결과확인중 / MANUALLY_CLOSED 수동종료';
 COMMENT ON COLUMN execution.scope_check IS '실행 직전 승인 범위·현재 조건 검증 결과. 전송 전 필수. 키는 camelCase';
 COMMENT ON COLUMN execution.request_body IS '실제 승인·전송할 요청 사본';
+COMMENT ON COLUMN execution.runtime_context IS '승인 후 주문 실행 정보: 현재 주문 단계, 작업 ID, 보호된 브라우저 세션 참조, 사용자 개입 사유, 인증 대기 만료 시각. 예: 승인된 상품 주문 화면에서 결제 앱 인증 대기 중. 세션 원문은 넣지 않음. 내부 구조는 백엔드 DTO 로 고정·검증, 키는 camelCase';
 COMMENT ON COLUMN execution.external_ref IS '외부 주문·처리 식별자';
 COMMENT ON COLUMN execution.result_summary IS '사용자에게 필요한 결과·확인된 성공 범위. 키는 camelCase';
 COMMENT ON COLUMN execution.error_msg IS '사용자 안내 오류';
@@ -890,9 +984,11 @@ COMMENT ON COLUMN execution.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- coupon_redemption: POS 쿠폰 사용 내역 (사용·취소·환불 이벤트)
+--   도메인: 쿠폰 · 담당: 예원
 -- ----------------------------------------------------------------------
 CREATE TABLE coupon_redemption (
   coupon_redemption_id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id                       BIGINT NOT NULL REFERENCES store (store_id),
   integration_id                 BIGINT NOT NULL REFERENCES integration (integration_id),
   external_event_id              VARCHAR(100) NOT NULL,
   pos_coupon_code                VARCHAR(100) NOT NULL,
@@ -911,6 +1007,7 @@ CREATE TABLE coupon_redemption (
 
 COMMENT ON TABLE coupon_redemption IS 'POS 쿠폰 사용 내역 (사용·취소·환불 이벤트)';
 COMMENT ON COLUMN coupon_redemption.coupon_redemption_id IS '사용 내역 ID';
+COMMENT ON COLUMN coupon_redemption.store_id IS '매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2)';
 COMMENT ON COLUMN coupon_redemption.integration_id IS '수집한 POS';
 COMMENT ON COLUMN coupon_redemption.external_event_id IS 'POS 이벤트 식별자 (integration_id와 묶어서 UQ). 중복 수집 방지';
 COMMENT ON COLUMN coupon_redemption.pos_coupon_code IS 'POS가 보낸 쿠폰 식별자';
@@ -927,6 +1024,7 @@ COMMENT ON COLUMN coupon_redemption.updated_at IS '수정 시각 (앱에서 갱�
 
 -- ----------------------------------------------------------------------
 -- schedule: 운영 일정 (행사 API 수집·사장님 직접 입력). 2주 범위 밖 → 3주차
+--   도메인: 일정·수요 예측 · 담당: 미정 (3주차)
 -- ----------------------------------------------------------------------
 CREATE TABLE schedule (
   schedule_id      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -967,6 +1065,7 @@ COMMENT ON COLUMN schedule.updated_at IS '수정 시각 (앱에서 갱신)';
 
 -- ----------------------------------------------------------------------
 -- demand_forecast: 메뉴별 일 판매량 예측
+--   도메인: 일정·수요 예측 · 담당: 준표 · AI 후상 · 추가만 하고 수정하지 않는 표
 -- ----------------------------------------------------------------------
 CREATE TABLE demand_forecast (
   demand_forecast_id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
