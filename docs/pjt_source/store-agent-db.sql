@@ -21,6 +21,15 @@
 --   - integration · sales_order_item: 계약 확정안 칸 + 계약과 부딪히지 않는 설계 칸은 유지. 바뀐 칸은 각 표 위 주석에 적음
 --   - 각 표 위 주석에 도메인과 담당 (AGENTS.md 7장) 표시
 --
+-- 공급처 브라우저 주문 · 결제 확인 (최소 구성)
+--   - 추가 칸: item.purchase_config, supplier.order_channel, suggestion.generation_context, execution.runtime_context,
+--             purchase_order.payment_status · paid_amount · paid_at, purchase_order_item.product_options
+--   - 값 확장: supplier.order_channel · purchase_order.order_method 에 BROWSER, execution.exec_status 에 WAITING_AUTH
+--   - 나머지는 기존 칸 사용: 주 거래처 item.default_supplier_id, 로그인 상태 integration.status, 세션 참조 integration.auth_ref,
+--     최종 제안 suggestion.payload, 확인 결과·대체 사유 suggestion.evidence, 승인 범위 approval.approved_scope,
+--     실행 직전 조건 execution.scope_check, 외부 주문번호 purchase_order.external_order_ref, AI 추적 langsmith_trace_id
+--   - 여러 워커 · 장애 후 자동 인계를 만들 때만 suggestion · execution 에 lease_owner VARCHAR(100), lease_expires_at TIMESTAMPTZ 추가 검토
+--
 -- MySQL → PostgreSQL 변환 메모
 --   - 백틱·ENGINE·CHARSET 제거, 칸 설명은 COMMENT ON 으로
 --   - updated_at: PostgreSQL 에는 ON UPDATE CURRENT_TIMESTAMP 가 없음 → JPA(@UpdateTimestamp 등)에서 갱신
@@ -130,10 +139,10 @@ COMMENT ON TABLE integration IS 'POS·공급처·금융(오픈뱅킹) 연결. pr
 COMMENT ON COLUMN integration.integration_id IS '연동 ID';
 COMMENT ON COLUMN integration.store_id IS '매장';
 COMMENT ON COLUMN integration.provider IS 'TOSS_PLACE 토스플레이스(POS) / OPEN_BANKING 오픈뱅킹(금융) / SUPPLIER 공급처';
-COMMENT ON COLUMN integration.status IS 'CONNECTED 연결됨 / ERROR 오류 / EXPIRED 만료 / DISCONNECTED 해제';
+COMMENT ON COLUMN integration.status IS 'CONNECTED 연결됨 / ERROR 오류 / EXPIRED 만료(재로그인·재인증 필요) / DISCONNECTED 해제. 공급처 브라우저 로그인 상태도 이 칸으로 표시';
 COMMENT ON COLUMN integration.external_store_id IS '외부 서비스의 매장 식별자. 토스플레이스 merchantId (provider와 묶어서 UQ)';
 COMMENT ON COLUMN integration.external_user_ref IS '외부 서비스의 사용자 식별자. 오픈뱅킹 사용자 일련번호';
-COMMENT ON COLUMN integration.auth_ref IS '인증 정보 참조값. 원문(키·토큰)은 DB에 넣지 않고 .env·Secrets에만 보관';
+COMMENT ON COLUMN integration.auth_ref IS '인증 정보 참조값. 공급처는 암호화된 로그인 세션의 저장 위치 참조. 원문(키·토큰·세션)은 DB에 넣지 않고 .env·Secrets 등 별도 저장소에만 보관';
 COMMENT ON COLUMN integration.token_expires_at IS '접근 토큰 만료 시각. 만료 전 갱신·연동 만료 안내(41-2)에 사용';
 COMMENT ON COLUMN integration.data_scope IS '제공 데이터 종류 코드 배열. 예: ["ORDER","PAYMENT","MENU","OPTION","COUPON_USE"]';
 COMMENT ON COLUMN integration.capabilities IS '지원 기능. 예: {"couponSync":false,"orderSend":false,"correctionSend":false}. 화면 표시와 실행 가능 여부 판단에 사용';
@@ -188,6 +197,7 @@ CREATE TABLE supplier (
   name            VARCHAR(100) NOT NULL,
   source          VARCHAR(20) NOT NULL CHECK (source IN ('REGISTERED', 'DISCOVERED')),
   integration_id  BIGINT REFERENCES integration (integration_id),
+  order_channel   VARCHAR(20) NOT NULL DEFAULT 'MANUAL' CHECK (order_channel IN ('API', 'BROWSER', 'MANUAL')),
   contact         VARCHAR(255),
   lead_time_days  INTEGER,
   verify_status   VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED' CHECK (verify_status IN ('UNVERIFIED', 'VERIFIED', 'EXCLUDED')),
@@ -202,6 +212,7 @@ COMMENT ON COLUMN supplier.store_id IS '매장';
 COMMENT ON COLUMN supplier.name IS '공급처명';
 COMMENT ON COLUMN supplier.source IS 'REGISTERED 등록 / DISCOVERED 신규탐색';
 COMMENT ON COLUMN supplier.integration_id IS '연동 발주가 가능하면 값, NULL이면 직접 주문';
+COMMENT ON COLUMN supplier.order_channel IS '거래처 주문 방식: API 연동 API / BROWSER 브라우저 자동 주문 / MANUAL 사장님 직접 주문';
 COMMENT ON COLUMN supplier.contact IS '연락처·사이트 URL';
 COMMENT ON COLUMN supplier.lead_time_days IS '주문부터 도착까지 기본 일수. 사장님 입력 또는 과거 발주의 주문~첫 정상 입고 간격으로 추정';
 COMMENT ON COLUMN supplier.verify_status IS 'UNVERIFIED 미검증 / VERIFIED 검증완료 / EXCLUDED 제외';
@@ -224,6 +235,7 @@ CREATE TABLE item (
   pack_size            DECIMAL(19,3) CHECK (pack_size > 0),
   unit_cost            DECIMAL(19,4),
   default_supplier_id  BIGINT REFERENCES supplier (supplier_id),
+  purchase_config      JSONB,
   is_active            BOOLEAN NOT NULL DEFAULT TRUE,
   reorder_point        DECIMAL(19,3),
   target_qty           DECIMAL(19,3),
@@ -242,7 +254,8 @@ COMMENT ON COLUMN item.unit IS '관리 단위 G / ML / EA. 재고·레시피 수
 COMMENT ON COLUMN item.purchase_unit IS '구매 단위 표시명 (팩/박스)';
 COMMENT ON COLUMN item.pack_size IS '구매 단위 1개 = 관리 단위 몇 개. 예: 원두 1봉 = 1000 (G)';
 COMMENT ON COLUMN item.unit_cost IS '현재 관리 단위 1당 원가 캐시 (item_cost 최신값 사본). 예: 원두 1g당 25원';
-COMMENT ON COLUMN item.default_supplier_id IS '기본 공급처';
+COMMENT ON COLUMN item.default_supplier_id IS '기본 공급처 (주 거래처)';
+COMMENT ON COLUMN item.purchase_config IS '기본 거래처 구매 설정: 기본 상품 코드·URL, 옵션, 관리 단위당 최대 가격, 허용 가격 상승률, 비교 기준, 대체 허용 브랜드·용량·보관 방식. 예: A우유 1L 우선, 가격 기준을 넘으면 냉장 우유만 대체 허용. 내부 구조는 백엔드 DTO 로 고정·검증, 키는 camelCase';
 COMMENT ON COLUMN item.is_active IS '사용 여부';
 COMMENT ON COLUMN item.reorder_point IS '현재 발주 검토 기준 수량. NULL이면 미산정';
 COMMENT ON COLUMN item.target_qty IS '현재 목표 확보 수량';
@@ -454,6 +467,7 @@ CREATE TABLE suggestion (
   summary               VARCHAR(500),
   payload               JSONB NOT NULL,
   evidence              JSONB NOT NULL,
+  generation_context    JSONB,
   status                VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ON_HOLD', 'REJECTED', 'APPROVED', 'ACKNOWLEDGED', 'NEEDS_FIX', 'EXPIRED', 'SUPERSEDED')),
   business_date         DATE NOT NULL,
   langsmith_trace_id    VARCHAR(64),
@@ -477,8 +491,9 @@ COMMENT ON COLUMN suggestion.urgency_level IS 'URGENT 긴급 / WARNING 주의 / 
 COMMENT ON COLUMN suggestion.priority IS '같은 긴급도 안의 표시 순서';
 COMMENT ON COLUMN suggestion.title IS '제안 제목';
 COMMENT ON COLUMN suggestion.summary IS '사용자 안내·보류 사유 요약';
-COMMENT ON COLUMN suggestion.payload IS '유형별 최종 제안 내용. 키는 camelCase';
-COMMENT ON COLUMN suggestion.evidence IS '사용자에게 보여줄 근거·출처·기준 시각·예상 효과 사본. 키는 camelCase';
+COMMENT ON COLUMN suggestion.payload IS '유형별 최종 제안 내용. 발주면 최종 상품·수량·가격·배송 조건. 키는 camelCase';
+COMMENT ON COLUMN suggestion.evidence IS '사용자에게 보여줄 근거·출처·기준 시각·예상 효과 사본. 발주면 기본 거래처 확인 결과, 기본 거래처를 못 쓴 이유, 대체 후보 비교 근거. 키는 camelCase';
+COMMENT ON COLUMN suggestion.generation_context IS '승인 전 기본 거래처 확인·대안 탐색 작업의 진행·복구 정보: 현재 확인·탐색 단계, 작업 ID, 재시도 횟수, 작업 만료 시각, 재개에 필요한 정보. 예: 기본 거래처 가격 초과 확인, 대체 상품 탐색 중. 내부 구조는 백엔드 DTO 로 고정·검증, 키는 camelCase';
 COMMENT ON COLUMN suggestion.status IS 'PENDING 검토대기 / ON_HOLD 보류 / REJECTED 반려 / APPROVED 승인 / ACKNOWLEDGED 확인완료 / NEEDS_FIX 보완필요 / EXPIRED 만료 / SUPERSEDED 대체됨';
 COMMENT ON COLUMN suggestion.business_date IS '한국 기준 제안 기준일';
 COMMENT ON COLUMN suggestion.langsmith_trace_id IS 'AI 추적 연결값. 서비스 원본이나 FK가 아님';
@@ -521,11 +536,14 @@ CREATE TABLE purchase_order (
   purchase_order_id   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   store_id            BIGINT NOT NULL REFERENCES store (store_id),
   supplier_id         BIGINT NOT NULL REFERENCES supplier (supplier_id),
-  order_method        VARCHAR(20) NOT NULL CHECK (order_method IN ('API', 'MANUAL')),
+  order_method        VARCHAR(20) NOT NULL CHECK (order_method IN ('API', 'BROWSER', 'MANUAL')),
   status              VARCHAR(20) NOT NULL CHECK (status IN ('READY_TO_SEND', 'REQUESTED', 'ACCEPTED', 'SHIPPING', 'PARTIALLY_RECEIVED', 'NEEDS_CHECK', 'RECEIVED', 'CLOSED', 'CANCELED')),
   subtotal            DECIMAL(19,2) NOT NULL,
   shipping_fee        DECIMAL(19,2),
   total_amount        DECIMAL(19,2) NOT NULL,
+  payment_status      VARCHAR(30) NOT NULL DEFAULT 'PENDING' CHECK (payment_status IN ('PENDING', 'PAID', 'FAILED', 'UNKNOWN', 'NOT_REQUIRED')),
+  paid_amount         DECIMAL(19,2) CHECK (paid_amount >= 0),
+  paid_at             TIMESTAMPTZ,
   ordered_at          TIMESTAMPTZ,
   expected_arrival    DATE,
   external_order_ref  VARCHAR(100),
@@ -533,21 +551,25 @@ CREATE TABLE purchase_order (
   workflow_key        VARCHAR(64) NOT NULL,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (workflow_key)
+  UNIQUE (workflow_key),
+  CHECK ((payment_status = 'PAID') = (paid_amount IS NOT NULL AND paid_at IS NOT NULL))
 );
 
 COMMENT ON TABLE purchase_order IS '발주 (연동 전송·직접 주문)';
 COMMENT ON COLUMN purchase_order.purchase_order_id IS '발주 ID';
 COMMENT ON COLUMN purchase_order.store_id IS '매장';
 COMMENT ON COLUMN purchase_order.supplier_id IS '공급처';
-COMMENT ON COLUMN purchase_order.order_method IS 'API API전송 / MANUAL 직접주문';
+COMMENT ON COLUMN purchase_order.order_method IS '실제 주문에 사용한 방식: API API전송 / BROWSER 브라우저 자동 주문 / MANUAL 직접주문';
 COMMENT ON COLUMN purchase_order.status IS 'READY_TO_SEND 전송대기 / REQUESTED 요청 / ACCEPTED 접수 / SHIPPING 배송중 / PARTIALLY_RECEIVED 부분입고 / NEEDS_CHECK 확인필요 / RECEIVED 입고완료 / CLOSED 종료(일부 품목을 거절·잔량종료로 마친 주문) / CANCELED 취소';
 COMMENT ON COLUMN purchase_order.subtotal IS '상품 금액';
 COMMENT ON COLUMN purchase_order.shipping_fee IS '배송비';
 COMMENT ON COLUMN purchase_order.total_amount IS '총액';
+COMMENT ON COLUMN purchase_order.payment_status IS '주문 상태(status)와 별도인 결제 상태: PENDING 결제 대기·진행 중 / PAID 결제 완료 확인 / FAILED 결제 실패 확인 / UNKNOWN 결제 여부 확인 필요 / NOT_REQUIRED 외상·후불 등 선결제 불필요. 외부 주문번호 발급만으로 PAID 처리하지 않음';
+COMMENT ON COLUMN purchase_order.paid_amount IS '실제 결제 완료가 확인된 금액. 확인 전까지 NULL';
+COMMENT ON COLUMN purchase_order.paid_at IS '실제 결제 완료 시각. 확인 전까지 NULL';
 COMMENT ON COLUMN purchase_order.ordered_at IS '외부 요청 또는 직접 주문 시각. READY_TO_SEND이면 NULL';
 COMMENT ON COLUMN purchase_order.expected_arrival IS '도착 예정일';
-COMMENT ON COLUMN purchase_order.external_order_ref IS '공급처 주문번호';
+COMMENT ON COLUMN purchase_order.external_order_ref IS '공급처 주문번호 (외부 주문번호). 발급됐다고 결제 완료는 아님';
 COMMENT ON COLUMN purchase_order.approval_id IS '발주에 사용한 승인. 승인 없이 이미 주문한 내용을 등록한 경우만 NULL';
 COMMENT ON COLUMN purchase_order.workflow_key IS '한 발주 업무의 식별자. 재승인·재시도에도 유지';
 COMMENT ON COLUMN purchase_order.created_at IS '생성 시각';
@@ -567,6 +589,7 @@ CREATE TABLE purchase_order_item (
   unit_price              DECIMAL(19,2) NOT NULL,
   product_name            VARCHAR(100) NOT NULL,
   product_ref             VARCHAR(255),
+  product_options         JSONB,
   purchase_unit           VARCHAR(10) NOT NULL,
   line_status             VARCHAR(20) NOT NULL DEFAULT 'ORDERED' CHECK (line_status IN ('ORDERED', 'ACCEPTED', 'REJECTED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED_REMAINING')),
   closed_at               TIMESTAMPTZ,
@@ -585,6 +608,7 @@ COMMENT ON COLUMN purchase_order_item.units_per_order IS '발주 당시 구매 �
 COMMENT ON COLUMN purchase_order_item.unit_price IS '단가 (구매 단위)';
 COMMENT ON COLUMN purchase_order_item.product_name IS '주문 당시 공급처 상품명';
 COMMENT ON COLUMN purchase_order_item.product_ref IS '공급처 상품 코드 또는 URL 사본';
+COMMENT ON COLUMN purchase_order_item.product_options IS '주문 당시 선택한 상품 옵션 사본: 옵션 코드, 용량, 묶음 구성, 냉장·멸균 구분 등. 예: B우유 900mL × 12개. 관리 단위 환산은 units_per_order. 내부 구조는 백엔드 DTO 로 고정·검증, 키는 camelCase';
 COMMENT ON COLUMN purchase_order_item.purchase_unit IS '주문 당시 구매 단위';
 COMMENT ON COLUMN purchase_order_item.line_status IS 'ORDERED 주문 / ACCEPTED 접수 / REJECTED 거절 / PARTIALLY_RECEIVED 부분입고 / RECEIVED 입고완료 / CLOSED_REMAINING 잔량종료';
 COMMENT ON COLUMN purchase_order_item.closed_at IS '거절·잔량종료 처리 시각';
@@ -920,9 +944,10 @@ CREATE TABLE execution (
   coupon_id           BIGINT REFERENCES coupon (coupon_id),
   operation           VARCHAR(20) NOT NULL CHECK (operation IN ('PURCHASE_ORDER_SEND', 'COUPON_CREATE', 'COUPON_UPDATE')),
   idempotency_key     VARCHAR(100) NOT NULL,
-  exec_status         VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (exec_status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED', 'PARTIALLY_SUCCEEDED', 'CHECKING', 'MANUALLY_CLOSED')),
+  exec_status         VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (exec_status IN ('PENDING', 'RUNNING', 'WAITING_AUTH', 'SUCCEEDED', 'FAILED', 'PARTIALLY_SUCCEEDED', 'CHECKING', 'MANUALLY_CLOSED')),
   scope_check         JSONB,
   request_body        JSONB NOT NULL,
+  runtime_context     JSONB,
   external_ref        VARCHAR(100),
   result_summary      JSONB,
   error_msg           VARCHAR(500),
@@ -943,9 +968,10 @@ COMMENT ON COLUMN execution.purchase_order_id IS '발주 전송 대상 (v1.1 po_
 COMMENT ON COLUMN execution.coupon_id IS '쿠폰 POS 등록·변경 대상';
 COMMENT ON COLUMN execution.operation IS 'PURCHASE_ORDER_SEND 발주전송 / COUPON_CREATE 쿠폰등록 / COUPON_UPDATE 쿠폰변경';
 COMMENT ON COLUMN execution.idempotency_key IS '업무 대상·작업·요청 내용에 대한 안정적인 중복 방지 키';
-COMMENT ON COLUMN execution.exec_status IS 'PENDING 대기 / RUNNING 처리중 / SUCCEEDED 성공 / FAILED 실패 / PARTIALLY_SUCCEEDED 부분성공 / CHECKING 결과확인중 / MANUALLY_CLOSED 수동종료';
+COMMENT ON COLUMN execution.exec_status IS 'PENDING 대기 / RUNNING 처리중 / WAITING_AUTH 사용자 인증 대기 / SUCCEEDED 성공 / FAILED 실패 / PARTIALLY_SUCCEEDED 부분성공 / CHECKING 결과확인중 / MANUALLY_CLOSED 수동종료';
 COMMENT ON COLUMN execution.scope_check IS '실행 직전 승인 범위·현재 조건 검증 결과. 전송 전 필수. 키는 camelCase';
 COMMENT ON COLUMN execution.request_body IS '실제 승인·전송할 요청 사본';
+COMMENT ON COLUMN execution.runtime_context IS '승인 후 주문 실행 정보: 현재 주문 단계, 작업 ID, 보호된 브라우저 세션 참조, 사용자 개입 사유, 인증 대기 만료 시각. 예: 승인된 상품 주문 화면에서 결제 앱 인증 대기 중. 세션 원문은 넣지 않음. 내부 구조는 백엔드 DTO 로 고정·검증, 키는 camelCase';
 COMMENT ON COLUMN execution.external_ref IS '외부 주문·처리 식별자';
 COMMENT ON COLUMN execution.result_summary IS '사용자에게 필요한 결과·확인된 성공 범위. 키는 camelCase';
 COMMENT ON COLUMN execution.error_msg IS '사용자 안내 오류';
