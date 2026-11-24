@@ -1,17 +1,12 @@
-import { Screen } from '@/components/common/layout'
-import { Button, Field, H1 } from '@/components/common/ui'
+import { Link } from 'react-router-dom'
+import AuthLayout from '@/components/auth/AuthLayout'
+import AuthButton from '@/components/auth/AuthButton'
 
-/** 03 비밀번호 찾기 (UF-01 5A~5C) */
 export default function FindPasswordPage() {
   return (
-    <Screen title="비밀번호 찾기">
-      <H1>{'가입한 전화번호로\n본인 확인을 할게요'}</H1>
-      <Field label="아이디" placeholder="아이디" />
-      <Field label="전화번호" placeholder="010-0000-0000" />
-      <Button variant="secondary">인증번호 받기</Button>
-      <Field label="인증번호" placeholder="6자리 숫자" />
-      <Field label="새 비밀번호" placeholder="8자 이상" />
-      <Button to="/login">비밀번호 변경</Button>
-    </Screen>
+    <AuthLayout title="비밀번호 찾기" description="비밀번호 찾기·재설정은 다음 구현 단계에서 제공할 예정이에요.">
+      <p className="text-label text-ink-sub">현재 화면에서는 비밀번호를 조회하거나 변경하지 않아요. 휴대전화 인증과 재설정 API가 연결되면 이 경로에서 이어서 이용할 수 있어요.</p>
+      <AuthButton asChild><Link to="/login">로그인으로 돌아가기</Link></AuthButton>
+    </AuthLayout>
   )
 }

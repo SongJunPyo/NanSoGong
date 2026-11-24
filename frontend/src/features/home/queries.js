@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useStoreSelection } from '@/store/useStoreSelection'
 import * as mock from './mock'
+import { getHomeEvents } from '@/api/home'
 
 // TODO 서버 API가 생기면 queryFn 을 api.js 함수로 바꾼다 (화면 코드는 그대로)
 //   예) queryFn: () => getInventory(storeId)
@@ -11,3 +12,8 @@ const useMockQuery = (key, data) => {
 }
 
 export const useHome = () => useMockQuery(['home', 'home'], mock.home)
+
+export const useHomeEvents = () => {
+  const storeId = useStoreSelection((state) => state.storeId)
+  return useQuery({ queryKey: ['home', 'events', storeId], queryFn: () => getHomeEvents(storeId) })
+}
