@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { HOME_EVENT_TYPES, getCalendarDays, getHomeEventsForDate, shiftCalendarMonth } from '@/utils/home'
 import { formatCalendarDate, formatCalendarMonth, todayDateKey } from '@/utils/format'
-import { Skeleton } from '@/components/ui/loading'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -20,7 +19,7 @@ export default function HomeCalendar({ events, isPending, error }) {
   }
 
   return (
-    <section data-coach="home-calendar" aria-labelledby="home-calendar-title" className="min-w-0 self-start rounded-card border border-line bg-white p-4">
+    <section aria-labelledby="home-calendar-title" className="min-w-0 self-start rounded-card border border-line bg-white p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h2 id="home-calendar-title" className="text-h2 font-bold text-ink">운영 캘린더</h2>
         <Link to="/schedule/new" className="ml-auto text-caption font-bold text-woori-blue">+ 일정 추가</Link>
@@ -79,10 +78,7 @@ export default function HomeCalendar({ events, isPending, error }) {
       <div aria-live="polite" aria-label="선택한 날짜의 일정" className="mt-3 min-h-20 border-t border-line pt-2.5">
         <h3 className="mb-1.5 text-caption font-bold text-ink">{formatCalendarDate(selected)}{selected === today ? ' · 오늘' : ''}</h3>
         {error ? <p role="alert" className="text-caption text-danger">{error.message}</p> : isPending ? (
-          <div role="status" aria-label="일정을 불러오는 중이에요" className="flex flex-col gap-2">
-            <Skeleton className="h-3.5 w-4/5" />
-            <Skeleton className="h-3.5 w-3/5" />
-          </div>
+          <p role="status" className="text-caption text-ink-sub">일정을 불러오는 중이에요.</p>
         ) : selectedEvents.length ? (
           <ul className="space-y-1.5">
             {selectedEvents.map((event) => (

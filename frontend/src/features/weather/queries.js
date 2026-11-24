@@ -11,4 +11,3 @@ const useMockQuery = (key, data) => {
 }
 
 export const useWeekForecast = () => useMockQuery(['weather', 'weekForecast'], mock.weekForecast)
-export const useDemandByWeather = () => useMockQuery(['weather', 'demandByWeather'], mock.demandByWeather)

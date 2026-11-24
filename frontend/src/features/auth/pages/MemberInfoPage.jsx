@@ -1,6 +1,5 @@
 import { Screen } from '@/components/common/layout'
 import { Button, Card, Chips, Field, ListRow, P } from '@/components/common/ui'
-import { toast } from '@/components/ui/toast'
 
 const ACCOUNT_TABS = ['/settings/member', '/settings/store']
 
@@ -27,8 +26,7 @@ export default function MemberInfoPage() {
         <ListRow title="비밀번호 변경" />
         <ListRow title="로그인 기록" />
       </Card>
-      {/* TODO 회원 정보 수정 API 가 생기면 성공했을 때만 알린다 */}
-      <Button onClick={() => toast('저장했어요')}>저장</Button>
+      <Button>저장</Button>
       <div>
         <Button variant="text">회원 탈퇴</Button>
       </div>

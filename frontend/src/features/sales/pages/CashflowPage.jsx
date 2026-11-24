@@ -2,7 +2,7 @@ import { Screen } from '@/components/common/layout'
 import { Card, Chips, H2, HeadRow, Hero, HeroLabel, HeroValue, KV2, P, Pill, Segmented } from '@/components/common/ui'
 import { won } from '@/lib/format'
 import { CashWeek, WeekHeader } from '@/features/sales/components/CalendarParts'
-import { SALES_TAB_LABELS, SALES_TABS } from '@/features/sales/constants'
+import { SALES_TABS } from '@/features/sales/constants'
 import { useCashByDay, useCashTransactions } from '@/features/sales/queries'
 
 /** 41-1 입출금 (UF-17 5~6) */
@@ -12,8 +12,8 @@ export default function CashflowPage() {
   return (
     <Screen title="매출" back={false} tab wide>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="w-full md:max-w-sm">
-          <Segmented items={SALES_TAB_LABELS} active={1} links={SALES_TABS} />
+        <div className="w-full md:max-w-xs">
+          <Segmented items={['매출', '입출금']} active={1} links={SALES_TABS} />
         </div>
         <Chips items={['일', '주', '월', '기간 지정']} defaultIndex={2} />
       </div>

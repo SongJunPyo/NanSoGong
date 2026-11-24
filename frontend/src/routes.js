@@ -49,7 +49,6 @@ import SalesPage from '@/features/sales/pages/SalesPage'
 import CashflowPage from '@/features/sales/pages/CashflowPage'
 import CashflowDisconnectedPage from '@/features/sales/pages/CashflowDisconnectedPage'
 import SalesCalendarPage from '@/features/sales/pages/SalesCalendarPage'
-import SalesMenuPage from '@/features/sales/pages/SalesMenuPage'
 import CostsPage from '@/features/sales/pages/CostsPage'
 import CostNewPage from '@/features/sales/pages/CostNewPage'
 import CostClassifyPage from '@/features/sales/pages/CostClassifyPage'
@@ -116,7 +115,6 @@ export const ROUTES = [
   ['41 매출', '/sales', SalesPage, 'UF-17'],
   ['41-1 입출금', '/sales/cashflow', CashflowPage, 'UF-17'],
   ['41-2 입출금 (연동 실패)', '/sales/cashflow/disconnected', CashflowDisconnectedPage, 'UF-17'],
-  ['41-3 메뉴별 판매', '/sales/menus', SalesMenuPage, 'UF-16'],
   ['42 매출 캘린더', '/sales/calendar', SalesCalendarPage, 'UF-17'],
   ['43 비용·예상 이익', '/sales/costs', CostsPage, 'UF-18'],
   ['43-1 비용 추가', '/sales/costs/new', CostNewPage, 'UF-18'],

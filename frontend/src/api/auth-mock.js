@@ -31,8 +31,6 @@ export function createAuthMock({ delayMs = 180, now = () => Date.now() } = {}) {
         const memberId = index + 1, salt = crypto.randomUUID()
         members.set(entry.loginId, { memberId, loginId: entry.loginId, name: '개발용 사장님', phone: `0101234567${index}`, salt, passwordHash: await hash(MOCK_AUTH.password, salt) })
         stores.set(memberId, [{ storeId: memberId, memberId, bizRegNo: index ? '2020202020' : '1010101010', bizName: index ? '새 매장' : 'WON썸플레이스', ownerName: '개발용 사장님', businessOpenedOn: '2026-01-01', verifyStatus: 'VERIFIED', name: index ? '새 매장' : 'WON썸플레이스', category: index ? '' : '카페', address: index ? '' : '서울 성동구 성수이로 1', openHours: {}, closedDays: [], onboardingStatus: {} }])
-        // 홈 매장 전환 확인용 — 설정을 마친 계정(demoowner)에 두 번째 매장을 둔다
-        if (!index) stores.get(memberId).push({ storeId: 101, memberId, bizRegNo: '3030303030', bizName: 'WON썸플레이스 2호점', ownerName: '개발용 사장님', businessOpenedOn: '2026-03-01', verifyStatus: 'VERIFIED', name: 'WON썸플레이스 2호점', category: '카페', address: '서울 성동구 왕십리로 2', openHours: {}, closedDays: [], onboardingStatus: {} })
       }
     })()
     await seedPromise

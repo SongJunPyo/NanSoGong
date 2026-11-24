@@ -1,60 +1,50 @@
-import { useState } from 'react'
 import { Screen } from '@/components/common/layout'
-import { BarChart, Card, HeadRow, Hero, HeroLabel, HeroValue, KV, ListRow, P, Pill, Segmented } from '@/components/common/ui'
-import { won } from '@/lib/format'
-import { SALES_TAB_LABELS, SALES_TABS } from '@/features/sales/constants'
-import { useSalesSummary } from '@/features/sales/queries'
-import { SegmentedControl } from '@/components/ui/segmented-control'
+import {
+  BarChart,
+  Card,
+  Chips,
+  HeadRow,
+  Hero,
+  HeroLabel,
+  HeroValue,
+  KV,
+  ListRow,
+  Pill,
+  Segmented,
+} from '@/components/common/ui'
+import { SALES_TABS } from '@/features/sales/constants'
 
-const PERIODS = [
-  { value: 'day', label: '일' },
-  { value: 'week', label: '주' },
-  { value: 'month', label: '월' },
-  { value: 'year', label: '연' },
-]
-
-/** 41 매출 (UF-17 1~3) — 일·주·월·연을 누르면 요약 · 차트 · 비교가 함께 바뀐다 */
+/** 41 매출 (UF-17 1~3) */
 export default function SalesPage() {
-  const { data: summary } = useSalesSummary()
-  const [period, setPeriod] = useState('month')
-  const s = summary[period]
-
   return (
     <Screen title="매출" back={false} tab wide>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="w-full md:max-w-sm">
-          <Segmented items={SALES_TAB_LABELS} active={0} links={SALES_TABS} />
+        <div className="w-full md:max-w-xs">
+          <Segmented items={['매출', '입출금']} active={0} links={SALES_TABS} />
         </div>
-        <div className="w-full md:w-64">
-          <SegmentedControl label="기간" size="sm" value={period} onChange={setPeriod} items={PERIODS} />
-        </div>
+        <Chips items={['일', '주', '월', '연', '기간 지정']} defaultIndex={2} />
       </div>
       <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:gap-6">
         <Hero className="justify-center md:min-h-48 md:p-6">
-          <HeroLabel>{s.label}</HeroLabel>
-          <HeroValue size="text-display lg:text-[40px]">{won(s.amount)}원</HeroValue>
+          <HeroLabel>11월 매출 (1일~19일)</HeroLabel>
+          <HeroValue size="text-display lg:text-[40px]">8,412,000원</HeroValue>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-[13px]">
-            <span className="text-[#d9ebfa]">
-              주문 {s.orders.toLocaleString('ko-KR')}건 · 객단가 {won(s.avg)}원
-            </span>
-            <span className="ml-auto text-label font-bold text-white">{s.change}</span>
+            <span className="text-[#d9ebfa]">주문 1,118건 · 객단가 7,524원</span>
+            <span className="ml-auto text-label font-bold text-white">5.1% ↑</span>
           </div>
         </Hero>
         <Card tone="line">
           <HeadRow title="매출 추이" size="text-base">
-            <Pill>{s.compareLabel}</Pill>
+            <Pill>비교: 10월 같은 기간</Pill>
           </HeadRow>
-          <BarChart key={period} values={s.chart} highlight={s.chart.length - 1} labels={s.chartLabels ?? undefined} height={160} />
-          <P tone="mute" small>
-            진한 막대가 이번 기간이에요. 매출은 POS 결제 금액 기준이고, 프로모션 할인을 뺀 실제 받은 금액이에요.
-          </P>
+          <BarChart values={[38, 42, 40, 51, 47, 55, 62, 58, 49, 53, 60, 66]} highlight={11} height={160} />
         </Card>
       </div>
       <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:gap-6">
         <Card>
-          <KV label="기준 기간" value={s.base} />
-          <KV label="비교 기간" value={s.compare} />
-          <KV label="증감" value={s.diff} tone="deep" />
+          <KV label="기준 기간" value="11.1–11.19 · 8,412,000원" />
+          <KV label="비교 기간" value="10.1–10.19 · 8,003,000원" />
+          <KV label="증감" value="+409,000원" tone="deep" />
         </Card>
         <Card tone="line" gap="gap-0" pad="px-4 py-1">
           <ListRow title="매출 캘린더" value="11월" to="/sales/calendar" />

@@ -1,5 +1,5 @@
 import { Screen } from '@/components/common/layout'
-import { Button, Card, Eyebrow, H1, H2, KV, P } from '@/components/common/ui'
+import { Button, ButtonRow, Card, Eyebrow, H1, H2, KV, P } from '@/components/common/ui'
 import { usePromotion } from '@/features/coupon/queries'
 
 const ID = 'latte-set'
@@ -38,7 +38,10 @@ export default function PromotionDetailPage() {
         <KV label="예상 마진율" value={p.margin} tone="deep" />
         <KV label="예상 추가 주문" value="하루 6건" />
       </Card>
-      <Button to={`/promotions/${ID}/approve`}>발행 여부 결정</Button>
+      <ButtonRow>
+        <Button variant="outline">다시 추천</Button>
+        <Button to={`/promotions/${ID}/approve`}>발행 여부 결정</Button>
+      </ButtonRow>
     </Screen>
   )
 }

@@ -3,7 +3,6 @@ import { Button, Card, Divider, HeadRow, P, Pill } from '@/components/common/ui'
 import { won } from '@/lib/format'
 import { CHANNELS } from '@/features/purchase/channels'
 import { usePriceCompare } from '@/features/purchase/queries'
-import { Badge } from '@/components/ui/badge'
 
 /**
  * 24 발주 추천 안의 '가격 비교 3곳' 카드 (UF-12)
@@ -27,7 +26,7 @@ export default function PriceCompareCard({ itemId }) {
             <div className="flex items-center gap-2">
               <div className="flex flex-col gap-1">
                 <span className="flex gap-1.5">
-                  {best && <Badge status="done">최저가</Badge>}
+                  {best && <Pill tone="deep">추천</Pill>}
                   <Pill tone={ch.pill}>{ch.source}</Pill>
                 </span>
                 <span className="text-[13px] text-ink-sub">
