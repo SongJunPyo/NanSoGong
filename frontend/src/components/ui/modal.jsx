@@ -22,6 +22,7 @@ export function Modal({
   cancelLabel = '취소',
   onConfirm,
   confirmLoading = false,
+  confirmLoadingText = '처리 중',
   confirmDisabled = false,
   tone = 'primary',
 }) {
@@ -64,7 +65,7 @@ export function Modal({
             <ButtonLoading
               variant={tone === 'danger' ? 'danger' : 'primary'}
               loading={confirmLoading}
-              loadingText="처리 중"
+              loadingText={confirmLoadingText}
               disabled={confirmDisabled}
               onClick={onConfirm}
             >

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
-import { CircleAlert, CircleCheck, X } from 'lucide-react'
+import { CircleAlert, CircleCheck, Info, X } from 'lucide-react'
 import { useIsDesktop } from '@/hooks/useViewport'
 
 const cx = (...a) => a.filter(Boolean).join(' ')
@@ -24,6 +24,7 @@ const useToastStore = create((set) => ({
  *   toast('발주를 보냈어요')
  *   toast('우유를 뺐어요', { undo: () => restore('milk') })
  *   toast('저장하지 못했어요', { tone: 'error' })
+ *   toast('휴대폰에서 로그인하면 연결돼요', { tone: 'info' })
  * @returns 토스트 id (toast.dismiss(id) 로 닫기)
  */
 export function toast(message, { undo, undoLabel = '되돌리기', tone = 'success', duration } = {}) {
@@ -48,7 +49,9 @@ function ToastItem({ t, desktop }) {
     return () => clearTimeout(timer)
   }, [t.id, t.duration, remove])
 
-  const Icon = t.tone === 'error' ? CircleAlert : CircleCheck
+  const Icon = t.tone === 'error' ? CircleAlert : t.tone === 'info' ? Info : CircleCheck
+  const iconColor =
+    t.tone === 'error' ? 'text-danger' : t.tone === 'info' ? (desktop ? 'text-woori-blue' : 'text-woori-sky') : desktop ? 'text-success' : 'text-[#7fd6b0]'
 
   return (
     <div
@@ -61,7 +64,7 @@ function ToastItem({ t, desktop }) {
       <Icon
         size={20}
         aria-hidden="true"
-        className={cx('shrink-0', t.tone === 'error' ? 'text-danger' : desktop ? 'text-success' : 'text-[#7fd6b0]')}
+        className={cx('shrink-0', iconColor)}
       />
       <p className="min-w-0 flex-1 text-label font-medium">{t.message}</p>
       {t.undo && (
