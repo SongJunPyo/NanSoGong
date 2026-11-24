@@ -26,11 +26,19 @@ const ESTIMATE_HELP =
 
 /** 21 재고 (UF-10) */
 export default function InventoryPage() {
-  const { data: items, refetch } = useInventory()
+  const { data: allItems, refetch } = useInventory()
   const desktop = useIsDesktop()
   const [tab, setTab] = useState('all')
   const [query, setQuery] = useState('')
+  const [deleted, setDeleted] = useState([]) // 삭제한 품목 id (되돌리기 가능)
 
+  // 삭제는 되돌릴 수 있게 [되돌리기] 토스트로 — TODO API 가 생기면 되돌리기 시간이 지난 뒤 서버에 삭제 요청
+  const remove = (item) => {
+    setDeleted((ids) => [...ids, item.id])
+    toast(`${item.name} 품목을 삭제했어요`, { undo: () => setDeleted((ids) => ids.filter((id) => id !== item.id)) })
+  }
+
+  const items = allItems.filter((i) => !deleted.includes(i.id))
   const count = (id) => (id === 'all' ? items.length : items.filter((i) => i.tags?.includes(id)).length)
   const inTab = tab === 'all' ? items : items.filter((i) => i.tags?.includes(tab))
   const shown = query.trim() ? inTab.filter((i) => i.name.includes(query.trim())) : inTab
@@ -102,7 +110,7 @@ export default function InventoryPage() {
             <EmptyState kind="done" compact title="여기에 해당하는 품목이 없어요" />
           )
         ) : desktop ? (
-          <InventoryTable items={shown} />
+          <InventoryTable items={shown} onDelete={remove} />
         ) : (
           <Card tone="line" gap="gap-0" pad="px-4 py-1">
             {shown.map((i) => (
@@ -132,7 +140,7 @@ export default function InventoryPage() {
 }
 
 /** 웹: 표 + 여러 품목 일괄 선택 + 행마다 ⋮ 메뉴 */
-function InventoryTable({ items }) {
+function InventoryTable({ items, onDelete }) {
   const navigate = useNavigate()
   const [selected, setSelected] = useState([])
   const ids = items.map((i) => i.id)
@@ -211,7 +219,7 @@ function InventoryTable({ items }) {
                 </td>
                 <td className="num py-3 text-right text-body font-bold text-woori-blue">{i.value}</td>
                 <td className="py-3 pr-3 text-right">
-                  <RowMenu item={i} />
+                  <RowMenu item={i} onDelete={() => onDelete(i)} />
                 </td>
               </tr>
             ))}
@@ -222,7 +230,7 @@ function InventoryTable({ items }) {
   )
 }
 
-function RowMenu({ item }) {
+function RowMenu({ item, onDelete }) {
   const navigate = useNavigate()
   const entries = [
     ['상세 보기', `/inventory/items/${item.id}`],
@@ -253,6 +261,13 @@ function RowMenu({ item }) {
               {label}
             </DropdownMenu.Item>
           ))}
+          <DropdownMenu.Separator className="my-1 h-px bg-line" />
+          <DropdownMenu.Item
+            onSelect={onDelete}
+            className="cursor-pointer rounded-lg px-3 py-2 text-label font-medium text-danger outline-none data-[highlighted]:bg-danger-bg"
+          >
+            삭제
+          </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
