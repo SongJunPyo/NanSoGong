@@ -4,24 +4,38 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
 import { Button, Card, Chips, Eyebrow, Field, H1, H2, HeadRow, KV, P, Pill } from '@/components/common/ui'
 import { won } from '@/lib/format'
-import { useMenuRecommendations } from '@/features/menu/queries'
+import { useImproveRecommendations, useMenuRecommendations, useSetRecommendations } from '@/features/menu/queries'
+import MenuTabs from '@/features/menu/components/MenuTabs'
+import { toast } from '@/components/ui/toast'
 import { Tooltip } from '@/components/ui/tooltip'
 import { InlineError } from '@/components/ui/inline-error'
 
 const PRICE_ERROR_ID = 'menu-price-error'
 
+const KINDS = ['신메뉴', '세트 구성', '메뉴 개선']
+
 /** 34 AI 메뉴 추천 — 바로 추가 (UF-16 2~4) */
 export default function MenuRecommendPage() {
-  const { data: recs } = useMenuRecommendations()
+  const { data: newMenus } = useMenuRecommendations()
+  const { data: sets } = useSetRecommendations()
+  const { data: improves } = useImproveRecommendations()
+  const [kind, setKind] = useState(0)
   const [index, setIndex] = useState(0)
-  const rec = recs[index]
-  const go = (d) => setIndex((i) => (i + d + recs.length) % recs.length)
+
+  const list = [newMenus, sets, improves][kind]
+  const rec = list[index % list.length]
+  const go = (d) => setIndex((i) => (i + d + list.length) % list.length)
+  const changeKind = (k) => {
+    setKind(k)
+    setIndex(0)
+  }
 
   return (
     <Screen title="AI 메뉴 추천">
+      <MenuTabs />
       <Eyebrow>트렌드 · 판매 추이 분석</Eyebrow>
-      <H1>{'이번 겨울엔\n이 메뉴 어때요?'}</H1>
-      <Chips items={['신메뉴', '세트 구성', '메뉴 개선']} />
+      <H1>{['이번 겨울엔\n이 메뉴 어때요?', '같이 팔면\n더 잘 나가요', '이 메뉴는\n손보면 좋아요'][kind]}</H1>
+      <Chips items={KINDS} onChange={changeKind} />
 
       {/* 다시 추천 ‹ 1/3 › */}
       <div className="flex items-center gap-2">
@@ -36,7 +50,7 @@ export default function MenuRecommendPage() {
             <ChevronLeft size={20} />
           </button>
           <span className="num w-10 text-center text-label font-bold text-ink" aria-live="polite">
-            {index + 1}/{recs.length}
+            {(index % list.length) + 1}/{list.length}
           </span>
           <button
             type="button"
@@ -50,8 +64,62 @@ export default function MenuRecommendPage() {
       </div>
 
       {/* 후보가 바뀌면 입력값도 그 후보 기준으로 새로 시작 */}
-      <Recommendation key={rec.id} rec={rec} />
+      {kind === 0 && <Recommendation key={rec.id} rec={rec} />}
+      {kind === 1 && <SetRecommendation key={rec.id} rec={rec} />}
+      {kind === 2 && <ImproveRecommendation key={rec.id} rec={rec} />}
     </Screen>
+  )
+}
+
+/** 세트 구성 추천 */
+function SetRecommendation({ rec }) {
+  const off = rec.regular - rec.price
+  return (
+    <>
+      <Card>
+        <HeadRow title={rec.name}>
+          <Pill tone="deep">AI 추천</Pill>
+        </HeadRow>
+        <div className="flex items-baseline gap-2">
+          <span className="text-label text-ink-sub">세트 가격</span>
+          <span className="num ml-auto text-h1 font-bold text-woori-deep">{won(rec.price)}원</span>
+        </div>
+        <KV label="따로 사면" value={`${won(rec.regular)}원 · ${won(off)}원 할인`} />
+        <KV label="구성" value={rec.items.join(' + ')} />
+        <KV label="예상 효과" value={rec.expected} tone="deep" />
+      </Card>
+      <Card>
+        <H2>추천 이유</H2>
+        <P tone="ink">{rec.reason}</P>
+        <P tone="mute" small>
+          출처: 우리 매장 POS 주문 데이터 · 최근 4주
+        </P>
+      </Card>
+      <Button to="/promotions/latte-set">프로모션으로 만들기</Button>
+    </>
+  )
+}
+
+/** 메뉴 개선 추천 */
+function ImproveRecommendation({ rec }) {
+  return (
+    <>
+      <Card tone="amber">
+        <HeadRow title={rec.menu}>
+          <Pill tone="amberWhite">개선 제안</Pill>
+        </HeadRow>
+        <P tone="ink">{rec.problem}</P>
+      </Card>
+      <Card>
+        <H2>이렇게 해 보세요</H2>
+        <P tone="ink">{rec.suggestion}</P>
+        <KV label="기대 효과" value={rec.effect} tone="deep" />
+      </Card>
+      <Button variant="outline" onClick={() => toast('제안을 메모해 뒀어요', { tone: 'info' })}>
+        나중에 볼게요
+      </Button>
+      <Button to="/menu">메뉴에서 바꾸기</Button>
+    </>
   )
 }
 
@@ -70,6 +138,13 @@ function Recommendation({ rec }) {
   return (
     <>
       <Card>
+        {rec.image && (
+          <img
+            src={rec.image}
+            alt={rec.name}
+            className="-mx-[18px] -mt-[18px] mb-1 aspect-[16/10] w-[calc(100%+36px)] max-w-none rounded-t-card object-cover"
+          />
+        )}
         <HeadRow title={rec.name}>
           <Pill tone="deep">AI 추천</Pill>
         </HeadRow>
