@@ -41,7 +41,7 @@ const CARD = {
 }
 /** 카드 — tone: tint(연한 파랑) | line(흰 바탕+선) | warn | ok | amber */
 export function Card({ tone = 'tint', gap = 'gap-2.5', pad = 'p-[18px]', to, onClick, className, children }) {
-  const cls = cx('flex flex-col rounded-card', CARD[tone], gap, pad, className)
+  const cls = cx('flex min-w-0 flex-col rounded-card', CARD[tone], gap, pad, className)
   if (to)
     return (
       <Link to={to} className={cls}>
@@ -58,8 +58,8 @@ export function Card({ tone = 'tint', gap = 'gap-2.5', pad = 'p-[18px]', to, onC
 }
 
 /** 매출 카드 같은 파란 그라데이션 카드 */
-export const Hero = ({ children }) => (
-  <section className="bg-hero flex flex-col gap-1.5 rounded-hero p-5">{children}</section>
+export const Hero = ({ children, className }) => (
+  <section className={cx('bg-hero flex min-w-0 flex-col gap-1.5 rounded-hero p-5', className)}>{children}</section>
 )
 export const HeroLabel = ({ children }) => <p className="text-[13px] font-medium text-[#d9ebfa]">{children}</p>
 export const HeroValue = ({ children, size = 'text-display' }) => (
@@ -68,7 +68,7 @@ export const HeroValue = ({ children, size = 'text-display' }) => (
 
 /** 카드 제목 줄 (제목 + 오른쪽 요소) */
 export const HeadRow = ({ title, size = 'text-h2', children }) => (
-  <div className="flex items-center gap-2">
+  <div className="flex flex-wrap items-center gap-2">
     <h3 className={cx('font-bold text-ink', size)}>{title}</h3>
     <div className="ml-auto flex items-center gap-1.5">{children}</div>
   </div>
@@ -76,10 +76,10 @@ export const HeadRow = ({ title, size = 'text-h2', children }) => (
 
 /** 섹션 제목 + 오른쪽 링크 (예: '최근 실행 결과  더 보기 ›') */
 export const SectionHead = ({ title, action, to }) => (
-  <div className="flex items-center">
-    <h3 className="text-h2 font-bold text-ink">{title}</h3>
+  <div className="flex flex-wrap items-center gap-2">
+    <h3 className="min-w-0 flex-1 text-h2 font-bold text-ink">{title}</h3>
     {action && (
-      <Link to={to} className="ml-auto text-[15px] font-bold text-woori-blue">
+      <Link to={to} className="ml-auto shrink-0 text-[15px] font-bold text-woori-blue">
         {action}
       </Link>
     )}
@@ -108,12 +108,12 @@ export const KV2 = ({ title, sub, value, tone = 'ink' }) => (
 export function ListRow({ title, value, to, onClick }) {
   const inner = (
     <>
-      <span className="text-body text-ink-sub">{title}</span>
-      <span className="num ml-auto text-body font-bold text-woori-blue">{value}</span>
+      <span className="min-w-0 flex-1 break-words text-body text-ink-sub">{title}</span>
+      <span className="num ml-auto shrink-0 text-right text-body font-bold text-woori-blue">{value}</span>
       <ChevronRight size={16} strokeWidth={2.4} className="shrink-0 text-woori-blue" />
     </>
   )
-  const cls = 'flex h-[54px] w-full items-center gap-1.5 text-left'
+  const cls = 'flex min-h-[54px] w-full items-center gap-1.5 py-3 text-left'
   if (to)
     return (
       <Link to={to} className={cls}>

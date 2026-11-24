@@ -1,7 +1,8 @@
-import { useNavigate } from 'react-router-dom'
 import { Screen } from '@/components/common/layout'
-import { Button, Card, ListRow, P } from '@/components/common/ui'
+import { Card, ListRow, P } from '@/components/common/ui'
 import { useStoreInfo } from '@/features/store/queries'
+import { useLogout } from '@/hooks/useAuthSession'
+import AuthButton from '@/components/auth/AuthButton'
 
 const Group = ({ title, children }) => (
   <>
@@ -15,7 +16,7 @@ const Group = ({ title, children }) => (
 /** 51 설정 */
 export default function SettingsPage() {
   const { data: store } = useStoreInfo()
-  const navigate = useNavigate()
+  const logout = useLogout()
   return (
     <Screen title="설정">
       <Card>
@@ -43,9 +44,9 @@ export default function SettingsPage() {
       <Group title="보안">
         <ListRow title="민감 정보 잠금" value="켜짐" to="/settings/lock" />
       </Group>
-      <Button variant="outline" onClick={() => navigate('/login')}>
+      <AuthButton variant="outline" busy={logout.pending} onClick={logout.submit}>
         로그아웃
-      </Button>
+      </AuthButton>
     </Screen>
   )
 }

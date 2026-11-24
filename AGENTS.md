@@ -36,6 +36,8 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 - **다른 도메인 코드는 직접 고치지 않는다.** 필요하면 그 도메인의 service 메서드를 부르고, 없으면 사용자에게 "○○ 담당에게 요청 필요"라고 알린다. (담당은 [7장](#7-도메인--담당))
 - **공용 파일은 고치기 전에 사용자에게 먼저 확인한다**: `common/`, `frontend/src/api/client.js`, `frontend/src/components/ui/`, `docker-compose.yml`, `backend/build.gradle`, `frontend/package.json`, `.github/workflows/`
 - 2주 범위 밖 기능(구현 계획서 7장)은 요청이 없으면 만들지 않는다.
+  - 11/24 계약 회의에서 추가로 뺀 것: **운영 일정, 알림 설정, 사업자 진위확인, 콤보 · 세트** → 3주차 (화면이 필요하면 프론트 목업으로 대체).
+  - 인프라는 이번 2주 동안 **dev 환경만**. 운영 배포는 3주차.
 - 모르는 것(표 칸 이름, API 모양, 미정 사항)은 추측해서 만들지 말고 질문하거나, 가정을 코드 주석 · 답변에 분명히 적는다.
 - 작업이 끝나면 **무엇을 확인했는지**(테스트 · lint · 빌드 결과)를 그대로 보고한다. 실행하지 않은 검증을 "통과"라고 말하지 않는다.
 
@@ -134,7 +136,7 @@ backend/src/main/resources/
 | DTO | `record` + `static from(Entity)`. **Entity 를 그대로 응답하지 않는다** |
 | 검증 | 요청 DTO 에 `@NotNull` · `@Positive` 등 + Controller 에서 `@Valid` |
 | Entity | `@Data` 금지, `@Getter` 사용. 값 변경은 setter 대신 업무 메서드(`approve()`, `cancel()`) |
-| 돈 | `BigDecimal`, DB 는 `DECIMAL(19,2)`. 비교는 `compareTo` (`equals` 금지) |
+| 돈 | `BigDecimal`, DB 는 `DECIMAL(19,2)` (관리 단위당 단가만 `DECIMAL(19,4)`, [3-5](#3-5-데이터-계약-1124-계약-회의-결정)). 비교는 `compareTo` (`equals` 금지) |
 | 예외 | `BusinessException(HttpStatus, code, message)` 를 상속한 업무 예외만 추가한다. **`GlobalExceptionHandler` 는 고치지 않는다** |
 | 로그 | `@Slf4j`, `log.info("… {}", 값)`. 문자열 `+` 연결 금지. 개인정보 · 토큰 로그 금지 |
 | 매장 분리 | 모든 업무 표에 `store_id`. 서비스 맨 앞에서 `StoreService.checkOwner(memberId, storeId)` 로 내 매장인지 확인 (남의 매장 → 403) |
@@ -155,6 +157,122 @@ backend/src/main/resources/
 - 기능마다 **흐름 테스트 최소 1개** (07_cicd `TransferFlowTest` 처럼). Testcontainers 사용 → Docker 필요.
 - AI 호출은 테스트에서 mock 으로 바꾼다 (실제 호출 = 과금).
 - 실행: `cd backend && ./gradlew test`
+
+### 3-5. 데이터 계약 (11/24 계약 회의 결정)
+
+> 공용 표와 판매 → 재고 차감 연결의 약속입니다. 바꾸려면 새 마이그레이션을 만들고 사용자에게 "단톡 공유 필요"라고 안내한다 ([3-3](#3-3-db--flyway)).
+>
+> 전체 표 구조(27개)는 [docs/pjt_source/store-agent-db.sql](docs/pjt_source/store-agent-db.sql) 에 있고, 같은 내용이 마이그레이션 `V202611241000__create_store_agent_schema.sql` 에 있다 (원본 설계: `docs/pjt_source/store-agent-db-desc.md`). 표 · 칸 이름이 궁금하면 추측하지 말고 이 파일을 본다.
+
+#### 이름 · 타입
+
+| 대상 | 규칙 |
+|---|---|
+| 표 · 칸 이름 | 표는 **단수** snake_case (`menu`, `sales_order_item`). PK 는 **`<표>_id`** (`menu.menu_id`), FK 는 참조하는 PK 와 같은 이름 (`sales_order_item.menu_id`). 역할이 있으면 `<역할>_<표>_id` (`parent_menu_id`, `default_supplier_id`) |
+| JSON 키 | API 응답과 DB 의 JSONB 칸 안 모두 camelCase (`posMenuCode`). snake_case 는 DB 칸 이름에만 |
+| ID | `BIGINT GENERATED ALWAYS AS IDENTITY` |
+| 금액 | `DECIMAL(19,2)` / `BigDecimal` |
+| 관리 단위당 단가 | `DECIMAL(19,4)` / `BigDecimal` (`item.unit_cost`, `item_cost.unit_cost`, `inventory_transaction.unit_cost`). 1g · 1ml 단가는 소수점 둘째 자리에서 끊으면 오차가 커서 따로 둔다 |
+| 재고 · 레시피 수량 | `DECIMAL(19,3)` / `BigDecimal` (예: 18.5g) |
+| 판매 수량 | `INTEGER` (잔 수는 정수) |
+| 시간 | `TIMESTAMPTZ`. 매출 집계용 영업일은 한국 시간 기준 `business_date DATE` 칸을 따로 둔다 |
+| 상태 값 | DB · API 는 영어 대문자 코드 (`NEEDS_FIX`) + DB `CHECK`. 한글 표시는 프론트가 바꾼다 (v0.7 문서의 한글 상태값도 코드로 바꿔 쓴다). 코드를 늘릴 때는 새 마이그레이션으로 `CHECK` 를 바꾼다 |
+| 매장 분리 칸 | `member` 를 뺀 **모든 표에 `store_id`**. 하위 표(`sales_order_item`, `inventory_transaction`, `approval` …)도 부모 행과 같은 값을 넣는다 ([3-2](#3-2-계층별-규칙)) |
+| JSONB 칸 | 칸 수를 줄이는 대신 **안의 구조는 백엔드 DTO 로 고정하고 저장 전에 검증**한다. 비밀값(토큰 · 세션 원문)은 넣지 않는다 |
+
+#### 품목 · 단가 · 연동
+
+- `unit` 값은 `G` · `ML` · `EA` 3개만.
+- `pack_size` = 구매 단위 1개가 관리 단위로 얼마인지 (원두 1봉 = `1000` G).
+- 단가는 항상 **관리 단위 1당 가격** (원두 1g당 25원). 단가 이력은 `item_cost` (예원), 현재 단가 캐시는 `item.unit_cost` (준표).
+- `integration` 계약 칸: `store_id`, `provider` (`TOSS_PLACE` · `OPEN_BANKING` · `SUPPLIER`), `status`, `external_store_id`, `auth_ref`, `last_synced_at`, `last_error`. 설계 칸 `external_user_ref`, `token_expires_at`, `data_scope`, `capabilities`, `connected_at`, `disconnected_at`, `sync_state` 도 함께 둔다.
+  - **인증값 원문(키 · 토큰 · 로그인 세션)은 DB 에 넣지 않고** `.env` · Secrets 등 별도 저장소에만 둔다. `auth_ref` 에는 그 저장 위치 참조만.
+  - 공급처 로그인 상태 · 재로그인 필요 여부는 `status` (`EXPIRED` = 재로그인 · 재인증 필요) 로 표시한다.
+
+#### Flyway 머지 순서
+
+- 11/24 계약 원안: ① 예원 회원 · 매장 · 연동 → ② 준표 품목 → ③ 예원 메뉴 → ④ 경모 매출 (담당별 파일).
+- 지금: `V202611241000__create_store_agent_schema.sql` 한 파일이 27개 표를 모두 만든다 (jpyo → dev PR 에서 **팀 합의 필요**). 합의되면 머지 이후 표 변경은 담당과 관계없이 **새 마이그레이션 파일을 추가**하고, `store-agent-db.sql` 에도 같은 변경을 반영한다.
+
+#### 판매 항목 `sales_order_item`
+
+- POS 원본 JSON 은 `sales_order.raw_payload` (JSONB) 에 **주문 단위로 통째로** 보관한다.
+
+| 칸 | 타입 · 제약 | 뜻 |
+|---|---|---|
+| `sales_order_id` | `BIGINT NOT NULL` FK | 주문 |
+| `store_id` | `BIGINT NOT NULL` FK | 매장 (주문과 같은 값, 저장할 때 경모가 채움) |
+| `line_no` | `INTEGER NOT NULL`, `UNIQUE (sales_order_id, line_no)` | POS 주문 안의 줄 번호 |
+| `pos_menu_code` | `VARCHAR(100) NOT NULL` | POS 코드 원문 |
+| `menu_id` | `BIGINT` FK, NULL 가능 | `resolve` 결과. 못 찾으면 NULL |
+| `menu_name` | `VARCHAR(100) NOT NULL` | 판매 당시 이름 |
+| `quantity` | `INTEGER NOT NULL CHECK (> 0)` | 판매 수량 |
+| `canceled_quantity` | `INTEGER NOT NULL DEFAULT 0` | 누적 취소 수량 |
+| `unit_price` | `DECIMAL(19,2) NOT NULL` | 메뉴 1개 가격 (옵션 제외) |
+| `option_price` | `DECIMAL(19,2) NOT NULL DEFAULT 0` | 메뉴 1개당 옵션 가격 합 |
+| `discount_amount` | `DECIMAL(19,2) NOT NULL DEFAULT 0` | 할인 |
+| `amount` | `DECIMAL(19,2) NOT NULL` | 실제 결제된 줄 금액 |
+| `refunded_amount` | `DECIMAL(19,2) NOT NULL DEFAULT 0` | 항목 누적 환불액 |
+| `options` | `JSONB NOT NULL DEFAULT '[]'` | 옵션 배열 (아래) |
+| `deduct_status` | `VARCHAR(20) NOT NULL DEFAULT 'PENDING'` | 재고 차감 상태 (아래) |
+| `processing_error` | `VARCHAR(255)` | `NEEDS_FIX` 사유 (메뉴 미연결 · 레시피 누락 등) |
+
+`options` 모양 (키는 camelCase):
+
+```json
+[{ "code": "OPT_SHOT", "name": "샷 추가", "qty": 1, "price": 500, "menuId": 31 }]
+```
+
+| 키 | 뜻 | 채우는 사람 |
+|---|---|---|
+| `code` · `name` | POS 옵션 코드 원문 · 판매 당시 옵션 이름 | 경모 (저장할 때) |
+| `qty` | **메뉴 1개당** 옵션 수량 | 경모 |
+| `price` | 옵션 1개 가격 | 경모 |
+| `menuId` | `resolve` 로 찾은 옵션 메뉴 (`parent_menu_id` 가 있는 메뉴). 못 찾으면 `null` | 예원 (`resolve` 결과) |
+
+`deduct_status` 값: `PENDING` (저장만, 차감 전) · `DONE` (차감 완료) · `NEEDS_FIX` (메뉴 · 옵션 미매핑 또는 레시피 누락 → 연동 · 메뉴 화면에서 보완) · `SKIPPED` (재고를 쓰지 않는 메뉴).
+
+#### 수량 · 계산 규칙
+
+1. 옵션 `qty` 는 **잔당** 수량. 실제 옵션 수 = `quantity` × `qty` (아메리카노 2잔 + 샷 1 → 샷 2개).
+2. 같은 메뉴 · 같은 옵션 조합이면 한 줄로 쓰고 `quantity` 를 늘린다. 옵션이 다르면 다른 줄.
+3. 같은 옵션이 두 번 오면 하나로 합치고 `qty` 를 더한다 (샷 + 샷 → `qty: 2`).
+4. `amount` = (`unit_price` + `option_price`) × `quantity` − `discount_amount`.
+5. 차감 수량 = `quantity` − `canceled_quantity`.
+6. 사용량 = Σ(기본 레시피 + 옵션 레시피 × `qty`) × 차감 수량. 단위는 품목의 관리 단위만 쓴다.
+7. 메뉴나 옵션 코드가 매핑되지 않았으면 **차감하지 않고 `NEEDS_FIX`**. 매핑에서 '제외'로 정한 옵션(예: 얼음 적게)은 사용량 0 으로 정상 처리.
+8. 취소는 **기존 행을 고치지 않는다.** `canceled_quantity` 를 늘리고 재고 장부에 '취소 환원'을 추가한다.
+9. 중복 방지 키: 판매 차감 `SALE:{orderItemId}`, 취소 환원 `CANCEL:{orderItemId}:{누적취소수량}` (재처리해도 1번만 반영). 판매 1건이 재료 여러 행을 만들므로 `inventory_transaction` 의 UQ 는 `(idempotency_key, item_id)`.
+10. 콤보 · 세트는 이번 범위 밖. 들어오면 `NEEDS_FIX` 로 둔다 (3주차).
+
+#### 공급처 발주 · 결제 (브라우저 주문 최소 구성)
+
+| 표.칸 | 타입 | 담는 것 |
+|---|---|---|
+| `item.purchase_config` | JSONB | 기본 거래처 구매 설정: 기본 상품 코드 · URL, 옵션, 관리 단위당 최대 가격, 허용 가격 상승률, 비교 기준, 대체 허용 브랜드 · 용량 · 보관 방식 |
+| `supplier.order_channel` | `API` · `BROWSER` · `MANUAL` (기본 `MANUAL`) | 거래처 주문 방식 |
+| `suggestion.generation_context` | JSONB | 승인 **전** 기본 거래처 확인 · 대안 탐색 작업의 단계, 작업 ID, 재시도 횟수, 만료 시각, 재개 정보 |
+| `execution.runtime_context` | JSONB | 승인 **후** 주문 실행 단계, 작업 ID, 보호된 브라우저 세션 참조, 사용자 개입 사유, 인증 대기 만료 시각 |
+| `purchase_order.payment_status` | `PENDING` · `PAID` · `FAILED` · `UNKNOWN` · `NOT_REQUIRED` (기본 `PENDING`) | 주문 상태(`status`)와 별도인 결제 상태 |
+| `purchase_order.paid_amount` · `paid_at` | `DECIMAL(19,2)` · `TIMESTAMPTZ` | 실제 결제 완료가 확인된 금액 · 시각 |
+| `purchase_order_item.product_options` | JSONB | 주문 당시 선택한 상품 옵션 사본 (옵션 코드, 용량, 묶음 구성, 냉장 · 멸균) |
+
+- 값 확장: `purchase_order.order_method` 에 `BROWSER`, `execution.exec_status` 에 `WAITING_AUTH` (사용자 인증 대기).
+- **결제 완료는 확인했을 때만** `PAID` 로 바꾸고 `paid_amount` · `paid_at` 을 채운다. 확인 전에는 둘 다 NULL (DB `CHECK` 로 막음). 외부 주문번호(`external_order_ref`)가 발급됐다고 `PAID` 로 처리하지 않고, 기존 데이터도 확인 없이 `PAID` 로 채우지 않는다.
+- 새 칸을 만들지 않고 기존 칸을 쓴다: 주 거래처 `item.default_supplier_id`, 최종 상품 · 수량 · 가격 · 배송 조건 `suggestion.payload`, 기본 거래처 확인 결과 · 대체 사유 · 후보 비교 `suggestion.evidence`, 승인 범위 `approval.approved_scope`, 실행 직전 조건 변경 `execution.scope_check`, 상품 코드 · URL · 포장 환산 `purchase_order_item.product_ref` · `units_per_order`, AI 추적 `langsmith_trace_id`.
+- 우유 예: `purchase_config` "A우유 1L 우선, 가격 기준 초과 시 냉장 우유만 대체" → `generation_context` "기본 거래처 가격 초과 확인, 대체 탐색 중" → `runtime_context` "승인된 상품 주문 화면에서 결제 앱 인증 대기" → `product_options` "B우유 900mL × 12개".
+- 여러 워커 처리 · 장애 후 자동 인계를 만들 때만 `suggestion` · `execution` 에 `lease_owner VARCHAR(100)`, `lease_expires_at TIMESTAMPTZ` 추가를 따로 검토한다 (지금은 없음).
+
+#### 도메인 사이 메서드 계약
+
+| 담당 | 메서드 | 입력 → 출력 |
+|---|---|---|
+| 경모 | `SalesService.saveOrders(storeId, List<PosOrder>)` | POS 주문 저장. 같은 `external_order_id` 는 무시 |
+| 예원 | `MenuService.resolve(storeId, posMenuCode, List<String> optionCodes)` | 코드 → `menuId` 와 옵션별 `menuId` (못 찾으면 null) |
+| 예원 | `RecipeService.usageOf(menuId, List<OptionQty> options, at)` | **메뉴 1개 기준** 품목별 사용량 `Map<itemId, BigDecimal>` |
+| 준표 | `InventoryService.deductForSale(orderItemId)` | `resolve` → `usageOf` × 차감 수량 → 장부 기록 → `deduct_status` 변경 |
+
+- `usageOf` 는 메뉴 1개 기준만 돌려주고, **수량을 곱하는 것은 `deductForSale` (준표)** 가 맡는다. 취소 · 부분 취소가 생겨도 `usageOf` 는 바꾸지 않는다.
 
 ---
 
@@ -222,7 +340,7 @@ frontend/src/
 - 시작 전 `git fetch origin && git merge origin/dev`.
 - 🚨 **`rebase` · `push --force` · `dev`/`main` 직접 push 금지.** PR 은 **Create a merge commit** 으로만.
 - **기능 하나 = PR 하나.**
-- AI 도구는 **소기능이 끝날 때마다 커밋**한다 (아래 [커밋 단위](#커밋-단위-소기능마다-커밋)). **push 는 사용자가 요청할 때만** 한다.
+- AI 도구는 **검증이 끝난 중요한 변경 단위로만 커밋**한다 (아래 커밋 단위 참고). **push 는 사용자가 요청할 때만** 한다.
 
 ### 6-3. 커밋 메시지
 
@@ -243,14 +361,14 @@ frontend/src/
 - 제목은 50자 이내, 마침표 없이, `추가` · `수정` · `개선` · `제거` 같은 **명사형**으로 끝낸다.
 - 한 커밋에는 **하나의 논리적 변경**만. 파일 이름 변경 · 삭제는 목적에 맞는 타입으로 분류한다.
 
-#### 커밋 단위 (소기능마다 커밋)
+#### 커밋 단위 (중요한 변경을 묶어서 커밋)
 
-기능 하나(PR 하나)를 끝까지 만든 뒤 한 번에 커밋하지 않고, **소기능이 하나 끝날 때마다 커밋**한다. 커밋이 잘게 남아 있어야 나중에 코드가 꼬이거나 문제가 생겼을 때 직전의 정상 상태로 쉽게 되돌리고, 어느 커밋에서 문제가 생겼는지 찾기 쉽다.
+**되돌리거나 검토할 가치가 있는 중요한 변경이 완성됐을 때만 커밋**한다. 같은 기능의 컴포넌트·스타일·상태 처리·검증은 함께 묶고, 중간 작업이나 자잘한 여백·문구 수정마다 커밋하지 않는다. 보통 요청한 기능 하나를 구현하고 검증한 뒤 한 번 커밋하며, 독립적으로 검토할 큰 변경이 여러 개일 때만 나눈다.
 
-- **소기능** = 따로 떼어도 의미가 있는 작은 단위. 예: 표 하나의 Flyway SQL + 엔티티, Repository, service 메서드 하나(+ 테스트), API 하나, 화면 컴포넌트 하나, 문서 수정 하나.
-- **커밋 전에 확인한다.** 백엔드는 최소 `./gradlew compileJava` (테스트가 있는 소기능은 `./gradlew test`), 프론트는 `npm run lint`. 빌드가 깨진 상태로는 커밋하지 않는다. 확인 못 한 검증이 있으면 커밋 후 보고에 그대로 적는다.
-- 커밋에는 **그 소기능의 파일만** 넣는다. `git add .` · `git add -A` 대신 파일을 골라서 add 하고, `.env` 같은 비밀값 파일이 섞이지 않았는지 `git status` 로 확인한다.
-- AI 도구는 소기능을 끝내면 사용자에게 다시 묻지 않고 커밋하고, 커밋 해시 · 메시지를 보고한다. 단, 사용자가 "커밋하지 마" 라고 하면 따른다.
+- **중요한 변경** = 독립적으로 검토·되돌리기가 필요한 기능 완성, 주요 버그 수정, 환경·구조 변경. 파일 하나나 작업 단계 하나가 끝났다는 이유만으로 커밋하지 않는다.
+- **커밋 전에 확인한다.** 백엔드는 최소 `./gradlew compileJava` (테스트가 있는 변경은 `./gradlew test`), 프론트는 `npm run lint`. 빌드가 깨진 상태로는 커밋하지 않는다. 확인 못 한 검증이 있으면 커밋 후 보고에 그대로 적는다.
+- 커밋에는 **그 변경에 필요한 파일만** 넣는다. `git add .` · `git add -A` 대신 파일을 골라서 add 하고, `.env` 같은 비밀값 파일이 섞이지 않았는지 `git status` 로 확인한다.
+- AI 도구는 중요한 변경을 완성하고 검증하면 사용자에게 다시 묻지 않고 커밋하고, 커밋 해시 · 메시지를 보고한다. 단, 사용자가 "커밋하지 마" 라고 하면 따른다.
 - 커밋은 내 브랜치에만 쌓이고, 원격 반영(push)은 사용자가 요청할 때만 한다. 이미 push 한 커밋은 고치거나 지우지 않는다 (`commit --amend` · `reset` 후 force push 금지). 되돌릴 때는 `git revert`.
 
 ### 6-4. 완료의 정의
@@ -264,8 +382,11 @@ frontend/src/
 | 도메인 | 백엔드 | 프론트 | AI |
 |---|---|---|---|
 | 회원 · 인증, 매장, 연동, 날씨, 홈, 쿠폰, 매출 · 비용 | 예원 | 소정 | 후상 (운영 제안 · 쿠폰 문구 · 날씨 입력) |
-| 메뉴, 재고, 발주 · 입고, 에이전트 승인 · 실행 공통 | 준표 | 민성 (+ 화면 공통 틀) | 후상 (레시피 · 신메뉴 · Tool Calling · 수요 예측) |
-| `common/` 설정 · 보안 · 외부 API, CI/CD, AWS, 목업, 데모 데이터 | 경모 | — | — |
+| 메뉴 · 레시피, 에이전트 승인 · 실행 공통 | 예원 | 민성 | 후상 (레시피 · 신메뉴 · Tool Calling) |
+| 품목 · 재고, 발주 · 입고 | 준표 | 민성 (+ 화면 공통 틀) | 후상 (수요 예측) |
+| `common/` 설정 · 보안 · 외부 API, CI/CD, AWS(dev), 목업, 데모 데이터, POS 판매 저장(`SalesService.saveOrders`) | 경모 | — | — |
+
+> 11/24 계약 회의: 메뉴 · 레시피와 승인 공통은 예원 담당으로 바뀌었습니다. 구현 계획서의 일정표는 아직 예전 담당으로 적혀 있을 수 있으니, 담당은 이 표를 따릅니다.
 
 ---
 
