@@ -1,5 +1,5 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { BarChart3, ChevronLeft, Coffee, Home, Package, Settings } from 'lucide-react'
+import { BadgePercent, BarChart3, ChevronLeft, Coffee, Home, Package, Settings } from 'lucide-react'
 import { HeaderNotifications } from '@/components/home/HomeNotifications'
 
 /** 상단 헤더 — Figma 'HF/Header' (뒤로가기 · 제목 · 설정 버튼) */
@@ -28,9 +28,15 @@ export function Header({ title, eyebrow, back = true, settings = false, actions 
         <div className="relative ml-auto flex shrink-0 items-center gap-2">
           {actions}
           {settings && (
-            <Link to="/settings" aria-label="설정" className="flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted">
-              <Settings size={24} strokeWidth={1.8} />
-            </Link>
+            <>
+              {/* 프로모션 운영 설정 — 설정 목록에서 헤더로 옮겼다 */}
+              <Link to="/settings/promotion" aria-label="프로모션" className="flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted">
+                <BadgePercent size={24} strokeWidth={1.8} />
+              </Link>
+              <Link to="/settings" aria-label="설정" className="flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted">
+                <Settings size={24} strokeWidth={1.8} />
+              </Link>
+            </>
           )}
         </div>
       )}
@@ -98,17 +104,6 @@ export function DesktopNav() {
           </NavLink>
         ))}
       </nav>
-      <NavLink
-        to="/settings"
-        className={({ isActive }) =>
-          `mt-auto flex items-center gap-3 rounded-input px-4 py-3.5 text-body font-bold focus-visible:outline-2 focus-visible:outline-woori-blue ${
-            isActive ? 'bg-woori-tint text-woori-deep' : 'text-ink-sub hover:bg-surface-muted'
-          }`
-        }
-      >
-        <Settings size={22} aria-hidden="true" />
-        설정
-      </NavLink>
     </aside>
   )
 }
