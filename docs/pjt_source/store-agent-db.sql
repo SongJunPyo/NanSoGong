@@ -2,8 +2,10 @@
 -- 원본: MySQL 8 DDL (docs/store-agent-db-v1.1.html 의 27개 업무 테이블, ERDCloud 가져오기용) 을 PostgreSQL 로 옮기고
 --       11/24 계약 회의 결정(AGENTS.md 3-5 데이터 계약)을 적용했습니다.
 --
--- ⚠️ 설계 참고용입니다. 실제 표는 각 담당이 Flyway 마이그레이션(backend/src/main/resources/db/migration/)으로 만듭니다.
---    이 파일을 통째로 마이그레이션에 넣지 않습니다. 머지 순서: ① 예원 회원·매장·연동 → ② 준표 품목 → ③ 예원 메뉴 → ④ 경모 매출.
+-- 📌 같은 내용이 두 곳에 있습니다 (두 파일은 항상 같아야 합니다)
+--    - docs/pjt_source/store-agent-db.sql                                              설계 문서
+--    - backend/src/main/resources/db/migration/V202611241000__create_store_agent_schema.sql  Flyway 마이그레이션
+-- 🚨 마이그레이션은 머지 후 절대 고치지 않습니다. 표를 바꿀 때는 새 마이그레이션 파일을 추가하고, 이 설계 문서에도 같은 변경을 반영합니다.
 --
 -- 11/24 계약 적용 내용
 --   - 표 이름 단수 snake_case (users → member, stores → store …). PK 는 <표>_id, FK 는 참조하는 PK 와 같은 이름 (역할이 있으면 <역할>_<표>_id)
