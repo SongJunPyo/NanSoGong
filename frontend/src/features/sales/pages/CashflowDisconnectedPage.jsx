@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Screen } from '@/components/common/layout'
 import { Button, Card, Chips, HeadRow, Hero, HeroLabel, HeroValue, P, Pill, Segmented } from '@/components/common/ui'
 import { CashWeek, WeekHeader } from '@/features/sales/components/CalendarParts'
-import { SALES_TABS } from '@/features/sales/constants'
+import { SALES_TAB_LABELS, SALES_TABS } from '@/features/sales/constants'
 import { useCashByDay } from '@/features/sales/queries'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ButtonLoading } from '@/components/ui/loading'
@@ -26,8 +26,8 @@ export default function CashflowDisconnectedPage() {
   return (
     <Screen title="매출" back={false} tab wide>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="w-full md:max-w-xs">
-          <Segmented items={['매출', '입출금']} active={1} links={SALES_TABS} />
+        <div className="w-full md:max-w-sm">
+          <Segmented items={SALES_TAB_LABELS} active={1} links={SALES_TABS} />
         </div>
         <Chips items={['일', '주', '월', '기간 지정']} defaultIndex={2} />
       </div>

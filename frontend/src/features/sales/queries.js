@@ -14,3 +14,5 @@ export const useSalesByDay = () => useMockQuery(['sales', 'salesByDay'], mock.sa
 export const useCashByDay = () => useMockQuery(['sales', 'cashByDay'], mock.cashByDay)
 export const useCashTransactions = () => useMockQuery(['sales', 'cashTransactions'], mock.cashTransactions)
 export const useCosts = () => useMockQuery(['sales', 'costs'], mock.costs)
+export const useSalesSummary = () => useMockQuery(['sales', 'salesSummary'], mock.salesSummary)
+export const useMenuSales = () => useMockQuery(['sales', 'menuSales'], mock.menuSales)
