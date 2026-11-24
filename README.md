@@ -313,7 +313,7 @@ AWS 쪽 준비 · 생성 · 삭제(CloudFormation, IAM 역할, Secrets Manager, 
 
 | 항목 | 현재 상태 | 영향 |
 |---|---|---|
-| 쿠폰 발행 방식 | 유저 플로우 1.01 은 **POS 역동기화**, 요구사항 1.1(구현-2-8)은 **네이버 플레이스 직접 발행** | 목업에 POS 쿠폰 등록(`/pos/v1/coupons`)은 넣어 둠. 직접 발행으로 정하면 안 쓰면 됨 |
+| 쿠폰 발행 방식 | **POS 역동기화**로 기능 흐름 확정 ([유저 플로우 1.04](docs/pjt_source/유저_플로우_1.04.md) "확정한 적용 기준"). POS 지원 범위는 연동 검증 필요 | 목업에 POS 쿠폰 등록(`/pos/v1/coupons`)은 넣어 둠 |
 | 수요 예측 모델 실행 방식 | 요구사항에 없음 | `ml/README.md` 의 A(Python 배치) / B(Java 추론) 중 선택 |
 | AWS 에서 목업 서버 위치 | dev 는 EC2 의 compose 에 함께 뜬다. **prod 는 미정** | prod 서버가 뜨려면 `nansogong/prod` 에 `POS_BASE_URL` 등이 필요. 서버 EC2 에 함께 띄우기 / 별도 서비스 중 선택 |
 | 화면 이동(라우터) · 차트 라이브러리 | 기술 스택에 없음 | 하단 4개 탭 · 매출 그래프에 필요. 예: React Router · Recharts(shadcn/ui charts) |
