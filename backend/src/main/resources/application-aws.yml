@@ -3,11 +3,11 @@
 # 값은 전부 환경변수로만 받는다. 🚨 기본값이 없으므로 하나라도 빠지면 앱이 뜨지 않는다 (Fail-Fast)
 #   → 로컬 기본값(localhost DB, 데모 JWT 키)으로 AWS 서버가 조용히 떠 버리는 사고를 막는다
 # 환경변수는 CodeDeploy 가 서버를 띄울 때 넣는다 (infra/codedeploy/scripts/start.sh)
-#   DB_URL  REDIS_HOST  REDIS_SSL=true   ← app 스택(infra/cloudformation/app.yml)이 RDS · ElastiCache 주소로 채운다
-#   DB_USER  DB_PASSWORD                 ← data 스택이 만든 비밀 nansogong/prod/db
+#   DB_URL  REDIS_HOST  REDIS_SSL=true   ← prod 스택(infra/cloudformation/prod.yml)이 RDS · ElastiCache 주소로 채운다
+#   DB_USER  DB_PASSWORD                 ← prod 스택이 만든 비밀 nansogong/prod/db
 #   JWT_SECRET  CREDENTIAL_ENCRYPTION_KEY  ANTHROPIC_API_KEY  DATA_GO_KR_SERVICE_KEY  NAVER_CLIENT_ID  NAVER_CLIENT_SECRET
 #   POS_BASE_URL  SUPPLIER_BASE_URL  MYDATA_BASE_URL  VERIFICATION_MODE  CORS_ALLOWED_ORIGINS=https://<도메인>
-#   (목록 전체는 infra/secrets-put.sh 의 KEYS)
+#   (목록 전체는 infra/secrets/README.md 의 키 목록)
 spring:
   datasource:
     url: ${DB_URL}
@@ -24,7 +24,7 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
       ssl:
-        enabled: ${REDIS_SSL:false}   # ElastiCache 전송 중 암호화(data 스택은 켜 둠) → app 스택이 REDIS_SSL=true 를 넣는다
+        enabled: ${REDIS_SSL:false}   # ElastiCache 전송 중 암호화(prod 스택은 켜 둠) → prod 스택이 REDIS_SSL=true 를 넣는다
       # ElastiCache AUTH 토큰을 켰다면 아래 주석을 풀고 Secrets Manager 에 REDIS_PASSWORD 를 넣는다
       # password: ${REDIS_PASSWORD}
   ai:

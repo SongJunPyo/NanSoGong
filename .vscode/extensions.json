@@ -9,7 +9,7 @@
     "bradlc.vscode-tailwindcss",         // Tailwind 클래스 자동완성
     "ms-azuretools.vscode-docker",       // 컨테이너 상태 · 로그 보기
     "humao.rest-client",                 // backend/src/api.http 요청을 바로 보내기
-    "ms-python.python",                  // (ml 담당) Python
-    "ms-toolsai.jupyter"                 // (ml 담당) 노트북
+    "ms-python.python",                  // (AI 담당: ml/) Python
+    "ms-toolsai.jupyter"                 // (AI 담당: ml/) 노트북
   ]
 }
