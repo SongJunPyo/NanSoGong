@@ -2,10 +2,10 @@ const cx = (...a) => a.filter(Boolean).join(' ')
 
 /**
  * 상태 색 규칙 — 모든 화면이 이 표 하나를 따른다
- *   pending  대기 · 승인 대기 · 재승인 필요     → 주황 (사장님 차례)
+ *   pending  대기 · 승인 대기 · 재승인 필요 · 임박 · 실사 필요 → 주황 (사장님 차례)
  *   progress 진행 중 · 배송 중 · 주문 중        → 파랑 (AI · 거래처 차례)
  *   done     완료 · 입고 완료 · 최저가          → 초록
- *   stopped  멈춤 · 실패 · 반려                 → 빨강
+ *   stopped  멈춤 · 실패 · 반려 · 부족          → 빨강 (바로 손써야 함)
  *   neutral  보류 · 취소 · 기타                 → 회색
  */
 const STATUS = {
@@ -23,6 +23,9 @@ const STATUS_BY_TEXT = {
   '확인 필요': 'pending',
   '재승인 필요': 'pending',
   '쿠팡 주문 필요': 'pending',
+  '재승인 대기': 'pending',
+  임박: 'pending',
+  '실사 필요': 'pending',
   '진행 중': 'progress',
   '배송 중': 'progress',
   '주문 중': 'progress',
@@ -34,6 +37,7 @@ const STATUS_BY_TEXT = {
   멈춤: 'stopped',
   실패: 'stopped',
   반려: 'stopped',
+  부족: 'stopped',
   보류: 'neutral',
   취소: 'neutral',
 }
