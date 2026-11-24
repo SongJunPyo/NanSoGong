@@ -5,6 +5,8 @@ import { DesktopNav } from '@/components/common/layout'
 import { ROUTES } from '@/routes'
 import AuthGuard from '@/components/auth/AuthGuard'
 import { useAuthStore } from '@/store/useAuthStore'
+import { Toaster } from '@/components/ui/toast'
+import UiShowcasePage from '@/components/common/UiShowcasePage'
 
 // 예시 id — 화면 목록에서 바로 열어 볼 때 쓴다
 const sampleId = (path) =>
@@ -49,6 +51,7 @@ export default function AppRouter() {
       <div className="min-h-dvh bg-[#f2f3f5]">
         <AppLayout />
       </div>
+      <Toaster />   {/* toast() 가 그려지는 자리 — 웹: 오른쪽 위 / 앱: 아래 스낵바 */}
     </BrowserRouter>
   )
 }
@@ -74,6 +77,7 @@ function AppLayout() {
             <Route key={figma} path={path} element={['/login', '/signup', '/signup/business', '/signup/complete', '/find-password'].includes(path) ? <Page /> : <AuthGuard><Page /></AuthGuard>} />
           ))}
           <Route path="/dev" element={<AuthGuard><App /></AuthGuard>} />
+          <Route path="/dev/ui" element={<AuthGuard><UiShowcasePage /></AuthGuard>} />
           <Route path="/screens" element={<AuthGuard><ScreenIndex /></AuthGuard>} />
           <Route path="*" element={<Navigate to={token ? '/' : '/login'} replace />} />
           </Routes>

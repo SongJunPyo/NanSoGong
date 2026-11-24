@@ -1,6 +1,8 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { BarChart3, ChevronLeft, Coffee, Home, Package, Settings } from 'lucide-react'
+import { BarChart3, ChevronLeft, Coffee, Home, Package, Settings, Truck } from 'lucide-react'
 import { HeaderNotifications } from '@/components/home/HomeNotifications'
+import { CountBadge, statusOf } from '@/components/ui/badge'
+import { useOrders } from '@/features/purchase/queries'
 
 /** 상단 헤더 — Figma 'HF/Header' (뒤로가기 · 제목 · 설정 버튼) */
 export function Header({ title, back = true, settings = false, actions }) {
@@ -57,8 +59,24 @@ export function TabBar() {
   )
 }
 
+// PC 사이드바는 넓으니 발주를 따로 둔다 (앱 하단 탭은 4개 그대로, 발주는 홈 · 재고에서 들어감)
+const DESKTOP_TABS = [
+  TABS[0],
+  TABS[1],
+  { to: '/orders', label: '발주', icon: Truck, badge: 'orders' },
+  TABS[2],
+  TABS[3],
+]
+
+/** 사장님 차례인 발주 건수 (재승인 필요 · 쿠팡 주문 필요 …) — Badge 의 상태 색 규칙 'pending' 기준 */
+function usePendingOrderCount() {
+  const { data } = useOrders()
+  return (data ?? []).filter((o) => statusOf(o.status) === 'pending').length
+}
+
 /** PC에서는 주요 메뉴를 왼쪽에 고정해 상세 화면에서도 이동할 수 있게 한다. */
 export function DesktopNav() {
+  const pending = { orders: usePendingOrderCount() }
   return (
     <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-white p-6 lg:flex">
       <Link to="/" className="mb-10 flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-woori-blue">
@@ -71,7 +89,7 @@ export function DesktopNav() {
         </span>
       </Link>
       <nav aria-label="주요 메뉴" className="flex flex-col gap-2">
-        {TABS.map(({ to, label, icon: Icon, end }) => (
+        {DESKTOP_TABS.map(({ to, label, icon: Icon, end, badge }) => (
           <NavLink
             key={to}
             to={to}
@@ -84,6 +102,7 @@ export function DesktopNav() {
           >
             <Icon size={22} aria-hidden="true" />
             {label}
+            {badge && <CountBadge count={pending[badge]} label="승인 대기" className="ml-auto" />}
           </NavLink>
         ))}
       </nav>
