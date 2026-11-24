@@ -1,5 +1,6 @@
 import { Screen } from '@/components/common/layout'
-import { Button, Card, Eyebrow, H1, H2, HeadRow, KV, ListRow, Stepper } from '@/components/common/ui'
+import { Button, Card, Eyebrow, H2, HeadRow, KV, ListRow, Stepper } from '@/components/common/ui'
+import { EmptyState } from '@/components/ui/empty-state'
 
 const ID = 'latte-set'
 
@@ -8,7 +9,15 @@ export default function PromotionResultFailedPage() {
   return (
     <Screen title="POS 반영 결과">
       <Eyebrow tone="warn">주말 아침 아메리카노</Eyebrow>
-      <H1>{'POS 등록에\n실패했어요'}</H1>
+      <Card tone="line" pad="p-2">
+        <EmptyState
+          kind="error"
+          compact
+          title="POS 등록에 실패했어요"
+          description="POS가 세트 할인 형식을 지원하지 않아요. 아래에서 해결 방법을 골라 주세요."
+          action={<Button to={`/promotions/${ID}/result`}>다시 시도</Button>}
+        />
+      </Card>
       <Card tone="warn">
         <Stepper steps={['승인', '반영 요청', '반영 실패', '사용 집계']} current={2} failAt={2} />
         <KV label="실패 사유" value="POS가 세트 할인 형식을 지원하지 않음" tone="warn" />
@@ -24,7 +33,6 @@ export default function PromotionResultFailedPage() {
         <KV label="POS에 이미 등록됨" value="아니요 · 중복 없음" tone="ok" />
         <KV label="승인한 조건과 같음" value="예" tone="ok" />
       </Card>
-      <Button to={`/promotions/${ID}/result`}>다시 시도</Button>
       <Button variant="outline" to="/results">
         나중에 할게요
       </Button>
