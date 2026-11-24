@@ -3,6 +3,19 @@ import { Link } from 'react-router-dom'
 import { Bell, X } from 'lucide-react'
 import { HOME_SEVERITIES, sortHomeNotifications } from '@/utils/home'
 import { formatNotificationTime } from '@/utils/format'
+import { useHomeNotifications } from '@/hooks/useHomeNotifications'
+
+/** 주요 탭의 헤더에서 같은 매장의 알림과 읽음 상태를 공유한다. */
+export function HeaderNotifications() {
+  const alerts = useHomeNotifications()
+  return (
+    <HomeNotifications
+      notifications={alerts.notifications} unreadCount={alerts.unreadCount}
+      onRead={alerts.markRead} onReadAll={alerts.markAllRead}
+      isPending={alerts.isPending} isSaving={alerts.isSaving} error={alerts.error}
+    />
+  )
+}
 
 export default function HomeNotifications({ notifications, unreadCount, onRead, onReadAll, isPending, isSaving, error }) {
   const [open, setOpen] = useState(false)

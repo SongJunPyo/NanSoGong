@@ -3,7 +3,6 @@ import { Screen } from '@/components/common/layout'
 import { Hero, HeroLabel, HeroValue, WeatherIcon } from '@/components/common/ui'
 import HomeBriefing from '@/components/home/HomeBriefing'
 import HomeCalendar from '@/components/home/HomeCalendar'
-import HomeNotifications from '@/components/home/HomeNotifications'
 import { useHomeNotifications } from '@/hooks/useHomeNotifications'
 import { formatStoreDate } from '@/utils/format'
 import { won } from '@/lib/format'
@@ -17,16 +16,7 @@ export default function HomePage() {
   const calendar = useHomeEvents()
 
   return (
-    <Screen
-      title="오늘의 매장 운영" back={false} settings tab wide compact
-      headerActions={
-        <HomeNotifications
-          notifications={alerts.notifications} unreadCount={alerts.unreadCount}
-          onRead={alerts.markRead} onReadAll={alerts.markAllRead}
-          isPending={alerts.isPending} isSaving={alerts.isSaving} error={alerts.error}
-        />
-      }
-    >
+    <Screen title="오늘의 매장 운영" back={false} settings tab wide compact>
       <StoreLine date={formatStoreDate()} />
       <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <Hero className="justify-center">

@@ -1,9 +1,10 @@
 // 화면 경로 목록 — [Figma 프레임 이름, 경로, 화면 컴포넌트, 유저 플로우]
 // 새 화면을 만들면 여기 한 줄 추가한다
+import { lazy } from 'react'
 import LoginPage from '@/features/auth/pages/LoginPage'
 import SignupPage from '@/features/auth/pages/SignupPage'
-import SignupBusinessPage from '@/features/auth/pages/SignupBusinessPage'
 import FindPasswordPage from '@/features/auth/pages/FindPasswordPage'
+import SignupCompletePage from '@/components/auth/SignupCompletePage'
 import ConnectPage from '@/features/integration/pages/ConnectPage'
 import ConnectAuthPage from '@/features/integration/pages/ConnectAuthPage'
 import InitialStockPage from '@/features/integration/pages/InitialStockPage'
@@ -61,11 +62,16 @@ import NotificationSettingsPage from '@/features/store/pages/NotificationSetting
 import LockSettingsPage from '@/features/store/pages/LockSettingsPage'
 import LockScreenPage from '@/features/store/pages/LockScreenPage'
 
+const SignupBusinessPage = lazy(() => import('@/features/auth/pages/SignupBusinessPage'))
+const StoreSetupPage = lazy(() => import('@/components/store/StoreSetupPage'))
+
 export const ROUTES = [
   ['01 로그인', '/login', LoginPage, 'UF-01'],
   ['02 회원가입', '/signup', SignupPage, 'UF-01'],
   ['02-1 사업자등록번호 등록', '/signup/business', SignupBusinessPage, 'UF-01'],
+  ['02-2 회원가입 완료', '/signup/complete', SignupCompletePage, 'UF-01'],
   ['03 비밀번호 찾기', '/find-password', FindPasswordPage, 'UF-01'],
+  ['03-1 첫 매장 기본정보 설정', '/onboarding/store', StoreSetupPage, 'UF-02'],
   ['04 서비스 연동', '/onboarding/connect', ConnectPage, 'UF-03'],
   ['04-1 연동 인증', '/onboarding/connect/auth', ConnectAuthPage, 'UF-03'],
   ['05 초기 재고 입력', '/onboarding/stock', InitialStockPage, 'UF-04'],

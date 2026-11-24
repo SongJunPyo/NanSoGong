@@ -20,7 +20,7 @@ import StoreLine from '@/features/home/components/StoreLine'
 export default function HomeCalmPage() {
   return (
     <Screen title="오늘의 매장 운영" back={false} settings tab wide>
-      <StoreLine date="11.24 화" weather={{ type: 'sun', label: '맑음 7°C' }} />
+      <StoreLine date="11.24 화" />
       <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:gap-6">
         <Hero className="justify-center md:min-h-48 md:p-6">
           <HeroLabel>오늘 매출</HeroLabel>

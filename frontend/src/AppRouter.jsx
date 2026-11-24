@@ -1,7 +1,10 @@
-import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Suspense } from 'react'
 import App from '@/App'
 import { DesktopNav } from '@/components/common/layout'
 import { ROUTES } from '@/routes'
+import AuthGuard from '@/components/auth/AuthGuard'
+import { useAuthStore } from '@/store/useAuthStore'
 
 // 예시 id — 화면 목록에서 바로 열어 볼 때 쓴다
 const sampleId = (path) =>
@@ -52,23 +55,29 @@ export default function AppRouter() {
 
 function AppLayout() {
   const { pathname } = useLocation()
+  const token = useAuthStore((state) => state.accessToken)
+  const authScreen = ['/login', '/signup', '/find-password', '/onboarding/store'].some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  )
   // 가입·초기 설정·잠금 화면은 메뉴 없이 입력에 집중하는 폭을 유지한다.
   const accountScreen = ['/login', '/signup', '/find-password', '/onboarding', '/lock'].some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   )
 
   return (
-    <div className={`mx-auto min-h-dvh w-full ${accountScreen ? 'max-w-lg' : 'max-w-[1600px] lg:flex lg:items-start'}`}>
+    <div className={`mx-auto min-h-dvh w-full ${accountScreen ? authScreen ? 'max-w-5xl' : 'max-w-lg' : 'max-w-[1600px] lg:flex lg:items-start'}`}>
       {!accountScreen && <DesktopNav />}
       <div className="relative min-h-dvh min-w-0 flex-1 bg-white">
-        <Routes>
+        <Suspense fallback={<main role="status" className="p-8 text-label text-ink-sub">화면을 불러오는 중이에요.</main>}>
+          <Routes>
           {ROUTES.map(([figma, path, Page]) => (
-            <Route key={figma} path={path} element={<Page />} />
+            <Route key={figma} path={path} element={['/login', '/signup', '/signup/business', '/signup/complete', '/find-password'].includes(path) ? <Page /> : <AuthGuard><Page /></AuthGuard>} />
           ))}
-          <Route path="/dev" element={<App />} />
-          <Route path="/screens" element={<ScreenIndex />} />
-          <Route path="*" element={<ScreenIndex />} />
-        </Routes>
+          <Route path="/dev" element={<AuthGuard><App /></AuthGuard>} />
+          <Route path="/screens" element={<AuthGuard><ScreenIndex /></AuthGuard>} />
+          <Route path="*" element={<Navigate to={token ? '/' : '/login'} replace />} />
+          </Routes>
+        </Suspense>
       </div>
     </div>
   )

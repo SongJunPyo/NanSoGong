@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { BarChart3, ChevronLeft, Coffee, Home, Package, Settings } from 'lucide-react'
+import { HeaderNotifications } from '@/components/home/HomeNotifications'
 
 /** 상단 헤더 — Figma 'HF/Header' (뒤로가기 · 제목 · 설정 버튼) */
 export function Header({ title, back = true, settings = false, actions }) {
@@ -114,7 +115,10 @@ export function DesktopNav() {
 export function Screen({ title, back = true, settings = false, tab = false, center = false, wide = false, compact = false, headerActions, children }) {
   return (
     <div className="flex min-h-dvh flex-col bg-white">
-      <Header title={title} back={back} settings={settings} actions={headerActions} />
+      <Header
+        title={title} back={back} settings={settings || tab}
+        actions={headerActions ?? (tab ? <HeaderNotifications /> : undefined)}
+      />
       <main
         className={`mx-auto flex w-full min-w-0 flex-1 flex-col gap-4 px-screen pt-2 md:px-6 lg:px-8 ${compact ? 'lg:gap-4 lg:pt-4 lg:pb-6' : 'lg:gap-6 lg:pt-6 lg:pb-10'} ${wide ? 'max-w-6xl' : 'max-w-3xl'} ${tab ? 'pb-[calc(112px+env(safe-area-inset-bottom))]' : 'pb-7'} ${
           center ? 'items-center' : ''
