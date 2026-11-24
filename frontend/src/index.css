@@ -5,6 +5,7 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 @import "./styles/woori-theme.css";   /* 우리은행 색 · 넥슨Lv1고딕 · Figma 토큰 */
+@import "./styles/feedback.css";      /* 토스트 · 바텀시트 · AI 단계 움직임 */
 
 @custom-variant dark (&:is(.dark *));
 
