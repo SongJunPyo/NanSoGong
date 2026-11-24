@@ -85,6 +85,16 @@ export const ieyo = (word) => {
   return `${word}${hasBatchim ? '이에요' : '예요'}`
 }
 
+/** 받침에 맞는 '을/를' — eulReul('우유') → '우유를', eulReul('원두컵') → '원두컵을' */
+export const eulReul = (word) => {
+  const code = word.charCodeAt(word.length - 1) - 0xac00
+  const hasBatchim = code >= 0 && code <= 11171 && code % 28 !== 0
+  return `${word}${hasBatchim ? '을' : '를'}`
+}
+
+/** 알림 문구용 짧은 품목 이름 — '우유 1L' → '우유', '테이크아웃 컵 16oz' → '테이크아웃 컵' */
+export const shortName = (product) => product.replace(/\s*\d.*$/, '') || product
+
 /** 받침에 맞는 조사 — eunNeun('쿠팡') → '쿠팡은', eunNeun('11번가') → '11번가는' */
 export const eunNeun = (word) => {
   const code = word.charCodeAt(word.length - 1) - 0xac00
