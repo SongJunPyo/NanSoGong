@@ -4,9 +4,11 @@ import { Hero, HeroLabel, HeroValue, WeatherIcon } from '@/components/common/ui'
 import HomeBriefing from '@/components/home/HomeBriefing'
 import HomeCalendar from '@/components/home/HomeCalendar'
 import { useHomeNotifications } from '@/hooks/useHomeNotifications'
-import { formatStoreDate } from '@/utils/format'
 import { won } from '@/lib/format'
 import StoreLine from '@/features/home/components/StoreLine'
+import StoreSwitcher from '@/features/home/components/StoreSwitcher'
+import HomeDate from '@/features/home/components/HomeDate'
+import { HeaderNotifications } from '@/components/home/HomeNotifications'
 import { useHome, useHomeEvents } from '@/features/home/queries'
 import { Banner } from '@/components/ui/banner'
 import { CoachMark } from '@/components/ui/coach-mark'
@@ -25,8 +27,8 @@ export default function HomePage() {
   const calendar = useHomeEvents()
 
   return (
-    <Screen title="오늘의 매장 운영" back={false} settings tab wide compact>
-      <StoreLine date={formatStoreDate()} />
+    <Screen title="오늘의 매장 운영" eyebrow={<StoreSwitcher />} headerActions={<><HomeDate /><HeaderNotifications /></>} back={false} settings tab wide compact>
+      <StoreLine />
       {/* 닫으면 같은 주에는 다시 띄우지 않는다 */}
       {data.orderFund && data.orderFund.planned > data.orderFund.balance && (
         <Banner
@@ -57,7 +59,7 @@ export default function HomePage() {
             <Link to="/weather" className="ml-auto text-caption font-bold text-woori-blue">자세히 ›</Link>
           </div>
           <div>
-            <p className="text-base font-bold text-ink">내일 비 · 따뜻한 라떼 수요 +22% 예상</p>
+            <p className="text-base font-bold text-ink">내일 비 · 따뜻한 라떼 14잔 더 팔릴 것 같아요</p>
             <p className="mt-1 text-caption text-ink-sub">강수확률 90% · 최저 4°C · 최근 판매와 날씨를 반영했어요.</p>
           </div>
           <div className="grid grid-cols-5 gap-1 border-t border-woori-blue/10 pt-2">

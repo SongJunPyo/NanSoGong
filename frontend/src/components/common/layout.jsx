@@ -5,16 +5,27 @@ import { CountBadge, statusOf } from '@/components/ui/badge'
 import { useOrders } from '@/features/purchase/queries'
 
 /** 상단 헤더 — Figma 'HF/Header' (뒤로가기 · 제목 · 설정 버튼) */
-export function Header({ title, back = true, settings = false, actions }) {
+export function Header({ title, eyebrow, back = true, settings = false, actions }) {
   const navigate = useNavigate()
   return (
-    <header className="sticky top-0 z-30 flex h-[60px] min-w-0 items-center gap-2 bg-white px-5 lg:h-20 lg:border-b lg:border-line lg:px-8">
+    <header
+      className={`sticky top-0 z-30 flex min-w-0 items-center gap-2 bg-white px-5 lg:border-b lg:border-line lg:px-8 ${
+        eyebrow ? 'min-h-[60px] py-2 lg:min-h-20' : 'h-[60px] lg:h-20'
+      }`}
+    >
       {back && (
         <button type="button" aria-label="뒤로" onClick={() => navigate(-1)} className="-ml-1 p-1 text-ink">
           <ChevronLeft size={24} strokeWidth={2.2} />
         </button>
       )}
-      <h1 className="truncate text-[22px] font-bold text-ink">{title}</h1>
+      {eyebrow ? (
+        <div className="flex min-w-0 flex-col">
+          {eyebrow}
+          <h1 className="truncate text-[22px] font-bold text-ink">{title}</h1>
+        </div>
+      ) : (
+        <h1 className="truncate text-[22px] font-bold text-ink">{title}</h1>
+      )}
       {(actions || settings) && (
         <div className="relative ml-auto flex shrink-0 items-center gap-2">
           {actions}
@@ -130,12 +141,13 @@ export function DesktopNav() {
  * @param {boolean} wide  대시보드처럼 여러 열을 쓰는 화면
  * @param {boolean} compact 홈 요약 화면의 간격 축소
  * @param {React.ReactNode} headerActions 헤더 오른쪽에 표시할 도메인별 동작
+ * @param {React.ReactNode} eyebrow 제목 위 작은 줄 (예: 홈의 매장 선택)
  */
-export function Screen({ title, back = true, settings = false, tab = false, center = false, wide = false, compact = false, headerActions, children }) {
+export function Screen({ title, eyebrow, back = true, settings = false, tab = false, center = false, wide = false, compact = false, headerActions, children }) {
   return (
     <div className="flex min-h-dvh flex-col bg-white">
       <Header
-        title={title} back={back} settings={settings || tab}
+        title={title} eyebrow={eyebrow} back={back} settings={settings || tab}
         actions={headerActions ?? (tab ? <HeaderNotifications /> : undefined)}
       />
       <main

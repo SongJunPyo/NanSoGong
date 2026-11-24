@@ -14,13 +14,16 @@ import {
   SectionHead,
 } from '@/components/common/ui'
 import StoreLine from '@/features/home/components/StoreLine'
+import StoreSwitcher from '@/features/home/components/StoreSwitcher'
+import HomeDate from '@/features/home/components/HomeDate'
+import { HeaderNotifications } from '@/components/home/HomeNotifications'
 import { EmptyState } from '@/components/ui/empty-state'
 
 /** 11-2 홈 — 긴급한 일이 없을 때 (UF-05 홈 표시 기준) */
 export default function HomeCalmPage() {
   return (
-    <Screen title="오늘의 매장 운영" back={false} settings tab wide>
-      <StoreLine date="11.24 화" />
+    <Screen title="오늘의 매장 운영" eyebrow={<StoreSwitcher />} headerActions={<><HomeDate /><HeaderNotifications /></>} back={false} settings tab wide>
+      <StoreLine />
       <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:gap-6">
         <Hero className="justify-center md:min-h-48 md:p-6">
           <HeroLabel>오늘 매출</HeroLabel>
