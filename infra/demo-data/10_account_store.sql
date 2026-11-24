@@ -6,9 +6,9 @@
 SET TIME ZONE 'Asia/Seoul';
 
 INSERT INTO member (login_id, password_hash, name, phone, lock_settings, status, phone_verified_at, created_at, updated_at) VALUES
-('demo-office', '$2a$10$<BCrypt-해시>', '김하늘', '010-0000-9001', NULL, 'ACTIVE', current_date - 1100, current_date - 1100, now()),
-('demo-campus', '$2a$10$<BCrypt-해시>', '이도윤', '010-0000-9002', NULL, 'ACTIVE', current_date - 1100, current_date - 1100, now()),
-('demo-home',   '$2a$10$<BCrypt-해시>', '박서아', '010-0000-9003', NULL, 'ACTIVE', current_date - 1100, current_date - 1100, now());
+('demo-office', '$2a$10$VMIxto3vn7xKoO7QzvbkbeTRsQTJZANnzdKtgleIj8o2nRe0TxGLG', '김하늘', '010-0000-9001', NULL, 'ACTIVE', current_date - 1100, current_date - 1100, now()),
+('demo-campus', '$2a$10$VMIxto3vn7xKoO7QzvbkbeTRsQTJZANnzdKtgleIj8o2nRe0TxGLG', '이도윤', '010-0000-9002', NULL, 'ACTIVE', current_date - 1100, current_date - 1100, now()),
+('demo-home',   '$2a$10$VMIxto3vn7xKoO7QzvbkbeTRsQTJZANnzdKtgleIj8o2nRe0TxGLG', '박서아', '010-0000-9003', NULL, 'ACTIVE', current_date - 1100, current_date - 1100, now());
 
 INSERT INTO store (member_id, biz_reg_no, biz_name, owner_name, business_opened_on, verify_status, verified_at,
                    name, category, address, open_hours, closed_days, coupon_settings, onboarding_status, created_at, updated_at)
