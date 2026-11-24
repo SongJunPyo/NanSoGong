@@ -8,6 +8,15 @@ import { formatStoreDate } from '@/utils/format'
 import { won } from '@/lib/format'
 import StoreLine from '@/features/home/components/StoreLine'
 import { useHome, useHomeEvents } from '@/features/home/queries'
+import { Banner } from '@/components/ui/banner'
+import { CoachMark } from '@/components/ui/coach-mark'
+
+// 첫 로그인 안내 — 이 기기에서 처음 홈을 열 때 한 번만 (localStorage 에 본 기록만 남긴다)
+const COACH_STEPS = [
+  { target: 'home-sales', title: '오늘 매출', body: 'POS 매출을 실시간으로 모아 보여 드려요.' },
+  { target: 'home-approvals', title: '승인 대기', body: 'AI가 준비한 발주 · 프로모션은 사장님이 승인해야 실행돼요.' },
+  { target: 'home-calendar', title: '운영 캘린더', body: '입고 · 프로모션 · 휴무 일정을 한눈에 볼 수 있어요.' },
+]
 
 /** 11 홈 — 매출·수요 요약, AI 운영 브리핑, 월별 운영 캘린더 (UF-05) */
 export default function HomePage() {
@@ -18,15 +27,29 @@ export default function HomePage() {
   return (
     <Screen title="오늘의 매장 운영" back={false} settings tab wide compact>
       <StoreLine date={formatStoreDate()} />
+      {/* 닫으면 같은 주에는 다시 띄우지 않는다 */}
+      {data.orderFund && data.orderFund.planned > data.orderFund.balance && (
+        <Banner
+          tone="warn"
+          title="이번 주 발주 자금이 부족할 것 같아요"
+          dismissKey="home-order-fund"
+          dismissFor="week"
+          action={<Link to="/sales/cashflow">입출금 보기 ›</Link>}
+        >
+          발주 예정 {won(data.orderFund.planned)}원 · 통장 잔액 {won(data.orderFund.balance)}원
+        </Banner>
+      )}
       <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <Hero className="justify-center">
-          <HeroLabel>오늘 매출</HeroLabel>
-          <HeroValue size="text-[32px] leading-tight lg:text-[36px]">{won(data.sales.amount)}원</HeroValue>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-caption">
-            <span className="text-[#d9ebfa]">주문 {data.sales.orders}건</span>
-            <span className="ml-auto font-bold text-white">{data.sales.diff}</span>
-          </div>
-        </Hero>
+        <div data-coach="home-sales" className="flex min-w-0">
+          <Hero className="flex-1 justify-center">
+            <HeroLabel>오늘 매출</HeroLabel>
+            <HeroValue size="text-[32px] leading-tight lg:text-[36px]">{won(data.sales.amount)}원</HeroValue>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-caption">
+              <span className="text-[#d9ebfa]">주문 {data.sales.orders}건</span>
+              <span className="ml-auto font-bold text-white">{data.sales.diff}</span>
+            </div>
+          </Hero>
+        </div>
 
         <section aria-label="날씨·수요 예측" className="flex min-w-0 flex-col justify-center gap-2 rounded-card bg-woori-tint p-4">
           <div className="flex items-center gap-2">
@@ -58,6 +81,8 @@ export default function HomePage() {
         />
         <HomeCalendar events={calendar.data ?? []} isPending={calendar.isPending} error={calendar.error} />
       </div>
+      <CoachMark storageKey="home-first-v1" steps={COACH_STEPS} enabled={!alerts.isPending && !calendar.isPending} />
+
     </Screen>
   )
 }
