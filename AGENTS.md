@@ -14,7 +14,7 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 |---|---|
 | FE | React 19, Vite, vite-plugin-pwa, Tailwind CSS v4, shadcn/ui, TanStack Query, Zustand (JavaScript · JSX, TypeScript 아님) |
 | BE | Java 21, Spring Boot 4, Spring Security + JWT, Spring Data JPA, Flyway, ShedLock, PostgreSQL 17, Redis |
-| AI | Spring Boot 업무 오케스트레이션, Claude API (Spring AI ChatClient), `ml/` 수요 예측 (Python · LightGBM), LangSmith 추적 · 평가 |
+| AI | Spring Boot 업무 오케스트레이션, Claude API (Spring AI ChatClient), `ml/` 수요 예측 (Python · LightGBM), LangSmith 추적 · 평가 (예정) |
 | Infra | Docker Compose(로컬), AWS (CloudFormation · ECR · CodeDeploy), GitHub Actions |
 
 ### 기준 문서 (작업 전 관련 부분을 읽는다)
@@ -312,7 +312,7 @@ frontend/src/
 
 ## 5. AI 기능 · 오케스트레이션 규칙
 
-사용자에게는 하나의 매장 운영 에이전트로 제공하고, 내부에서는 **공통 운영 제어부 + 업무별 워크플로우 + 예측 · 계산 · 실행 도구**로 나눈다. 사용자 흐름은 [유저 플로우 1.04](docs/pjt_source/유저_플로우_1.04.md)를 따른다. 아래는 구현할 책임과 규칙이며, 코드 · DB 상태 · 외부 연동이 모두 구현됐다는 뜻은 아니다. 1장의 초기/후속 개발 범위와 7장의 담당을 유지한다.
+사용자에게는 하나의 매장 운영 에이전트로 제공하고, 내부에서는 **공통 운영 제어부 + 업무별 워크플로우 + 예측 · 계산 · 실행 도구**로 나눈다. 사용자 흐름은 [유저 플로우 1.04](docs/pjt_source/유저_플로우_1.04.md)를 따른다. 아래는 구현할 책임과 규칙이며, 코드 · DB 상태 · 외부 연동이 모두 구현됐다는 뜻은 아니다. 1장의 2주 범위 규칙(구현 계획서 7장)과 7장의 담당을 유지한다.
 
 ### 5-1. 구조와 책임
 
@@ -374,7 +374,7 @@ frontend/src/
 - 승인 전 생성은 `suggestion.generation_context`, 최종 제안 · 근거는 `payload` · `evidence`, 승인 후 외부 실행 진행은 `execution.runtime_context`로 구분한다. `execution.approval_id`가 필수이므로 생성 작업을 넣기 위해 가짜 승인을 만들지 않는다.
 - context는 현재 SQL의 발주 중심 설명을 바탕으로 **공통 필드 + 업무별 필드**의 검증된 DTO 계약을 정의한다. 작업 단계 · 작업 ID · 기준 시각 · 재시도 · 만료 · 재개 정보가 대상이며 JSON 키는 camelCase다. 임의 구조나 인증 원문을 넣지 않는다.
 - 현재 `suggestion.status`에는 생성 중 · 생성 실패 코드가 없고 `payload` · `evidence`는 NOT NULL이다. 생성 상태와 초안/완료 검증 계약을 정하고 필요한 CHECK 변경은 새 마이그레이션으로 반영한다. `PENDING` 검토 대기를 생성 중으로 혼용하거나 초안을 승인 가능하게 노출하지 않는다.
-- 기존 코드는 `integration.status = EXPIRED`(재인증), `execution.exec_status = WAITING_AUTH`(인증 대기), `CHECKING`(외부 결과 확인 중)을 사용한다. 상태 이름을 임의로 바꾸지 않는다.
+- 현재 스키마 `CHECK`에 `integration.status = EXPIRED`(재인증), `execution.exec_status = WAITING_AUTH`(인증 대기), `CHECKING`(외부 결과 확인 중)이 정의되어 있다 (자바 코드에는 아직 없음). 구현할 때 이 이름을 그대로 쓰고 임의로 바꾸지 않는다.
 - 동일 업무 실행은 원자적으로 선점하고 중복 이벤트를 차단한다. 내부 `idempotency_key`만으로 쇼핑몰 주문 중복까지 보장되지 않는다. 결과 불명확 시 외부 주문/쿠폰 내역부터 조회하고 재주문 · 다른 거래처 대체 주문 · 중복 POS 등록을 막는다.
 - 서버 재시작 · 인증 완료 후에는 저장된 단계 · 승인 버전 · 외부 결과 · 현재 조건을 확인하고 미완료 작업만 재개한다. 부분 성공의 성공 범위를 재실행하지 않는다. 연결 해제 · 대기 만료가 이미 전송된 주문의 취소를 뜻하지 않는다.
 - 여러 워커의 장애 인계가 필요해지면 실행 소유권 · 잠금 · 만료 계약과 lease 컬럼을 검토한다. 현재 없는 컬럼이 있다고 가정하지 않는다.
