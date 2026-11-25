@@ -2,6 +2,22 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { BadgePercent, BarChart3, ChevronLeft, Coffee, Home, Package, Settings } from 'lucide-react'
 import { HeaderNotifications } from '@/components/home/HomeNotifications'
 
+/** 헤더 오른쪽 아이콘 — 마우스를 올리면 살짝 커지고 아래에 이름이 뜬다 */
+function HeaderIcon({ to, label, icon: Icon }) {
+  return (
+    <Link
+      to={to}
+      aria-label={label}
+      className="group relative flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-woori-blue"
+    >
+      <Icon size={24} strokeWidth={1.8} aria-hidden="true" className="transition-transform duration-150 group-hover:scale-115 group-focus-visible:scale-115" />
+      <span aria-hidden="true" className="pointer-events-none absolute top-full left-1/2 z-40 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-0.5 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+        {label}
+      </span>
+    </Link>
+  )
+}
+
 /** 상단 헤더 — Figma 'HF/Header' (뒤로가기 · 제목 · 설정 버튼) */
 export function Header({ title, eyebrow, back = true, settings = false, actions }) {
   const navigate = useNavigate()
@@ -30,12 +46,8 @@ export function Header({ title, eyebrow, back = true, settings = false, actions 
           {settings && (
             <>
               {/* 프로모션 운영 설정 — 설정 목록에서 헤더로 옮겼다 */}
-              <Link to="/settings/promotion" aria-label="프로모션" className="flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted">
-                <BadgePercent size={24} strokeWidth={1.8} />
-              </Link>
-              <Link to="/settings" aria-label="설정" className="flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted">
-                <Settings size={24} strokeWidth={1.8} />
-              </Link>
+              <HeaderIcon to="/settings/promotion" label="프로모션" icon={BadgePercent} />
+              <HeaderIcon to="/settings" label="설정" icon={Settings} />
             </>
           )}
         </div>
