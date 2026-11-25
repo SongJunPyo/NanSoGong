@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Screen } from '@/components/common/layout'
 import { Button, Card, Divider, Eyebrow, H1, KV, P, Stepper } from '@/components/common/ui'
 import { useCouponDraft } from '@/features/coupon/useCouponDraft'
@@ -11,8 +12,16 @@ export default function PromotionResultPage() {
   const name = useCouponDraft((s) => s.promotionName)
   const { data: p } = usePromotion()
   const [conditionsOpen, setConditionsOpen] = useState(false)
+  const navigate = useNavigate()
+
+  // 등록을 마쳤으니 승인 화면들로 되돌아가지 않게 한다 — 기록을 [… 홈, 프로모션 성과] 로 만들어
+  // 성과 화면에서 뒤로(헤더 · 휴대폰 뒤로 버튼 모두) 가면 홈으로 간다
+  const goPerformance = () => {
+    navigate('/', { replace: true })
+    navigate('/sales/promotions')
+  }
   return (
-    <Screen title="POS 반영 결과">
+    <Screen title="POS 반영 결과" backTo="/">
       <div className="flex flex-col items-center gap-2 pt-4 text-center">
         <DoneCheck size={56} />
         <Eyebrow>{name}</Eyebrow>
@@ -28,7 +37,7 @@ export default function PromotionResultPage() {
         <KV label="운영 기간" value="11.20–11.26" />
         <KV label="사용 내역" value="운영 시작 후 집계" tone="sub" />
       </Card>
-      <Button to="/sales/promotions">사용 현황 보기</Button>
+      <Button onClick={goPerformance}>사용 현황 보기</Button>
       {/* 이미 등록된 조건은 다시 결정할 일이 아니라서, 화면 이동 없이 창으로 보여 준다 */}
       <Button variant="outline" onClick={() => setConditionsOpen(true)}>
         등록한 조건 보기
