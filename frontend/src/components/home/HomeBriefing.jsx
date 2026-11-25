@@ -5,7 +5,7 @@ import { HOME_SEVERITIES, sortHomeNotifications } from '@/utils/home'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/loading'
 
-export default function HomeBriefing({ notifications, approvals, results, onRead, isPending, error }) {
+export default function HomeBriefing({ notifications, approvals, onRead, isPending, error }) {
   const [filter, setFilter] = useState('all')
   const sorted = sortHomeNotifications(notifications)
   const visible = sorted.filter((notification) => filter === 'all' || notification.severity === filter)
@@ -93,16 +93,6 @@ export default function HomeBriefing({ notifications, approvals, results, onRead
         </div>
       )}
 
-      <div className="mt-2 flex min-w-0 items-center gap-2 border-t border-line pt-2.5 text-caption">
-        <span className="shrink-0 font-bold text-ink-sub">최근 실행</span>
-        <div aria-label="최근 실행 결과" className="flex min-w-0 flex-1 gap-3 overflow-x-auto whitespace-nowrap pb-1 md:overflow-hidden">
-          {results.length ? results.map((result) => (
-            <Link key={result.title} to={result.to} className="flex shrink-0 items-center gap-1 text-ink-sub hover:text-woori-blue md:min-w-0 md:flex-1 md:shrink" title={`${result.title} · ${result.value}`}>
-              <span className="md:truncate">{result.title}</span><span className="shrink-0 font-bold text-woori-deep">{result.value}</span>
-            </Link>
-          )) : <span className="text-ink-mute">아직 실행 결과가 없어요.</span>}
-        </div>
-      </div>
     </section>
   )
 }
