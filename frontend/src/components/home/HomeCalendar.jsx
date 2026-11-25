@@ -23,7 +23,6 @@ export default function HomeCalendar({ events, isPending, error }) {
     <section data-coach="home-calendar" aria-labelledby="home-calendar-title" className="min-w-0 self-start rounded-card border border-line bg-white p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h2 id="home-calendar-title" className="text-h2 font-bold text-ink">운영 캘린더</h2>
-        <Link to="/schedule/new" className="ml-auto text-caption font-bold text-woori-blue">+ 일정 추가</Link>
       </div>
 
       <div className="mb-2 grid grid-cols-[1fr_auto_1fr] items-center gap-1">
@@ -77,7 +76,16 @@ export default function HomeCalendar({ events, isPending, error }) {
       </div>
 
       <div aria-live="polite" aria-label="선택한 날짜의 일정" className="mt-3 min-h-20 border-t border-line pt-2.5">
-        <h3 className="mb-1.5 text-caption font-bold text-ink">{formatCalendarDate(selected)}{selected === today ? ' · 오늘' : ''}</h3>
+        <div className="mb-1.5 flex items-center gap-2">
+          <h3 className="text-caption font-bold text-ink">{formatCalendarDate(selected)}{selected === today ? ' · 오늘' : ''}</h3>
+          {/* 고른 날짜에 바로 일정 추가 */}
+          <Link
+            to={`/schedule/new?date=${selected}`}
+            className="ml-auto rounded-md bg-woori-tint px-2 py-1 text-caption font-bold text-woori-deep hover:bg-woori-blue hover:text-white"
+          >
+            + {formatCalendarDate(selected)}에 일정 추가
+          </Link>
+        </div>
         {error ? <p role="alert" className="text-caption text-danger">{error.message}</p> : isPending ? (
           <div role="status" aria-label="일정을 불러오는 중이에요" className="flex flex-col gap-2">
             <Skeleton className="h-3.5 w-4/5" />
