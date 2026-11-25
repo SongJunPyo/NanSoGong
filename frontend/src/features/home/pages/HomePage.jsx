@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Sparkles } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
 import { Hero, HeroLabel, HeroValue, WeatherIcon } from '@/components/common/ui'
 import HomeBriefing from '@/components/home/HomeBriefing'
@@ -13,7 +14,7 @@ import { useAiSummary, useHome, useHomeBriefing, useHomeEvents } from '@/feature
 import { AiLabel } from '@/components/ui/ai-label'
 import { Banner } from '@/components/ui/banner'
 import { Sheet } from '@/components/ui/sheet'
-import WeatherDetail from '@/features/weather/components/WeatherDetail'
+import WeatherAnalysis from '@/features/weather/components/WeatherAnalysis'
 import { CoachMark } from '@/components/ui/coach-mark'
 
 // 첫 로그인 안내 — 이 기기에서 처음 홈을 열 때 한 번만 (localStorage 에 본 기록만 남긴다)
@@ -106,7 +107,14 @@ export default function HomePage() {
             <h2 className="flex items-center gap-1.5 text-caption font-bold text-woori-blue">
               AI 수요 예측 <AiLabel />
             </h2>
-            <button type="button" onClick={() => setWeatherOpen(true)} className="ml-auto text-caption font-bold text-woori-blue">자세히 ›</button>
+            <button
+              type="button"
+              onClick={() => setWeatherOpen(true)}
+              className="ml-auto inline-flex items-center gap-1 rounded-lg bg-woori-blue px-2.5 py-1.5 text-caption font-bold text-white hover:bg-woori-deep"
+            >
+              <Sparkles size={14} aria-hidden="true" />
+              AI 분석
+            </button>
           </div>
           <div>
             <p className="text-base font-bold text-ink">내일 비 · 따뜻한 라떼 14잔 더 팔릴 것 같아요</p>
@@ -133,11 +141,10 @@ export default function HomePage() {
         />
         <HomeCalendar events={calendar.data ?? []} isPending={calendar.isPending} error={calendar.error} />
       </div>
-      {/* 날씨는 화면 이동 없이 팝업으로 */}
+      {/* AI 수요 예측 — 화면 이동 없이 팝업에서 분석 과정 → 결과 */}
       <Sheet open={weatherOpen} onOpenChange={setWeatherOpen} title="AI 수요 예측" description="성수동 기준 · 기상청 예보">
-        <div className="pb-4">
-          <WeatherDetail onNavigate={() => setWeatherOpen(false)} />
-        </div>
+        {/* 열 때마다 처음부터 분석 과정을 보여 준다 */}
+        {weatherOpen && <WeatherAnalysis onNavigate={() => setWeatherOpen(false)} />}
       </Sheet>
       <CoachMark storageKey="home-first-v1" steps={COACH_STEPS} enabled={!briefing.isPending && !calendar.isPending} />
 
