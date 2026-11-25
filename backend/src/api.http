@@ -6,6 +6,14 @@ GET http://localhost:8080/api/ping
 ### 서버 상태 (ALB 헬스체크와 같은 주소)
 GET http://localhost:8080/actuator/health
 
+### 난소공 백엔드 → 국세청 상태조회 (루트 .env의 주소·키 사용, 로그인 불필요)
+# 실제 국세청에서는 0000000000 → NOT_FOUND. 기존 목업은 이 번호도 ACTIVE를 반환한다.
+# 이 요청은 상태조회만 하며 가입·매장 저장·대표자 진위확인을 수행하지 않는다.
+POST http://localhost:8080/api/auth/business-status
+Content-Type: application/json
+
+{"bizRegNo": "0000000000"}
+
 ### ─── 외부 연동 목업 (docker compose 의 mock, 8089) ───
 
 ### 국세청 상태조회 (9999999999 = 폐업, 7777777777 = 휴업)
