@@ -22,7 +22,7 @@
 ├── ml/                  # 🤖 수요 예측 실험 (Python · LightGBM · Jupyter)
 ├── monitoring/          # 로컬 Prometheus 설정 · Grafana 상황판(JSON)
 ├── infra/               # AWS: CloudFormation 템플릿 · CodeDeploy 배포 스크립트 · dev 갱신 스크립트 · 데모 데이터 · 비밀값 틀
-├── docs/                # 팀 문서 (rules/ = 세부 규칙 · 설계, changes/ = 개발 환경 변경 기록, pjt_source/ = 원본 자료)
+├── docs/                # 팀 문서 (rules/ = 세부 규칙 · 설계, pjt_source/ = 원본 자료)
 ├── docker-compose.yml   # 🐳 로컬 개발용 서버 · PostgreSQL · Redis · 목업 (· 화면 nginx · Prometheus · Grafana · Jupyter)
 ├── docker-compose.dev.yml # AWS dev EC2 전용 덧씌우기 (ECR 이미지 · 80 포트 화면). 내 PC 에서는 쓰지 않는다
 └── .env.example         # 환경변수 견본 → 복사해서 .env 를 만든다
@@ -213,7 +213,7 @@ cd frontend && npm ci             # package-lock.json 이 바뀐 날만
 | VS Code 로 서버 실행 시 `Port 8080 was already in use` | 컨테이너 서버가 켜져 있다. `docker compose stop app` 후 다시 실행 (VS Code 실행 버튼은 자동으로 멈춘다) |
 | 코드를 고쳤는데 컨테이너 서버에 반영이 안 됨 | `docker compose up -d` 를 다시 실행 (안 되면 `docker compose up -d --build app`) |
 | VS Code 에서 `NansogongApplication` 에 빨간 줄 · 실행 목록에 서버가 없음 | Java 확장이 아직 프로젝트를 불러오는 중이거나 JDK 21 이 없다. 왼쪽 아래 `Java: Ready` 확인, 안 되면 Ctrl+Shift+P → `Java: Clean Java Language Server Workspace` |
-| `ConflictingBeanDefinitionException: ... bean name 'xxx'` (같은 이름의 클래스가 두 패키지에) | 파일을 옮긴 뒤 **옛 위치의 파일이나 옛 빌드 결과물**이 남은 것. 옛 파일을 지우고 `gradlew clean` 후 다시 실행 (docs/changes/2026-11-19-08 참고) |
+| `ConflictingBeanDefinitionException: ... bean name 'xxx'` (같은 이름의 클래스가 두 패키지에) | 파일을 옮긴 뒤 **옛 위치의 파일이나 옛 빌드 결과물**이 남은 것. 옛 파일을 지우고 `gradlew clean` 후 다시 실행 |
 | `Task 'bootRun' not found` · `gradlew` 를 찾을 수 없음 | 저장소 맨 위가 아니라 `backend` 폴더에서 실행한다 |
 | Windows 에서 `gradlew` 가 `\r` 오류 | `.gitattributes` 가 막아 주지만, 이미 받은 파일이면 `git rm --cached -r . && git reset --hard` |
 | `npm ci` 가 lock 파일 불일치로 실패 | `package.json` 만 고치고 lock 을 안 올린 경우 → 고친 사람이 `npm install` 후 lock 커밋 |

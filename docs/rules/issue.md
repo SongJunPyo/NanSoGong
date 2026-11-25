@@ -18,12 +18,13 @@
 
 ## 제목 · 라벨
 
-- 제목: `[TYPE] 도메인: 요약` (예: `[FEAT] inventory: 판매 재고 차감 API 추가`). TYPE은 [커밋 타입](../../AGENTS.md#4-4-커밋-메시지)과 같다.
+- 제목: `[TYPE] 도메인: 요약` (예: `[FEAT] inventory: 판매 재고 차감 API 추가`). TYPE은 [커밋 타입](../../AGENTS.md#4-4-커밋-메시지)에 `REQUEST` · `DECISION` 을 더한 것이다.
 - 라벨:
 
   | 종류 | 값 |
   |---|---|
   | 유형 | `feat` · `fix` · `refactor` · `docs` · `test` · `chore` · `request` · `decision` |
+  | PR 전용 | `env-change` (pull 받은 팀원이 직접 할 일이 있는 PR) |
   | 영역 | `backend` · `frontend` · `ai` · `db` · `infra` |
   | 도메인 | `domain:auth` · `domain:store` · `domain:integration` · `domain:weather` · `domain:home` · `domain:coupon` · `domain:sales` · `domain:menu` · `domain:inventory` · `domain:purchase` · `domain:agent` |
   | 상태 | `status:todo` · `status:in-progress` · `status:blocked` · `status:review` |
@@ -31,25 +32,21 @@
 - 상태 라벨은 하나만 붙인다. 닫힌 이슈에는 상태 라벨을 붙이지 않는다.
 - 저장소에 없는 라벨은 AI가 임의로 만들지 않는다. 사용자에게 먼저 확인한다.
 
-## 본문 형식
+## 본문 형식 (템플릿)
 
-```markdown
-## 배경
-왜 필요한지. 관련 유저 플로우(UF-xx) · 요구사항(구현-x-y).
+이슈는 `.github/ISSUE_TEMPLATE/` 의 템플릿으로 만듭니다. `gh issue create` 로 만들 때도 같은 칸을 채웁니다.
 
-## 완료 기준
-- [ ] 동작 확인 (화면 또는 Swagger)
-- [ ] 흐름 테스트
-- [ ] …
-
-## 관련 문서
-- docs/rules/… 의 해당 절 링크
-
-## 진행 기록
-(댓글로 남긴다)
-```
+| 템플릿 | 쓰는 때 | 제목 · 기본 라벨 |
+|---|---|---|
+| [기능 요청](../../.github/ISSUE_TEMPLATE/feature.md) | 새 기능 · 작업 | `[FEAT] 도메인: …` · `feat`, `status:todo` |
+| [버그 제보](../../.github/ISSUE_TEMPLATE/bug.md) | 에러 · 빌드 오류 | `[FIX] 도메인: …` · `fix`, `status:todo` |
+| [도메인 요청](../../.github/ISSUE_TEMPLATE/request.md) | 다른 도메인에 메서드 · API 요청 | `[REQUEST] 제공 도메인: …` · `request`, `status:todo` |
+| [결정 필요](../../.github/ISSUE_TEMPLATE/decision.md) | 미정 사항 논의 · 결정 기록 | `[DECISION] 주제: …` · `decision` |
 
 - 완료 기준은 [AGENTS.md 완료의 정의](../../AGENTS.md#완료의-정의)를 바탕으로 쓴다.
+- 영역 · 도메인 라벨은 템플릿에 없으니 만들 때 직접 붙인다.
+- 진행 기록은 본문이 아니라 댓글로 남긴다.
+- PR은 [PR 템플릿](../../.github/pull_request_template.md)을 채운다. pull 받은 팀원이 직접 할 일이 있으면 "팀원이 할 일" 칸에 적고 `env-change` 라벨을 붙인다.
 
 ## AI 에이전트가 이슈를 갱신하는 규칙
 

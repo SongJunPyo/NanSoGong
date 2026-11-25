@@ -33,7 +33,7 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 | [README.md](README.md) | 실행 방법, 환경 구성, 브랜치 전략, CI/CD, 자주 나는 문제 |
 | [유저 플로우 1.04](docs/pjt_source/유저_플로우_1.04.md), `요구사항정의서_수정본1.1.xlsx` | 사용자 흐름 · 예외 처리 · 기능 요구사항 번호(구현-x-y) |
 | [docs/pjt_source/store-agent-db.sql](docs/pjt_source/store-agent-db.sql) | 전체 표 구조 (27개) |
-| [docs/changes/](docs/changes/README.md) | 환경 · 구조 변경 이력 |
+| [.github/](.github/pull_request_template.md) PR · 이슈 템플릿 | PR 본문 형식(팀원이 할 일 포함), 기능 · 버그 · 도메인 요청 · 결정 이슈 형식 |
 | [WONIT-A/07_cicd](https://github.com/WONIT-A/07_cicd) | 구조의 기준. 새 패키지 · 폴더 · 클래스를 만들 때 같은 계층의 파일 모양을 먼저 참고한다 |
 
 ### 1-2. 작업 영역 → 먼저 읽을 문서
@@ -138,14 +138,14 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 | 표 구조 | 새 Flyway 파일 ([db.md](docs/rules/db.md)) |
 | 그 밖의 버전 · 라이브러리 | [README 환경을 바꿀 때 규칙](README.md#4-환경을-바꿀-때-규칙) |
 
-환경 · 구조를 바꾸는 PR에는 `docs/changes/` 기록을 하나 함께 올린다 ([6장](#6-프로젝트-문서-관리-규칙)).
+환경 · 구조를 바꿔서 pull 받은 팀원이 직접 할 일이 생기면(명령 실행 · 새 환경변수 · 파일 삭제), PR 본문의 **"팀원이 할 일"** 칸에 적고 `env-change` 라벨을 붙인다. 사용자에게 "팀 공유 필요"라고 알린다.
 
 ### 4-3. 브랜치 · PR
 
 - 각자 **자기 이름 브랜치**에서 작업한다 → `dev` 로 PR → (확인 후) `main`.
 - 시작 전에 `git fetch origin && git merge origin/dev` 를 한다.
 - 🚨 **`rebase` · `push --force` · `dev`/`main` 직접 push 금지.** PR은 **Create a merge commit** 으로만 머지한다.
-- **기능 하나 = 이슈 하나 = PR 하나.** PR 본문에 `Closes #이슈번호` 를 넣는다.
+- **기능 하나 = 이슈 하나 = PR 하나.** PR 본문은 [PR 템플릿](.github/pull_request_template.md)을 채우고 `Closes #이슈번호` 를 넣는다. 테스트 칸에는 실제로 실행한 것만 체크한다.
 - push는 사용자가 요청할 때만 한다.
 
 ### 4-4. 커밋 메시지
@@ -236,12 +236,12 @@ docker compose down -v && docker compose up -d  # 로컬 DB 초기화
 |---|---|---|---|
 | 공통 규칙 | `AGENTS.md` | — | 계속 고쳐 쓴다 |
 | 세부 규칙 · 설계 | `docs/rules/<영역>.md` | 날짜 없는 영어 소문자 (`backend.md`) | 계속 고쳐 쓴다. 항상 현재 기준만 남긴다 |
-| 변경 이력 | `docs/changes/` | `연-월-일-순번-짧은-설명.md` | 머지된 기록은 고치지 않는다. 바뀌면 새 기록을 쓴다 ([작성법](docs/changes/README.md)) |
+| 변경 이력 | 커밋 · **PR 본문** | [PR 템플릿](.github/pull_request_template.md) | 별도 변경 기록 파일을 만들지 않는다. 팀원이 할 일은 PR "팀원이 할 일" 칸 + `env-change` 라벨 |
 | 원본 자료 | `docs/pjt_source/` | 원본 이름 유지 | 유저 플로우 · 요구사항 · 표 설계 원본 |
 | 진행 상황 · 일정 · 담당 | **GitHub Issue** | — | [issue.md](docs/rules/issue.md) |
 
 - **일정 · 담당 · 진행 상황 · 회의 날짜를 저장소 문서에 쓰지 않는다.** 모두 GitHub Issue(Assignees · Milestone · 댓글)에 둔다.
-- 규칙 문서에는 **결정된 내용만** 쓴다. "언제 누가 정했는지" 같은 배경은 변경 이력(`docs/changes/`)이나 이슈에 남긴다.
+- 규칙 문서에는 **결정된 내용만** 쓴다. "언제 누가 정했는지" 같은 배경은 `decision` 이슈나 PR 본문에 남긴다.
 - 정해지지 않은 것은 "미정"이라고 분명히 적는다 ([architecture.md 미정 사항](docs/rules/architecture.md#미정-사항)). 결정할 일은 `decision` 이슈로 만든다.
 
 ### 6-2. 쓰는 규칙
