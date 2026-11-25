@@ -87,7 +87,12 @@ export default function HomePage() {
       <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div data-coach="home-sales" className="flex min-w-0">
           <Hero className="flex-1 justify-center">
-            <HeroLabel>오늘 매출</HeroLabel>
+            <div className="flex items-center gap-2">
+              <HeroLabel>오늘 매출</HeroLabel>
+              <Link to="/sales" className="ml-auto text-caption font-bold text-white/90 hover:text-white">
+                더보기 ›
+              </Link>
+            </div>
             <HeroValue size="text-[32px] leading-tight lg:text-[36px]">{won(data.sales.amount)}원</HeroValue>
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-caption">
               <span className="text-[#d9ebfa]">주문 {data.sales.orders}건</span>
