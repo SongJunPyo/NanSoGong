@@ -102,8 +102,10 @@ export const priceCompare = {
   },
 }
 
+// 26-0 발주 목록
+//   group : 탭 분류 — progress(진행 중) | done(완료) | issue(실패·확인 필요: 사장님이 손써야 함)
 export const orders = [
-  { id: 'o1', title: '우유 1L × 10', sub: '11.19 · ○○유통', status: '배송 중', tone: 'blue', to: '/orders/o1' },
+  { id: 'o1', title: '우유 1L × 10', sub: '11.19 · ○○유통', status: '배송 중', tone: 'blue', to: '/orders/o1', group: 'progress' },
   {
     id: 'o2',
     title: '원두 1kg × 2',
@@ -111,6 +113,7 @@ export const orders = [
     status: '재승인 필요',
     tone: 'amber',
     to: '/reapproval/o2',
+    group: 'issue',
   },
   {
     id: 'o3',
@@ -119,8 +122,11 @@ export const orders = [
     status: '쿠팡 주문 필요',
     tone: 'warn',
     to: '/orders/o1',
+    group: 'issue',
   },
-  { id: 'o4', title: '휘낭시에 생지 × 40', sub: '11.17 · ○○유통', status: '부분 입고', tone: 'blue', to: '/orders/o1' },
+  { id: 'o4', title: '휘낭시에 생지 × 40', sub: '11.17 · ○○유통', status: '부분 입고', tone: 'blue', to: '/orders/o1', group: 'progress' },
+  { id: 'o5', title: '원두 1kg × 2', sub: '11.12 · △△로스터리 · 11.14 입고', status: '입고 완료', tone: 'ok', to: '/orders/o1', group: 'done' },
+  { id: 'o6', title: '우유 1L × 12', sub: '11.10 · ○○유통 · 11.11 입고', status: '입고 완료', tone: 'ok', to: '/orders/o1', group: 'done' },
 ]
 
 // 24-6 ~ 24-10 AI 대신 주문 (UF-13 2C) — 11.23 실제 쿠팡 테스트 화면을 바탕으로 만든 예시
