@@ -1,14 +1,41 @@
 import { useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Screen } from '@/components/common/layout'
 import { Button, Card, Chips, Eyebrow, Field, H1, H2, HeadRow, KV, P, Pill } from '@/components/common/ui'
 import { Sheet } from '@/components/ui/sheet'
 import { InlineError } from '@/components/ui/inline-error'
 import { toast } from '@/components/ui/toast'
+import { ButtonLoading } from '@/components/ui/loading'
+import { useInventory, useSaveInventoryItem } from '@/features/inventory/queries'
 
 const SUPPLIER_ERROR_ID = 'supplier-name-error'
+const ITEM_NAME_ERROR_ID = 'item-name-error'
 
 /** 21-1 품목 등록·수정 (UF-09) */
 export default function ItemEditPage() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { data: items } = useInventory()
+  const item = items.find((i) => i.id === id) // 'new' 처럼 없는 id 면 새 품목 추가
+  const save = useSaveInventoryItem()
+  const [itemName, setItemName] = useState(item?.name ?? '')
+  const [triedSave, setTriedSave] = useState(false)
+  const itemNameError = triedSave && !itemName.trim() ? '품목명을 입력해 주세요' : ''
+
+  const saveItem = () => {
+    setTriedSave(true)
+    if (!itemName.trim()) return
+    save.mutate(
+      { id, patch: { name: itemName.trim() } },
+      {
+        onSuccess: () => {
+          toast(item ? '품목 정보를 저장했어요' : '품목을 추가했어요')
+          navigate('/inventory')
+        },
+        onError: (err) => toast(err.message, { tone: 'error' }),
+      },
+    )
+  }
   const [suppliers, setSuppliers] = useState(['○○유통', '△△마트'])
   const [sheetOpen, setSheetOpen] = useState(false)
   const [newName, setNewName] = useState('')
@@ -32,10 +59,20 @@ export default function ItemEditPage() {
     </div>
   )
   return (
-    <Screen title="품목 수정">
+    <Screen title={item ? '품목 수정' : '품목 추가'}>
       <Eyebrow>연동으로 불러온 정보 · 확인 필요 1개</Eyebrow>
-      <H1>우유 1L</H1>
-      <Field label="품목명" defaultValue="우유 1L" />
+      {/* 제목은 입력 중인 품목명을 그대로 따라간다 */}
+      <H1>{itemName.trim() || '새 품목'}</H1>
+      <div className="flex flex-col">
+        <Field
+          label="품목명"
+          value={itemName}
+          onChange={(e) => setItemName(e.target.value)}
+          placeholder="예: 우유 1L"
+          highlight={!!itemNameError}
+        />
+        <InlineError id={ITEM_NAME_ERROR_ID}>{itemNameError}</InlineError>
+      </div>
       {pair(<Field label="분류" defaultValue="유제품" />, <Field label="관리 단위" defaultValue="개" />)}
       {pair(<Field label="포장 규격" defaultValue="1L × 1개" />, <Field label="단가" defaultValue="2,800원" />)}
       <Card tone="amber">
@@ -89,7 +126,9 @@ export default function ItemEditPage() {
           <Button variant="text">+ 입고분 추가</Button>
         </div>
       </Card>
-      <Button to="/inventory">저장</Button>
+      <ButtonLoading loading={save.isPending} loadingText="저장하고 있어요" onClick={saveItem}>
+        저장
+      </ButtonLoading>
       <div>
         <Button variant="text">품목 삭제</Button>
       </div>

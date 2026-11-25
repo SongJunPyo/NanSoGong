@@ -4,8 +4,22 @@ import { ChevronRight } from 'lucide-react'
 import { HOME_SEVERITIES, sortHomeNotifications } from '@/utils/home'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/loading'
+import { AiLabel } from '@/components/ui/ai-label'
 
-export default function HomeBriefing({ notifications, approvals, results, onRead, isPending, error }) {
+// 중요한 순서대로 진하게 — 긴급은 연한 빨강, 주의는 연한 주황, 일반은 흰 바탕 (읽음 여부는 글자 굵기로만 구분)
+const SEVERITY_BG = {
+  urgent: 'bg-danger-bg hover:bg-[#fde3de]',
+  warning: 'bg-warning-bg hover:bg-[#fdefc9]',
+}
+
+/**
+ * AI 운영 브리핑 = 지금 해야 할 일 (중요도순: 긴급 → 주의 → 일반)
+ * 이미 일어난 일의 기록은 헤더 알림 패널에서 보여 준다 (같은 내용이 겹치지 않게)
+ * @param items     브리핑 항목 (features/home/mock.js 의 homeBriefing)
+ * @param aiSummary 오늘 AI가 한 일 (맨 위 회색 요약 줄)
+ */
+export default function HomeBriefing({ items, approvals, aiSummary, isPending, error }) {
+  const notifications = items
   const [filter, setFilter] = useState('all')
   const sorted = sortHomeNotifications(notifications)
   const visible = sorted.filter((notification) => filter === 'all' || notification.severity === filter)
@@ -16,14 +30,22 @@ export default function HomeBriefing({ notifications, approvals, results, onRead
   return (
     <section aria-labelledby="home-briefing-title" className="min-w-0 rounded-card border border-line bg-white p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h2 id="home-briefing-title" className="text-h2 font-bold text-ink">AI 운영 브리핑</h2>
+        <h2 id="home-briefing-title" className="flex items-center gap-1.5 text-h2 font-bold text-ink">
+          매장 데이터 기반 운영 브리핑 <AiLabel />
+        </h2>
         <span data-coach="home-approvals">
-          <Badge status={approvals.length ? 'pending' : 'neutral'}>승인 대기 {approvals.length}건</Badge>
+          <Badge status={approvals.length ? 'pending' : 'neutral'}>할 일 {approvals.length}건</Badge>
         </span>
         <Link to="/suggestions" className="ml-auto text-caption font-bold text-woori-blue">전체 보기 ›</Link>
       </div>
 
-      <div role="group" aria-label="알림 중요도 필터" className="mb-2 flex flex-wrap gap-1.5">
+      {aiSummary && (
+        <p className="mb-2 text-caption text-ink-sub">
+          발주안 {aiSummary.orderDrafts}건과 {aiSummary.priceCompared}곳 가격 비교를 미리 준비해 약 {aiSummary.minutesSaved}분을 아꼈어요.
+        </p>
+      )}
+
+      <div role="group" aria-label="할 일 중요도 필터" className="mb-2 flex flex-wrap gap-1.5">
         {filters.map(({ key, label, dot, filter: selectedStyle }) => {
           const count = key === 'all' ? notifications.length : notifications.filter((item) => item.severity === key).length
           const selected = filter === key
@@ -43,7 +65,7 @@ export default function HomeBriefing({ notifications, approvals, results, onRead
 
       {error && <p role="alert" className="py-2 text-caption text-danger">{error.message}</p>}
       {isPending ? (
-        <div role="status" aria-label="알림을 불러오는 중이에요" className="flex flex-col gap-3 py-2">
+        <div role="status" aria-label="브리핑을 불러오는 중이에요" className="flex flex-col gap-3 py-2">
           {[0, 1, 2].map((i) => (
             <div key={i} className="flex flex-col gap-1.5 px-2">
               <Skeleton className="h-4 w-4/5" />
@@ -52,25 +74,26 @@ export default function HomeBriefing({ notifications, approvals, results, onRead
           ))}
         </div>
       ) : visible.length === 0 ? (
-        <p role="status" className="py-6 text-center text-label text-ink-sub">해당하는 알림이 없어요.</p>
+        <p role="status" className="py-6 text-center text-label text-ink-sub">해당하는 할 일이 없어요.</p>
       ) : (
-        <ul aria-label="운영 알림" className="divide-y divide-line">
+        <ul aria-label="지금 해야 할 일" className="divide-y divide-line">
           {visible.map((notification) => {
             const severity = HOME_SEVERITIES[notification.severity]
             const approval = approvals.find((item) => item.to === notification.to)
             return (
               <li key={notification.id}>
                 <Link
-                  to={notification.to} onClick={() => onRead(notification.id)}
-                  className={`flex min-w-0 items-start gap-2 rounded-lg px-2 py-2.5 hover:bg-surface-muted ${notification.read ? '' : 'bg-woori-tint/50'}`}
+                  to={notification.to}
+                  className={`flex min-w-0 items-start gap-2 rounded-lg px-2 py-2.5 transition-colors ${SEVERITY_BG[notification.severity] ?? 'hover:bg-surface-muted'}`}
                 >
                   <span aria-hidden="true" className={`mt-1.5 size-1.5 shrink-0 rounded-full ${severity.dot}`} />
                   <div className="min-w-0 flex-1">
-                    <p className={`text-label leading-snug text-ink ${notification.read ? 'font-medium' : 'font-bold'}`}>
+                    <p className="text-label leading-snug font-bold text-ink">
                       <span className={`mr-1.5 text-caption font-bold ${severity.text}`}>{severity.label}</span>
                       {notification.title}
                     </p>
                     <p className="mt-1 line-clamp-1 text-caption text-ink-sub">{notification.description}</p>
+                    {notification.basis && <p className="mt-0.5 text-caption text-ink-mute">근거: {notification.basis}</p>}
                     {approval && <p className="mt-1 text-caption font-bold text-woori-blue">{approval.title} · {approval.value} ›</p>}
                   </div>
                   <ChevronRight size={14} aria-hidden="true" className="mt-1 shrink-0 text-ink-mute" />
@@ -93,16 +116,6 @@ export default function HomeBriefing({ notifications, approvals, results, onRead
         </div>
       )}
 
-      <div className="mt-2 flex min-w-0 items-center gap-2 border-t border-line pt-2.5 text-caption">
-        <span className="shrink-0 font-bold text-ink-sub">최근 실행</span>
-        <div aria-label="최근 실행 결과" className="flex min-w-0 flex-1 gap-3 overflow-x-auto whitespace-nowrap pb-1 md:overflow-hidden">
-          {results.length ? results.map((result) => (
-            <Link key={result.title} to={result.to} className="flex shrink-0 items-center gap-1 text-ink-sub hover:text-woori-blue md:min-w-0 md:flex-1 md:shrink" title={`${result.title} · ${result.value}`}>
-              <span className="md:truncate">{result.title}</span><span className="shrink-0 font-bold text-woori-deep">{result.value}</span>
-            </Link>
-          )) : <span className="text-ink-mute">아직 실행 결과가 없어요.</span>}
-        </div>
-      </div>
     </section>
   )
 }

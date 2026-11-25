@@ -1,25 +1,16 @@
 import { Screen } from '@/components/common/layout'
-import { Button, Card, Eyebrow, H1, H2, KV, ListRow, P } from '@/components/common/ui'
+import { Button, Card, H2, P } from '@/components/common/ui'
+import { useMenuWorkspace } from '@/features/menu/queries'
+import MenuTabs from '@/features/menu/components/MenuTabs'
 
-/** 35 메뉴 추가 완료 (UF-16 5) */
+/** 기존 완료 주소 호환. 등록하지 않은 특정 메뉴가 등록됐다고 표시하지 않는다. */
 export default function MenuAddedPage() {
+  const { data: workspace } = useMenuWorkspace()
+  const latest = workspace?.menus.find((menu) => menu.isNew && !menu.deletedAt)
   return (
-    <Screen title="메뉴 추가">
-      <Eyebrow>등록 완료</Eyebrow>
-      <H1>{'달고나 라떼를\n메뉴에 추가했어요'}</H1>
-      <Card tone="line">
-        <KV label="앱 메뉴·레시피" value="등록 완료" tone="ok" />
-        <KV label="원가 계산" value="추정 · 단가 필요" tone="amber" />
-        <KV label="POS 연결" value="미연결" tone="sub" />
-      </Card>
-      <Card>
-        <H2>이어서 하면 좋아요</H2>
-        <ListRow title="달고나 품목 등록·단가 입력" value="등록" to="/inventory/items/new/edit" />
-        <ListRow title="POS 메뉴와 연결" value="연결하기" to="/onboarding/recipe" />
-      </Card>
-      <P tone="mute" small>
-        POS에서 판매가 시작돼야 판매 변화를 볼 수 있어요.
-      </P>
+    <Screen title="메뉴 등록 확인" tab>
+      <MenuTabs />
+      <Card tone="line"><H2>{latest ? latest.name + ' 등록 완료' : '메뉴 등록 확인'}</H2><P>{latest ? '메뉴 목록에 반영됐어요. 새 메뉴의 NEW 표시를 확인해 주세요.' : '추천 승인 후 상세 정보를 확인하고 메뉴 추가하기를 눌러야 목록에 등록돼요.'}</P><P small>앱 등록과 POS 판매 시작은 별도예요.</P></Card>
       <Button to="/menu">메뉴 관리로 이동</Button>
     </Screen>
   )

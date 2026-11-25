@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { getCalendarDays, getHomeEventsForDate, shiftCalendarMonth, sortHomeNotifications } from './home.js'
+import { getCalendarDays, getHomeEventsForDate, shiftCalendarMonth, sortHomeNotifications, sortNotificationLog } from './home.js'
 import { formatStoreDate, todayDateKey } from './format.js'
 
 test('달력은 일요일부터 시작하고 5~6주 동안 그 달 전체를 포함한다', () => {
@@ -53,4 +53,14 @@ test('오늘 날짜는 실행 환경의 시간대와 관계없이 한국 시간�
   assert.equal(todayDateKey(new Date('2026-11-23T14:59:59Z')), '2026-11-23')
   assert.equal(todayDateKey(new Date('2026-11-23T15:00:00Z')), '2026-11-24')
   assert.equal(formatStoreDate(new Date('2026-11-23T15:00:00Z')), '11.24 화')
+})
+
+test('알림 패널은 읽지 않은 긴급만 위에 고정하고 나머지는 최근순이다', () => {
+  const log = [
+    { id: 'old', severity: 'normal', read: false, createdAt: '2026-11-24T09:00:00+09:00' },
+    { id: 'urgent-read', severity: 'urgent', read: true, createdAt: '2026-11-24T08:00:00+09:00' },
+    { id: 'new', severity: 'warning', read: false, createdAt: '2026-11-24T12:00:00+09:00' },
+    { id: 'urgent-unread', severity: 'urgent', read: false, createdAt: '2026-11-24T07:00:00+09:00' },
+  ]
+  assert.deepEqual(sortNotificationLog(log).map((item) => item.id), ['urgent-unread', 'new', 'old', 'urgent-read'])
 })

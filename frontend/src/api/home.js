@@ -24,6 +24,46 @@ export async function markHomeNotificationsRead(storeId, notificationIds) {
   return updated.map((notification) => ({ ...notification }))
 }
 
-export async function getHomeEvents() {
-  return homeEvents.map((event) => ({ ...event }))
+export async function deleteHomeNotifications(storeId, notificationIds) {
+  const ids = new Set(notificationIds)
+  const current = notificationsFor(storeId)
+  const removed = current.filter((notification) => ids.has(notification.id))
+  notificationsByStore.set(storeId, current.filter((notification) => !ids.has(notification.id)))
+  return removed.map((notification) => ({ ...notification }))
+}
+
+// 삭제 되돌리기 — 지운 알림을 다시 넣는다 (이미 있으면 그대로)
+export async function restoreHomeNotifications(storeId, notifications) {
+  const current = notificationsFor(storeId)
+  const missing = notifications.filter((item) => !current.some((notification) => notification.id === item.id))
+  notificationsByStore.set(storeId, [...current, ...missing.map((item) => ({ ...item }))])
+  return notificationsFor(storeId).map((notification) => ({ ...notification }))
+}
+
+// 운영을 종료한 프로모션처럼 기간이 줄어든 일정 (매장별 · 일정 id → 새 종료일)
+const eventEndOverrides = new Map()
+
+// 사장님이 캘린더 팝업에서 직접 추가한 일정 (매장별)
+const addedEventsByStore = new Map()
+let addedSequence = 1
+
+export async function getHomeEvents(storeId) {
+  const overrides = eventEndOverrides.get(storeId) ?? {}
+  const added = addedEventsByStore.get(storeId) ?? []
+  return [...homeEvents, ...added].map((event) => ({
+    ...event,
+    ...(overrides[event.id] ? { endDate: overrides[event.id], description: '운영을 종료한 프로모션' } : {}),
+  }))
+}
+
+/** 일정 추가 — { title, type, startDate, endDate, description } */
+export async function addHomeEvent(storeId, input) {
+  const event = { id: `custom-${addedSequence++}`, ...input }
+  addedEventsByStore.set(storeId, [...(addedEventsByStore.get(storeId) ?? []), event])
+  return { ...event }
+}
+
+/** 일정 종료일을 앞당긴다 (예: 프로모션 운영 종료) */
+export async function endHomeEvent(storeId, eventId, endDate) {
+  eventEndOverrides.set(storeId, { ...(eventEndOverrides.get(storeId) ?? {}), [eventId]: endDate })
 }
