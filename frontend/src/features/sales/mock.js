@@ -95,3 +95,78 @@ export const menuSales = {
     low: [['시즌 음료', 58, '−39잔'], ['치즈케이크', 61, '−12잔']],
   },
 }
+
+// 매출 현황 전용 예시 계약. 기존 일별 매출과 월 요약의 합계를 보존한다.
+// 시간별 실측 자료가 없어 화면 검증용으로만 배분한다. API 전환 시 이 배분은 제거하고
+// 서버가 집계한 한국 영업일별·시간별 POS 매출/주문 건수로 대체해야 한다.
+function distribute(total, weights) {
+  const sum = weights.reduce((value, weight) => value + weight, 0)
+  const exact = weights.map((weight) => total * weight / sum)
+  const values = exact.map(Math.floor)
+  const remaining = total - values.reduce((value, amount) => value + amount, 0)
+  const order = exact.map((value, index) => ({ index, rest: value - values[index] })).toSorted((a, b) => b.rest - a.rest)
+  order.slice(0, remaining).forEach(({ index }) => { values[index]++ })
+  return values
+}
+
+const dailyAmounts = Object.values(salesByDay)
+const dailyOrders = distribute(salesSummary.month.orders, dailyAmounts)
+const hourWeights = [2, 4, 6, 8, 10, 9, 7, 6, 5, 7, 16, 8, 4, 2]
+const dailyRecords = dailyAmounts.map((amount, index) => {
+  const day = index + 1
+  const weights = hourWeights.map((weight, hour) => weight * (1 + ((day + hour) % 5 - 2) * 0.08))
+  const amounts = distribute(amount, weights)
+  const orders = distribute(dailyOrders[index], weights)
+  return {
+    date: `2026-11-${String(day).padStart(2, '0')}`,
+    amount,
+    orders: dailyOrders[index],
+    hours: amounts.map((value, hour) => ({ hour: hour + 8, amount: value, orders: orders[hour] })),
+  }
+})
+const comparisonAmounts = distribute(8003000, dailyAmounts.map((amount, index) => amount * (1 + (index % 3 - 1) * 0.06)))
+
+export const salesAnalytics = {
+  defaultRange: { from: '2026-11-01', to: '2026-11-19' },
+  availableFrom: '2026-11-01',
+  availableTo: '2026-11-19',
+  updatedAt: '2026-11-19T21:00:00+09:00',
+  days: dailyRecords,
+  comparisonDays: comparisonAmounts.map((amount, index) => ({ date: `2026-10-${String(index + 1).padStart(2, '0')}`, amount })),
+}
+
+export const costForecast = {
+  period: '11월 월말 추정', revenue: 12840000, estimatedCost: 3338400, operatingCost: 5620000,
+  reviews: [
+    { id: 'labor-1115', title: '11.15 출금 · 김○○', source: '우리은행 · 계좌이체', reason: '인건비인지 확인해 주세요', amount: 850000 },
+    { id: 'utility-1110', title: '11.10 출금 · 관리비', source: '우리은행 · 자동이체', reason: '직접 입력한 공과금과 중복일 수 있어요', amount: 120000 },
+  ],
+}
+
+export const promotionPerformance = [
+  {
+    id: 'latte-set', name: '비 오는 오후, 라떼와 휘낭시에', status: 'active', approvedAt: '2026-11-19',
+    from: '2026-11-20', to: '2026-11-26', used: 12, limit: 30, issued: null, discount: 12000, sales: 84000,
+    updatedAt: '11.20 18:00', cancellationCount: 1,
+    before: { from: '2026-11-06', to: '2026-11-19', orders: 9, menuSales: 100 },
+    after: { from: '2026-11-20', to: '2026-11-20', orders: 14, menuSales: 124 },
+    expectedLift: 6,
+    history: [
+      { id: '2041', date: '11.20 14:32', status: '사용' },
+      { id: '2057', date: '11.20 15:10', status: '사용' },
+      { id: '2063', date: '11.20 16:05', status: '취소' },
+    ],
+  },
+  {
+    id: 'morning-coffee', name: '아침을 여는 아메리카노', status: 'ended', approvedAt: '2026-11-05',
+    from: '2026-11-06', to: '2026-11-12', used: 32, limit: 40, issued: 40, discount: 16000, sales: 128000,
+    updatedAt: '11.12 21:00', cancellationCount: 0,
+    before: { from: '2026-10-23', to: '2026-11-05', orders: 10, menuSales: 100 },
+    after: { from: '2026-11-06', to: '2026-11-12', orders: 13, menuSales: 118 },
+    expectedLift: 4,
+    history: [
+      { id: '1870', date: '11.12 08:32', status: '사용' },
+      { id: '1882', date: '11.12 09:10', status: '사용' },
+    ],
+  },
+]
