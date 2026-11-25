@@ -4,13 +4,13 @@ import { Screen } from '@/components/common/layout'
 import { Hero, HeroLabel, HeroValue, WeatherIcon } from '@/components/common/ui'
 import HomeBriefing from '@/components/home/HomeBriefing'
 import HomeCalendar from '@/components/home/HomeCalendar'
-import { useHomeNotifications } from '@/hooks/useHomeNotifications'
 import { won } from '@/lib/format'
 import StoreLine from '@/features/home/components/StoreLine'
 import StoreSwitcher from '@/features/home/components/StoreSwitcher'
 import HomeDate from '@/features/home/components/HomeDate'
 import { HeaderNotifications } from '@/components/home/HomeNotifications'
-import { useHome, useHomeEvents } from '@/features/home/queries'
+import { useAiSummary, useHome, useHomeBriefing, useHomeEvents } from '@/features/home/queries'
+import { AiLabel } from '@/components/ui/ai-label'
 import { Banner } from '@/components/ui/banner'
 import { Sheet } from '@/components/ui/sheet'
 import WeatherDetail from '@/features/weather/components/WeatherDetail'
@@ -26,30 +26,50 @@ const COACH_STEPS = [
 /** 11 홈 — 매출·수요 요약, AI 운영 브리핑, 월별 운영 캘린더 (UF-05) */
 export default function HomePage() {
   const { data } = useHome()
-  const alerts = useHomeNotifications()
+  const briefing = useHomeBriefing()
+  const { data: aiSummary } = useAiSummary()
   const calendar = useHomeEvents()
   const [weatherOpen, setWeatherOpen] = useState(false)
-  // 긴급 알림이 있을 때만 매출보다 위에 배너로 (가장 최근 1건)
-  const urgent = alerts.notifications.find((n) => n.severity === 'urgent')
-  const urgentAction = urgent && data.approvals.find((a) => a.to === urgent.to)
+  const todo = briefing.data ?? []
+  // 긴급 할 일 중 AI가 안을 만들어 둔 것만 매출보다 위에 배너로 (승인은 사장님이 해당 화면에서)
+  const urgent = todo.find((item) => item.severity === 'urgent' && item.aiDraft)
 
   return (
     <Screen title="오늘의 매장 운영" eyebrow={<StoreSwitcher />} headerActions={<><HomeDate /><HeaderNotifications /></>} back={false} settings tab wide compact>
       <StoreLine />
+      {/* AI 요약 — 숫자는 목업 aiSummary 와 브리핑 개수에서 계산 */}
+      <p className="-mt-2 text-label text-ink-sub">
+        밤사이 AI가 재고 {aiSummary.inventoryChecked}개 품목을 점검하고, 확인할 일 {todo.length}건을 골라 뒀어요.
+      </p>
+      {/* 닫으면 같은 날에는 다시 띄우지 않는다 */}
       {urgent && (
         <Banner
           key={urgent.id}
           tone="danger"
-          title={urgent.title}
+          title={
+            <span className="inline-flex flex-wrap items-center gap-1.5">
+              <AiLabel />
+              {urgent.aiDraft.title}
+            </span>
+          }
           dismissKey={`home-urgent-${urgent.id}`}
           dismissFor="day"
           action={
-            <Link to={urgent.to} onClick={() => alerts.markRead(urgent.id)}>
-              {urgentAction ? `${urgentAction.title} · ${urgentAction.value} ›` : '바로 확인하기 ›'}
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to={urgent.aiDraft.basisTo}
+                className="inline-flex h-9 items-center rounded-lg border border-danger/30 bg-white px-3 text-label font-bold text-danger"
+              >
+                근거 보기
+              </Link>
+              <Link to={urgent.to} className="inline-flex h-9 items-center rounded-lg bg-danger px-3 text-label font-bold text-white">
+                승인하기
+              </Link>
+            </div>
           }
         >
-          {urgent.description}
+          <p>{urgent.aiDraft.summary}</p>
+          <p className="num mt-1 font-bold text-ink">{urgent.aiDraft.amount}</p>
         </Banner>
       )}
       {/* 닫으면 같은 주에는 다시 띄우지 않는다 */}
@@ -76,9 +96,11 @@ export default function HomePage() {
           </Hero>
         </div>
 
-        <section aria-label="날씨·수요 예측" className="flex min-w-0 flex-col justify-center gap-2 rounded-card bg-woori-tint p-4">
+        <section aria-label="AI 수요 예측" className="flex min-w-0 flex-col justify-center gap-2 rounded-card bg-woori-tint p-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-caption font-bold text-woori-blue">날씨 · 수요 예측</h2>
+            <h2 className="flex items-center gap-1.5 text-caption font-bold text-woori-blue">
+              AI 수요 예측 <AiLabel />
+            </h2>
             <button type="button" onClick={() => setWeatherOpen(true)} className="ml-auto text-caption font-bold text-woori-blue">자세히 ›</button>
           </div>
           <div>
@@ -101,18 +123,18 @@ export default function HomePage() {
 
       <div className="grid min-w-0 items-start gap-4 md:grid-cols-2">
         <HomeBriefing
-          notifications={alerts.notifications} approvals={data.approvals}
-          onRead={alerts.markRead} isPending={alerts.isPending} error={alerts.error}
+          items={todo} approvals={data.approvals} aiSummary={aiSummary}
+          isPending={briefing.isPending} error={briefing.error}
         />
         <HomeCalendar events={calendar.data ?? []} isPending={calendar.isPending} error={calendar.error} />
       </div>
       {/* 날씨는 화면 이동 없이 팝업으로 */}
-      <Sheet open={weatherOpen} onOpenChange={setWeatherOpen} title="날씨·수요 예측" description="성수동 기준 · 기상청 예보">
+      <Sheet open={weatherOpen} onOpenChange={setWeatherOpen} title="AI 수요 예측" description="성수동 기준 · 기상청 예보">
         <div className="pb-4">
           <WeatherDetail onNavigate={() => setWeatherOpen(false)} />
         </div>
       </Sheet>
-      <CoachMark storageKey="home-first-v1" steps={COACH_STEPS} enabled={!alerts.isPending && !calendar.isPending} />
+      <CoachMark storageKey="home-first-v1" steps={COACH_STEPS} enabled={!briefing.isPending && !calendar.isPending} />
 
     </Screen>
   )
