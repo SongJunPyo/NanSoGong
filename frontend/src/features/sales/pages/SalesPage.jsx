@@ -1,67 +1,44 @@
 import { useState } from 'react'
+import { ArrowUpRight } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
-import { BarChart, Card, HeadRow, Hero, HeroLabel, HeroValue, KV, ListRow, P, Pill, Segmented } from '@/components/common/ui'
 import { won } from '@/lib/format'
-import { SALES_TAB_LABELS, SALES_TABS } from '@/features/sales/constants'
-import { useSalesSummary } from '@/features/sales/queries'
-import { SegmentedControl } from '@/components/ui/segmented-control'
+import { aggregateSales, previousMonth, salesDateRangeLabel } from '@/features/sales/analytics'
+import { useSalesAnalytics } from '@/features/sales/queries'
+import SalesTabs from '@/features/sales/components/SalesTabs'
+import SalesTrend from '@/features/sales/components/SalesTrend'
+import SalesCalendar from '@/features/sales/components/SalesCalendar'
 
-const PERIODS = [
-  { value: 'day', label: '일' },
-  { value: 'week', label: '주' },
-  { value: 'month', label: '월' },
-  { value: 'year', label: '연' },
-]
-
-/** 41 매출 (UF-17 1~3) — 일·주·월·연을 누르면 요약 · 차트 · 비교가 함께 바뀐다 */
+/** 매출 현황 — 요약·추이·캘린더는 같은 POS 매출 자료를 사용한다. */
 export default function SalesPage() {
-  const { data: summary } = useSalesSummary()
-  const [period, setPeriod] = useState('month')
-  const s = summary[period]
+  const { data: analytics } = useSalesAnalytics()
+  const [range, setRange] = useState(analytics.defaultRange)
+  const summary = aggregateSales(analytics.days, range)
+  const comparisonRange = { from: previousMonth(range.from), to: previousMonth(range.to) }
+  const comparisonDays = analytics.comparisonDays.filter((day) => day.date >= comparisonRange.from && day.date <= comparisonRange.to)
+  const comparison = comparisonDays.reduce((total, day) => total + day.amount, 0)
+  const change = comparison > 0 && comparisonDays.length === summary.days.length ? (summary.amount - comparison) / comparison * 100 : null
 
   return (
     <Screen title="매출" back={false} tab wide>
-      <div className="grid gap-3 xl:grid-cols-[1fr_minmax(0,24rem)_1fr] xl:items-center">
-        <div className="mx-auto w-full md:max-w-sm xl:col-start-2">
-          <Segmented items={SALES_TAB_LABELS} active={0} links={SALES_TABS} />
+      <SalesTabs />
+      <section aria-label="매출 요약" className="bg-hero grid gap-4 rounded-hero px-5 py-4 text-white sm:grid-cols-[1.5fr_1fr_1fr] sm:items-center lg:grid-cols-[1.5fr_1fr_1fr_1.3fr] lg:px-6">
+        <div>
+          <h2 className="text-caption font-medium text-white/80">{Number(range.from.slice(5, 7))}월 매출 ({salesDateRangeLabel(range)})</h2>
+          <p className="num mt-1 text-[30px] leading-tight font-bold lg:text-[32px]">{won(summary.amount)}<span className="ml-1 text-lg">원</span></p>
+          <p className="mt-1 text-[11px] text-white/75">총 매출 · 매장(POS)</p>
         </div>
-        <div className="w-full md:w-64 md:justify-self-end">
-          <SegmentedControl label="기간" size="sm" value={period} onChange={setPeriod} items={PERIODS} />
+        <dl className="grid grid-cols-2 gap-4 sm:col-span-2 lg:col-span-2">
+          <div className="border-l border-white/20 pl-4"><dt className="text-caption text-white/75">주문 수</dt><dd className="num mt-1 text-xl font-bold">{won(summary.orders)}<span className="ml-1 text-caption font-medium">건</span></dd></div>
+          <div className="border-l border-white/20 pl-4"><dt className="text-caption text-white/75">객단가</dt><dd className="num mt-1 text-xl font-bold">{won(summary.average)}<span className="ml-1 text-caption font-medium">원</span></dd></div>
+        </dl>
+        <div className="sm:col-span-3 lg:col-span-1 lg:justify-self-end">
+          <p className="inline-flex items-center gap-1 rounded-lg bg-white/15 px-2.5 py-1.5 text-label font-bold">{change !== null && <ArrowUpRight size={17} aria-hidden="true" className={change < 0 ? 'rotate-90' : undefined} />}{change === null ? '비교 자료 없음' : `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`}</p>
+          <p className="mt-1 text-[11px] text-white/75">{salesDateRangeLabel(comparisonRange)} 대비</p>
         </div>
-      </div>
-      <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:gap-6">
-        <Hero className="justify-center md:min-h-48 md:p-6">
-          <HeroLabel>{s.label}</HeroLabel>
-          <HeroValue size="text-display lg:text-[40px]">{won(s.amount)}원</HeroValue>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[13px]">
-            <span className="text-[#d9ebfa]">
-              주문 {s.orders.toLocaleString('ko-KR')}건 · 객단가 {won(s.avg)}원
-            </span>
-            <span className="ml-auto text-label font-bold text-white">{s.change}</span>
-          </div>
-        </Hero>
-        <Card tone="line">
-          <HeadRow title="매출 추이" size="text-base">
-            <Pill>{s.compareLabel}</Pill>
-          </HeadRow>
-          <BarChart key={period} values={s.chart} highlight={s.chart.length - 1} labels={s.chartLabels ?? undefined} height={160} />
-          <P tone="mute" small>
-            진한 막대가 이번 기간이에요. 매출은 POS 결제 금액 기준이고, 프로모션 할인을 뺀 실제 받은 금액이에요.
-          </P>
-        </Card>
-      </div>
-      <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:gap-6">
-        <Card>
-          <KV label="기준 기간" value={s.base} />
-          <KV label="비교 기간" value={s.compare} />
-          <KV label="증감" value={s.diff} tone="deep" />
-        </Card>
-        <Card tone="line" gap="gap-0" pad="px-4 py-1">
-          <ListRow title="매출 캘린더" value="11월" to="/sales/calendar" />
-          <ListRow title="비용·예상 이익" value="3,881,600원" to="/sales/costs" />
-          <ListRow title="프로모션 성과" value="진행 1건" to="/sales/promotions" />
-        </Card>
-      </div>
+      </section>
+      <SalesTrend analytics={analytics} summary={summary} range={range} onRangeChange={setRange} />
+      <SalesCalendar />
+      <p className="text-caption text-ink-sub">최근 매출 수집 11.19 21:00 · 매출은 판매 발생일 기준이며 정산 입금과 구분해요.</p>
     </Screen>
   )
 }

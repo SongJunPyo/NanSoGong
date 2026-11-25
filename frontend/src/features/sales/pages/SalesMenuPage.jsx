@@ -21,7 +21,7 @@ export default function SalesMenuPage() {
     <Screen title="매출" back={false} tab wide>
       <div className="grid gap-3 xl:grid-cols-[1fr_minmax(0,24rem)_1fr] xl:items-center">
         <div className="mx-auto w-full md:max-w-sm xl:col-start-2">
-          <Segmented items={SALES_TAB_LABELS} active={2} links={SALES_TABS} />
+          <Segmented items={SALES_TAB_LABELS} active={0} links={SALES_TABS} />
         </div>
         <div className="w-full md:w-52 md:justify-self-end">
           <SegmentedControl label="기간" size="sm" value={period} onChange={setPeriod} items={PERIODS} />
