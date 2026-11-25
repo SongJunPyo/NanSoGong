@@ -22,7 +22,7 @@
 ├── ml/                  # 🤖 수요 예측 실험 (Python · LightGBM · Jupyter)
 ├── monitoring/          # 로컬 Prometheus 설정 · Grafana 상황판(JSON)
 ├── infra/               # AWS: CloudFormation 템플릿 · CodeDeploy 배포 스크립트 · dev 갱신 스크립트 · 데모 데이터 · 비밀값 틀
-├── docs/                # 팀 문서 (changes/ = 개발 환경 변경 기록)
+├── docs/                # 팀 문서 (rules/ = 세부 규칙 · 설계, changes/ = 개발 환경 변경 기록, pjt_source/ = 원본 자료)
 ├── docker-compose.yml   # 🐳 로컬 개발용 서버 · PostgreSQL · Redis · 목업 (· 화면 nginx · Prometheus · Grafana · Jupyter)
 ├── docker-compose.dev.yml # AWS dev EC2 전용 덧씌우기 (ECR 이미지 · 80 포트 화면). 내 PC 에서는 쓰지 않는다
 └── .env.example         # 환경변수 견본 → 복사해서 .env 를 만든다
@@ -33,38 +33,12 @@
 > Node 버전은 `.nvmrc`, npm 패키지 버전은 `frontend/package-lock.json` 이 고정합니다.
 > AWS ECR 에는 **배포용 이미지**(서버 · dev 화면, arm64)만 Actions 가 올립니다.
 
-## 담당
+## 규칙 · 설계 · 진행 상황
 
-역할(백엔드 · 프론트엔드 · 인프라 · AI)별로 나누고, 백엔드와 프론트엔드는 **같은 도메인을 맡는 2인 1조**로 짝을 지었습니다. 같은 조끼리 API 모양을 바로 맞출 수 있게 하기 위해서입니다.
-
-| 역할 | 담당 | 맡는 범위 |
-|---|---|---|
-| 백엔드 | **예원** | 회원 · 인증, 매장, 연동, 날씨, 매출 · 비용, 홈, 쿠폰 |
-| 백엔드 | **준표** | 메뉴, 재고, 발주 · 입고, 승인 · 실행 공통(에이전트의 승인 · 중복 방지 · 이력) |
-| 프론트엔드 | **소정** | 예원 님 도메인의 화면: 로그인 · 회원가입 · 매장 · 연동 설정, 홈 탭, 매출 탭(쿠폰 포함) |
-| 프론트엔드 | **민성** | 준표 님 도메인의 화면: 재고 탭(재고 · 발주 · 입고), 메뉴 탭, 승인 · 실행 이력. 화면 공통 틀(하단 탭 · 레이아웃 · 공통 컴포넌트) |
-| 인프라 | **경모** | 개발 환경 · CI/CD · AWS · 모니터링 · 목업 · 데모 데이터, `common/` 설정(보안 · 외부 API 클라이언트) |
-| AI | **후상** | `ai/` 공통 틀, 에이전트의 제안 · 실행 계획 생성 · Tool Calling, 수요 예측(`ml/`), 각 도메인의 AI 기능(레시피 · 신메뉴 · 쿠폰 문구 · 운영 제안) |
-
-도메인별 담당입니다. 백엔드는 [07_cicd](https://github.com/WONIT-A/07_cicd) 처럼 **계층별 패키지**(`controller` · `service` · `repository` · `model` · `dto` · `exception` · `ai`)를 같이 쓰고, 클래스 이름 앞에 도메인 이름을 붙여 구분합니다 (예: `InventoryService`, `StoreController`). 개발 메모까지 포함한 전체 표는 [개발 시작 안내 7-2장](docs/notice/2026-11-23-개발-시작-안내.md) 에 있습니다.
-
-| 도메인 | 백엔드 | 프론트엔드 | AI | 유저 플로우 | 요구사항 |
-|---|---|---|---|---|---|
-| `auth` | 예원 | 소정 | — | UF-01, 02 | 구현-1-1, 1-3, 1-4, 1-5, 7-1, 7-2 |
-| `store` | 예원 | 소정 | — | UF-01, 02 | 구현-1-2, 1-6 |
-| `integration` | 예원 | 소정 | — | UF-03, 04 | 구현-1-7 ~ 1-12, 1-14 |
-| `weather` | 예원 | 소정 | 후상 (수요 예측 입력) | UF-02, 05 | 구현-1-13 |
-| `home` | 예원 | 소정 | 후상 (2-3 운영 제안) | UF-05, 06 | 구현-2-1 ~ 2-5 |
-| `coupon` | 예원 | 소정 | 후상 (2-6 추천 문구) | UF-07, 08 | 구현-2-6 ~ 2-8, 5-6 |
-| `sales` | 예원 | 소정 | — | UF-17, 18 | 구현-5-1 ~ 5-5 |
-| `menu` | 준표 | 민성 | 후상 (4-2 레시피, 4-5 신메뉴) | UF-15, 16 | 구현-4-1 ~ 4-5 |
-| `inventory` | 준표 | 민성 | 후상 (3-3 수요 예측 연계) | UF-09 ~ 11 | 구현-3-1 ~ 3-8 |
-| `purchase` | 준표 | 민성 | 후상 (6-5 Tool Calling 실행) | UF-12 ~ 14 | 구현-3-9 ~ 3-14 |
-| `agent` | 준표 (승인 · 실행 · 이력) | 민성 | 후상 (수요 예측 · 제안 생성 · Tool Calling) | UF-06, 19, 20 | 구현-6-1 ~ 6-9 |
-| `common` | 경모 (설정 · 보안 · 외부 API 클라이언트) | 민성 (화면 공통 틀) | 후상 (`ai/` 공통 틀) | — | 구현-7-3 |
-
-- **AI 기능은 나눠서 만듭니다.** AI 결과를 쓰는 API · 저장은 그 도메인의 백엔드 담당이, AI 호출 부분(프롬프트 · ChatClient · `@Tool`)은 후상 님이 만듭니다.
-- 데모 데이터(`infra/demo-data/`)의 SQL 은 그 표를 만든 백엔드 담당이 추가하고, 실행 흐름은 경모 님이 관리합니다.
+- 코드 규칙: [AGENTS.md](AGENTS.md) (공통) + [`docs/rules/`](docs/rules/) (백엔드 · 프론트 · AI · 도메인 · DB · 아키텍처)
+- 도메인 구분 · 유저 플로우 · 요구사항 번호: [도메인 규칙](docs/rules/domain.md#도메인-목록)
+- 목표 시스템 구조 (Spring Boot + Python · LangGraph): [아키텍처](docs/rules/architecture.md). 아래 기술 · 실행 안내는 현재 코드 기준입니다.
+- 진행 상황 · 일정 · 담당: GitHub Issues ([이슈 규칙](docs/rules/issue.md))
 
 ## 요구사항이 개발 환경에 요구하는 것
 
@@ -173,7 +147,7 @@ npm run dev                       # → http://localhost:5173/screens
 - 화면 목록과 주소는 `frontend/src/routes.js` 의 `ROUTES` 한 곳에서 관리합니다. 새 화면은 여기에 `['Figma 번호 이름', '/경로', 컴포넌트, 'UF-xx']` 한 줄을 추가합니다.
 - 서버 API 가 생기면 각 영역 `queries.js` 의 `queryFn` 만 `api.js` 호출로 바꿉니다. 화면 코드는 그대로 둡니다.
 
-민성 담당 화면 (재고 · 발주 · 입고 · 메뉴 · 승인 이력)
+재고 · 발주 · 입고 · 메뉴 · 승인 이력 화면
 
 | 영역 | 주요 화면 | 주소 |
 |---|---|---|
@@ -340,7 +314,7 @@ AWS 쪽 준비 · 생성 · 삭제(CloudFormation, IAM 역할, Secrets Manager, 
 | 항목 | 현재 상태 | 영향 |
 |---|---|---|
 | 쿠폰 발행 방식 | **POS 역동기화**로 기능 흐름 확정 ([유저 플로우 1.04](docs/pjt_source/유저_플로우_1.04.md) "확정한 적용 기준"). POS 지원 범위는 연동 검증 필요 | 목업에 POS 쿠폰 등록(`/pos/v1/coupons`)은 넣어 둠 |
-| 수요 예측 모델 실행 방식 | 요구사항에 없음 | `ml/README.md` 의 A(Python 배치) / B(Java 추론) 중 선택 |
+| 수요 예측 모델 실행 방식 | **FastAPI 예측 API**로 방향 결정 ([아키텍처 수요 예측](docs/rules/architecture.md#수요-예측)). 구현 전 | `ml/` 에서 학습 · 검증한 모델을 FastAPI가 불러오고, Spring이 결과를 검증 · 저장 |
 | AWS 에서 목업 서버 위치 | dev 는 EC2 의 compose 에 함께 뜬다. **prod 는 미정** | prod 서버가 뜨려면 `nansogong/prod` 에 `POS_BASE_URL` 등이 필요. 서버 EC2 에 함께 띄우기 / 별도 서비스 중 선택 |
 | 차트 라이브러리 | 기술 스택에 없음 | 매출 그래프에 필요. 예: Recharts(shadcn/ui charts). (화면 이동 라우터는 `react-router-dom` 으로 정함) |
 | 알림 방식 | 재고 부족 · 입고 확인 · 주간 실사 알림 (구현-3-6 ~ 3-8, 3-13) | 앱 안 알림 목록만이면 추가 설정 없음. PWA 푸시면 VAPID 키 · 서비스워커 설정 추가 |

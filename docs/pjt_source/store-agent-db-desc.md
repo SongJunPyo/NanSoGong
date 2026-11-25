@@ -13,7 +13,7 @@
 - NULL: `N` 필수, `Y` 허용
 - 기본값: SQL 의 `DEFAULT`. PK 는 모두 `BIGINT GENERATED ALWAYS AS IDENTITY` (자동 증가)
 - 공통 칸: 모든 표에 `created_at TIMESTAMPTZ NOT NULL DEFAULT now()` 이 있고, 수정하는 표에는 `updated_at` 도 있습니다. 표에서는 생략하고 각 표 아래 "제약"에 적었습니다. `updated_at` 은 PostgreSQL 에 `ON UPDATE` 가 없으므로 앱(JPA)에서 갱신합니다.
-- 상태 값: 영어 대문자 코드 + `CHECK`. 설명 칸에 `코드 한글` 대응을 적었습니다 (한글 표시는 프론트 담당).
+- 상태 값: 영어 대문자 코드 + `CHECK`. 설명 칸에 `코드 한글` 대응을 적었습니다 (한글 표시는 프론트에서).
 - 시간은 `TIMESTAMPTZ`, 매출 집계 영업일은 한국 시간 기준 `business_date DATE`.
 - JSON 칸은 `JSONB`, 안의 키는 camelCase. 내부 구조는 백엔드 DTO 로 고정·검증합니다.
 - 금액 `DECIMAL(19,2)`, 관리 단위당 단가 `DECIMAL(19,4)`, 재고·레시피 수량 `DECIMAL(19,3)`, 판매 수량 `INTEGER`.
@@ -25,7 +25,7 @@
 - PK 는 `<표>_id`, FK 는 참조하는 PK 와 같은 이름 (역할이 있으면 `<역할>_<표>_id`: `parent_menu_id`, `default_supplier_id`, `decided_by_member_id`, `reversed_inventory_transaction_id`, `original_coupon_redemption_id`).
 - 금액 `INT`·`BIGINT` → `DECIMAL(19,2)`, 수량·단가 `DECIMAL(10,x)` → `DECIMAL(19,x)`, `TIMESTAMP` → `TIMESTAMPTZ`, `JSON` → `JSONB`.
 - 한글 상태 값 → 영어 대문자 코드 + `CHECK`. 품목 `unit` 은 `G` · `ML` · `EA` 만.
-- **모든 표에 `store_id`** (AGENTS.md 3-2 매장 분리). v1.1 에 없던 하위 표 12개에 부모 행과 같은 값으로 추가했습니다.
+- **모든 표에 `store_id`** ([매장 분리](../rules/db.md#매장-분리)). v1.1 에 없던 하위 표 12개에 부모 행과 같은 값으로 추가했습니다.
 - `integration`, `sales_order`, `sales_order_item` 은 11/24 계약 확정안으로 칸을 바꿨습니다 (각 표의 "v1.1 대비" 참고).
 - 공급처 브라우저 주문 · 결제 확인 (최소 구성): `item.purchase_config`, `supplier.order_channel`, `suggestion.generation_context`, `execution.runtime_context`, `purchase_order.payment_status` · `paid_amount` · `paid_at`, `purchase_order_item.product_options` 추가. `supplier.order_channel` · `purchase_order.order_method` 에 `BROWSER`, `execution.exec_status` 에 `WAITING_AUTH` 추가.
 - 여러 워커 · 장애 후 자동 인계를 만들 때만 `suggestion` · `execution` 에 `lease_owner VARCHAR(100)`, `lease_expires_at TIMESTAMPTZ` 추가를 검토합니다 (지금은 없음).
@@ -302,45 +302,41 @@ erDiagram
 
 ## 표 목록
 
-| 도메인 | 표 | 설명 | 담당 |
-| --- | --- | --- | --- |
-| 계정·매장·연동 | [`member`](#member) | 사장님 계정 (v1.1 users) | 예원 |
-| 계정·매장·연동 | [`store`](#store) | 매장 (사업자등록 1건 = 매장 1개) | 예원 |
-| 계정·매장·연동 | [`integration`](#integration) | POS·공급처·금융(오픈뱅킹) 연결. provider·status 코드는 11/24 계약 | 예원 |
-| 메뉴·레시피 | [`menu`](#menu) | 메뉴와 해당 메뉴의 옵션 | 예원 |
-| 메뉴·레시피 | [`recipe_item`](#recipe_item) | 메뉴·옵션별 레시피와 적용 기간 | 예원 |
-| 메뉴·레시피 | [`pos_menu_mapping`](#pos_menu_mapping) | POS 메뉴·옵션 ↔ 앱 메뉴·옵션 연결 | 예원 |
-| 재고·원가 | [`item`](#item) | 재고 품목 (원재료·포장재) | 준표 |
-| 재고·원가 | [`item_cost`](#item_cost) | 품목 단가 이력 (적용 시점 관리) | 예원 (단가 이력, 계약) |
-| 재고·원가 | [`inventory_transaction`](#inventory_transaction) | 재료별 재고 변동 장부와 판매 원가 사본 | 준표 |
-| 재고·원가 | [`stock_count`](#stock_count) | 실사 기록 (초기 재고 포함) | 준표 |
-| 판매·매출 | [`sales_order`](#sales_order) | POS 주문 | 경모 (POS 저장) · 예원 (매출 집계) |
-| 판매·매출 | [`sales_order_item`](#sales_order_item) | 주문 항목. 모양은 11/24 계약 확정안 | 경모 (POS 저장) · 준표 (재고 차감 상태) |
-| 판매·매출 | [`sales_payment`](#sales_payment) | POS 결제 내역과 통장 입금 대사 | 예원 |
-| 입출금·비용 | [`bank_account`](#bank_account) | 금융 연동 계좌 (사장님이 등록·관리) | 예원 |
-| 입출금·비용 | [`bank_transaction`](#bank_transaction) | 입출금 거래 (금융 거래일 기준) | 예원 |
-| 입출금·비용 | [`expense`](#expense) | 운영 비용 (수동 입력·금융 거래 연결) | 예원 |
-| 거래처·발주·입고 | [`supplier`](#supplier) | 공급처 | 준표 |
-| 거래처·발주·입고 | [`purchase_order`](#purchase_order) | 발주 (연동 전송·직접 주문) | 준표 |
-| 거래처·발주·입고 | [`purchase_order_item`](#purchase_order_item) | 발주 품목 | 준표 |
-| 거래처·발주·입고 | [`receipt_item`](#receipt_item) | 입고 확인 (도착분을 정상·파손·오배송으로 구분) | 준표 |
-| 제안·승인·실행 | [`suggestion`](#suggestion) | 발주·쿠폰·메뉴·재고 제안의 버전별 결과 | 예원 (승인 공통) |
-| 제안·승인·실행 | [`approval`](#approval) | 사용자의 승인·보류·반려 결정 | 예원 (승인 공통) |
-| 제안·승인·실행 | [`execution`](#execution) | 승인된 발주·쿠폰 요청의 외부 처리 상태 | 예원 (승인 공통) |
-| 쿠폰 | [`coupon`](#coupon) | 승인된 쿠폰과 POS 반영 상태 | 예원 |
-| 쿠폰 | [`coupon_redemption`](#coupon_redemption) | POS 쿠폰 사용 내역 (사용·취소·환불 이벤트) | 예원 |
-| 일정·수요 예측 | [`schedule`](#schedule) | 운영 일정 (행사 API 수집·사장님 직접 입력). 2주 범위 밖 → 3주차 | 미정 (3주차) |
-| 일정·수요 예측 | [`demand_forecast`](#demand_forecast) | 메뉴별 일 판매량 예측 | 준표 · AI 후상 |
-
-담당은 AGENTS.md 7장 기준입니다.
+| 도메인 | 표 | 설명 |
+| --- | --- | --- |
+| 계정·매장·연동 | [`member`](#member) | 사장님 계정 (v1.1 users) |
+| 계정·매장·연동 | [`store`](#store) | 매장 (사업자등록 1건 = 매장 1개) |
+| 계정·매장·연동 | [`integration`](#integration) | POS·공급처·금융(오픈뱅킹) 연결. provider·status 코드는 11/24 계약 |
+| 메뉴·레시피 | [`menu`](#menu) | 메뉴와 해당 메뉴의 옵션 |
+| 메뉴·레시피 | [`recipe_item`](#recipe_item) | 메뉴·옵션별 레시피와 적용 기간 |
+| 메뉴·레시피 | [`pos_menu_mapping`](#pos_menu_mapping) | POS 메뉴·옵션 ↔ 앱 메뉴·옵션 연결 |
+| 재고·원가 | [`item`](#item) | 재고 품목 (원재료·포장재) |
+| 재고·원가 | [`item_cost`](#item_cost) | 품목 단가 이력 (적용 시점 관리) |
+| 재고·원가 | [`inventory_transaction`](#inventory_transaction) | 재료별 재고 변동 장부와 판매 원가 사본 |
+| 재고·원가 | [`stock_count`](#stock_count) | 실사 기록 (초기 재고 포함) |
+| 판매·매출 | [`sales_order`](#sales_order) | POS 주문 |
+| 판매·매출 | [`sales_order_item`](#sales_order_item) | 주문 항목. 모양은 11/24 계약 확정안 |
+| 판매·매출 | [`sales_payment`](#sales_payment) | POS 결제 내역과 통장 입금 대사 |
+| 입출금·비용 | [`bank_account`](#bank_account) | 금융 연동 계좌 (사장님이 등록·관리) |
+| 입출금·비용 | [`bank_transaction`](#bank_transaction) | 입출금 거래 (금융 거래일 기준) |
+| 입출금·비용 | [`expense`](#expense) | 운영 비용 (수동 입력·금융 거래 연결) |
+| 거래처·발주·입고 | [`supplier`](#supplier) | 공급처 |
+| 거래처·발주·입고 | [`purchase_order`](#purchase_order) | 발주 (연동 전송·직접 주문) |
+| 거래처·발주·입고 | [`purchase_order_item`](#purchase_order_item) | 발주 품목 |
+| 거래처·발주·입고 | [`receipt_item`](#receipt_item) | 입고 확인 (도착분을 정상·파손·오배송으로 구분) |
+| 제안·승인·실행 | [`suggestion`](#suggestion) | 발주·쿠폰·메뉴·재고 제안의 버전별 결과 |
+| 제안·승인·실행 | [`approval`](#approval) | 사용자의 승인·보류·반려 결정 |
+| 제안·승인·실행 | [`execution`](#execution) | 승인된 발주·쿠폰 요청의 외부 처리 상태 |
+| 쿠폰 | [`coupon`](#coupon) | 승인된 쿠폰과 POS 반영 상태 |
+| 쿠폰 | [`coupon_redemption`](#coupon_redemption) | POS 쿠폰 사용 내역 (사용·취소·환불 이벤트) |
+| 일정·수요 예측 | [`schedule`](#schedule) | 운영 일정 (행사 API 수집·사장님 직접 입력). 현재 범위 밖 |
+| 일정·수요 예측 | [`demand_forecast`](#demand_forecast) | 메뉴별 일 판매량 예측 |
 
 ## 계정·매장·연동
 
 <a id="member"></a>
 
 ### `member` — 사장님 계정 (v1.1 users)
-
-담당: 예원
 
 관계: store 1:N · approval 1:N (decided_by_member_id)
 
@@ -361,8 +357,6 @@ erDiagram
 
 ### `store` — 매장 (사업자등록 1건 = 매장 1개)
 
-담당: 예원
-
 관계: member N:1 · integration 1:N · menu 1:N · supplier 1:N · item 1:N · recipe_item 1:N · pos_menu_mapping 1:N · item_cost 1:N · sales_order 1:N · sales_order_item 1:N · suggestion 1:N · approval 1:N · purchase_order 1:N · purchase_order_item 1:N · receipt_item 1:N · inventory_transaction 1:N · stock_count 1:N · bank_account 1:N · bank_transaction 1:N · sales_payment 1:N · expense 1:N · coupon 1:N · execution 1:N · coupon_redemption 1:N · schedule 1:N · demand_forecast 1:N
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
@@ -373,7 +367,7 @@ erDiagram
 | `biz_name` | VARCHAR(100) |  | Y |  | 상호 (사업자등록상). 매장명을 정하기 전 기본 표시명 |
 | `owner_name` | VARCHAR(50) |  | N |  | 대표자명 (공백만 입력 불가) |
 | `business_opened_on` | DATE |  | N |  | 사업자등록상 개업일자 |
-| `verify_status` | VARCHAR(20) |  | N | `'UNVERIFIED'` | UNVERIFIED 미확인 / VERIFIED 정상사업자 / CLOSED 휴·폐업 / FAILED 확인실패. 국세청 사업자 상태조회 결과 (진위확인은 3주차) |
+| `verify_status` | VARCHAR(20) |  | N | `'UNVERIFIED'` | UNVERIFIED 미확인 / VERIFIED 정상사업자 / CLOSED 휴·폐업 / FAILED 확인실패. 국세청 사업자 상태조회 결과 (진위확인은 현재 범위 밖) |
 | `verified_at` | TIMESTAMPTZ |  | Y |  | 진위·상태 확인 시각 |
 | `name` | VARCHAR(100) |  | Y |  | 매장명. 가입 때 상호가 있으면 미리 채우고 첫 매장 설정(UF-02)에서 확정 |
 | `category` | VARCHAR(50) |  | Y |  | 업종 (카페, 분식 등). 첫 매장 설정(UF-02)에서 입력 |
@@ -388,8 +382,6 @@ erDiagram
 <a id="integration"></a>
 
 ### `integration` — POS·공급처·금융(오픈뱅킹) 연결. provider·status 코드는 11/24 계약
-
-담당: 예원
 
 v1.1 대비: provider_type·provider_name → provider (계약 코드), external_store_ref → external_store_id
 
@@ -421,8 +413,6 @@ v1.1 대비: provider_type·provider_name → provider (계약 코드), external
 
 ### `menu` — 메뉴와 해당 메뉴의 옵션
 
-담당: 예원
-
 관계: store N:1 · menu N:1 (parent_menu_id) · menu 1:N (parent_menu_id) · recipe_item 1:N · pos_menu_mapping 1:N · sales_order_item 1:N · suggestion 1:N (added_menu_id) · demand_forecast 1:N
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
@@ -444,14 +434,12 @@ v1.1 대비: provider_type·provider_name → provider (계약 코드), external
 
 ### `recipe_item` — 메뉴·옵션별 레시피와 적용 기간
 
-담당: 예원
-
 관계: store N:1 · menu N:1 · item N:1
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `recipe_item_id` | BIGINT | PK | N | 자동 증가 | 레시피 항목 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `menu_id` | BIGINT | FK→menu, UQ* | N |  | 기본 메뉴 또는 옵션 행. 옵션이면 해당 옵션 선택 시에만 적용 |
 | `item_id` | BIGINT | FK→item, UQ* | N |  | 사용 재료·포장재 |
 | `quantity` | DECIMAL(19,3) |  | N |  | 메뉴 1개당 사용량 (관리 단위). 기본 메뉴는 양수, 옵션은 기본 대비 증감량 |
@@ -466,14 +454,12 @@ v1.1 대비: provider_type·provider_name → provider (계약 코드), external
 
 ### `pos_menu_mapping` — POS 메뉴·옵션 ↔ 앱 메뉴·옵션 연결
 
-담당: 예원
-
 관계: store N:1 · integration N:1 · menu N:1
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `pos_menu_mapping_id` | BIGINT | PK | N | 자동 증가 | 매핑 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `integration_id` | BIGINT | FK→integration, UQ* | N |  | POS 연동 |
 | `pos_menu_code` | VARCHAR(100) | UQ* | N |  | POS 메뉴 코드 |
 | `pos_option_code` | VARCHAR(100) | UQ* | N | `''` | 기본 메뉴 연결이면 빈 문자열, 옵션 연결이면 POS 옵션 코드 |
@@ -488,8 +474,6 @@ v1.1 대비: provider_type·provider_name → provider (계약 코드), external
 <a id="item"></a>
 
 ### `item` — 재고 품목 (원재료·포장재)
-
-담당: 준표
 
 관계: store N:1 · supplier N:1 (default_supplier_id) · recipe_item 1:N · item_cost 1:N · purchase_order_item 1:N · inventory_transaction 1:N · stock_count 1:N
 
@@ -517,14 +501,12 @@ v1.1 대비: provider_type·provider_name → provider (계약 코드), external
 
 ### `item_cost` — 품목 단가 이력 (적용 시점 관리)
 
-담당: 예원 (단가 이력, 계약)
-
 관계: store N:1 · item N:1
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `item_cost_id` | BIGINT | PK | N | 자동 증가 | 단가 이력 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `item_id` | BIGINT | FK→item, UQ* | N |  | 품목 |
 | `unit_cost` | DECIMAL(19,4) |  | N |  | 관리 단위 1당 원가 |
 | `effective_from` | TIMESTAMPTZ | UQ* | N |  | 적용 시작 시각 |
@@ -537,14 +519,12 @@ v1.1 대비: provider_type·provider_name → provider (계약 코드), external
 
 ### `inventory_transaction` — 재료별 재고 변동 장부와 판매 원가 사본
 
-담당: 준표
-
 관계: store N:1 · item N:1 · sales_order_item N:1 · receipt_item N:1 · inventory_transaction N:1 (reversed_inventory_transaction_id) · inventory_transaction 1:N (reversed_inventory_transaction_id)
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `inventory_transaction_id` | BIGINT | PK | N | 자동 증가 | 변동 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `item_id` | BIGINT | FK→item, UQ* | N |  | 재료·포장재 |
 | `txn_type` | VARCHAR(20) |  | N |  | SALE 판매차감 / CANCEL 취소환원 / RECEIPT 입고 / DISPOSAL 폐기 / LOSS 손실 |
 | `qty_delta` | DECIMAL(19,3) |  | N |  | 관리 단위 증감량. 입고·환원은 양수, 차감·폐기·손실은 음수 |
@@ -562,8 +542,6 @@ v1.1 대비: provider_type·provider_name → provider (계약 코드), external
 <a id="stock_count"></a>
 
 ### `stock_count` — 실사 기록 (초기 재고 포함)
-
-담당: 준표
 
 관계: store N:1 · item N:1
 
@@ -585,8 +563,6 @@ v1.1 대비: provider_type·provider_name → provider (계약 코드), external
 <a id="sales_order"></a>
 
 ### `sales_order` — POS 주문
-
-담당: 경모 (POS 저장) · 예원 (매출 집계)
 
 v1.1 대비: pos_order_no(→ external_order_id), sales_date(→ business_date). raw_payload 추가
 
@@ -616,8 +592,6 @@ v1.1 대비: pos_order_no(→ external_order_id), sales_date(→ business_date).
 
 ### `sales_order_item` — 주문 항목. 모양은 11/24 계약 확정안
 
-담당: 경모 (POS 저장) · 준표 (재고 차감 상태)
-
 v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, inventory_status → deduct_status, restock_policy 삭제 (계약: 취소는 항상 환원 장부 추가). menu_name·option_price·discount_amount 추가 (계약)
 
 관계: store N:1 · sales_order N:1 · menu N:1 · inventory_transaction 1:N
@@ -625,7 +599,7 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `sales_order_item_id` | BIGINT | PK | N | 자동 증가 | 주문 항목 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `sales_order_id` | BIGINT | FK→sales_order, UQ* | N |  | 주문 |
 | `line_no` | INTEGER | UQ* | N |  | POS 주문 안의 줄 번호 |
 | `pos_menu_code` | VARCHAR(100) |  | N |  | POS 코드 원문 |
@@ -648,14 +622,12 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 ### `sales_payment` — POS 결제 내역과 통장 입금 대사
 
-담당: 예원
-
 관계: store N:1 · sales_order N:1 · bank_transaction N:1
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `sales_payment_id` | BIGINT | PK | N | 자동 증가 | 결제 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `sales_order_id` | BIGINT | FK→sales_order, UQ* | N |  | 주문 (v1.1 order_id) |
 | `external_payment_id` | VARCHAR(100) | UQ* | N |  | POS 결제 식별자. 토스플레이스 paymentId (sales_order_id와 묶어서 UQ) |
 | `method` | VARCHAR(20) |  | N |  | CARD 카드 / CASH 현금 / EASY_PAY 간편결제 / OTHER 기타 |
@@ -677,8 +649,6 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 <a id="bank_account"></a>
 
 ### `bank_account` — 금융 연동 계좌 (사장님이 등록·관리)
-
-담당: 예원
 
 관계: store N:1 · integration N:1 · bank_transaction 1:N
 
@@ -707,14 +677,12 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 ### `bank_transaction` — 입출금 거래 (금융 거래일 기준)
 
-담당: 예원
-
 관계: store N:1 · bank_account N:1 · purchase_order N:1 · sales_payment 1:N · expense 1:N
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `bank_transaction_id` | BIGINT | PK | N | 자동 증가 | 거래 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `bank_account_id` | BIGINT | FK→bank_account, UQ* | N |  | 계좌 (v1.1 account_id) |
 | `external_txn_id` | VARCHAR(100) | UQ* | N |  | 연동 서비스의 거래 식별자 (bank_account_id와 묶어서 UQ). 중복 수집 방지. 오픈뱅킹에 거래 고유 ID가 없으면 거래일시·입출금구분·금액·거래후잔액·적요 해시로 생성 |
 | `txn_at` | TIMESTAMPTZ |  | N |  | 금융 거래일시. 날짜만 제공되면 한국 시간 해당일 00:00:00 |
@@ -733,8 +701,6 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 <a id="expense"></a>
 
 ### `expense` — 운영 비용 (수동 입력·금융 거래 연결)
-
-담당: 예원
 
 관계: store N:1 · bank_transaction N:1
 
@@ -760,8 +726,6 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 ### `supplier` — 공급처
 
-담당: 준표
-
 관계: store N:1 · integration N:1 · item 1:N (default_supplier_id) · purchase_order 1:N
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
@@ -782,8 +746,6 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 <a id="purchase_order"></a>
 
 ### `purchase_order` — 발주 (연동 전송·직접 주문)
-
-담당: 준표
 
 관계: store N:1 · supplier N:1 · approval N:1 · purchase_order_item 1:N · bank_transaction 1:N · execution 1:N
 
@@ -812,14 +774,12 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 ### `purchase_order_item` — 발주 품목
 
-담당: 준표
-
 관계: store N:1 · purchase_order N:1 · item N:1 · receipt_item 1:N
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `purchase_order_item_id` | BIGINT | PK | N | 자동 증가 | 발주 품목 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `purchase_order_id` | BIGINT | FK→purchase_order | N |  | 발주 (v1.1 po_id) |
 | `item_id` | BIGINT | FK→item | N |  | 품목 |
 | `quantity` | DECIMAL(19,3) |  | N |  | 주문 수량 (구매 단위) |
@@ -839,14 +799,12 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 ### `receipt_item` — 입고 확인 (도착분을 정상·파손·오배송으로 구분)
 
-담당: 준표
-
 관계: store N:1 · purchase_order_item N:1 · inventory_transaction 1:N
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `receipt_item_id` | BIGINT | PK | N | 자동 증가 | 입고 확인 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `purchase_order_item_id` | BIGINT | FK→purchase_order_item | N |  | 발주 품목 (v1.1 po_item_id) |
 | `arrived_qty` | DECIMAL(19,3) |  | N |  | 이번에 도착한 수량 (구매 단위) |
 | `arrived_at` | TIMESTAMPTZ |  | Y |  | 실제 도착 시각. 입력하지 않으면 confirmed_at과 같음 |
@@ -865,8 +823,6 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 <a id="suggestion"></a>
 
 ### `suggestion` — 발주·쿠폰·메뉴·재고 제안의 버전별 결과
-
-담당: 예원 (승인 공통)
 
 관계: store N:1 · suggestion N:1 (parent_suggestion_id) · menu N:1 (added_menu_id) · suggestion 1:N (parent_suggestion_id) · approval 1:N
 
@@ -898,14 +854,12 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 ### `approval` — 사용자의 승인·보류·반려 결정
 
-담당: 예원 (승인 공통)
-
 관계: store N:1 · suggestion N:1 · member N:1 (decided_by_member_id) · purchase_order 1:N · coupon 1:N · execution 1:N
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `approval_id` | BIGINT | PK | N | 자동 증가 | 결정 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `suggestion_id` | BIGINT | FK→suggestion | N |  | 결정한 제안 버전 |
 | `decided_by_member_id` | BIGINT | FK→member | N |  | 실제로 결정한 사용자 (v1.1 decided_by) |
 | `decision` | VARCHAR(10) |  | N |  | APPROVED 승인 / ON_HOLD 보류 / REJECTED 반려 |
@@ -919,14 +873,12 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 ### `execution` — 승인된 발주·쿠폰 요청의 외부 처리 상태
 
-담당: 예원 (승인 공통)
-
 관계: store N:1 · approval N:1 · purchase_order N:1 · coupon N:1
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `execution_id` | BIGINT | PK | N | 자동 증가 | 외부 요청 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `approval_id` | BIGINT | FK→approval | N |  | 승인 결정 |
 | `purchase_order_id` | BIGINT | FK→purchase_order | Y |  | 발주 전송 대상 (v1.1 po_id) |
 | `coupon_id` | BIGINT | FK→coupon | Y |  | 쿠폰 POS 등록·변경 대상 |
@@ -951,8 +903,6 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 <a id="coupon"></a>
 
 ### `coupon` — 승인된 쿠폰과 POS 반영 상태
-
-담당: 예원
 
 관계: store N:1 · approval N:1 · integration N:1 · execution 1:N · coupon_redemption 1:N
 
@@ -979,14 +929,12 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 ### `coupon_redemption` — POS 쿠폰 사용 내역 (사용·취소·환불 이벤트)
 
-담당: 예원
-
 관계: store N:1 · integration N:1 · coupon N:1 · sales_order N:1 · coupon_redemption N:1 (original_coupon_redemption_id) · coupon_redemption 1:N (original_coupon_redemption_id)
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `coupon_redemption_id` | BIGINT | PK | N | 자동 증가 | 사용 내역 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, AGENTS.md 3-2) |
+| `store_id` | BIGINT | FK→store | N |  | 매장. 부모 행과 같은 값 (매장 분리 확인용, [DB 규칙](../rules/db.md#매장-분리)) |
 | `integration_id` | BIGINT | FK→integration, UQ* | N |  | 수집한 POS |
 | `external_event_id` | VARCHAR(100) | UQ* | N |  | POS 이벤트 식별자 (integration_id와 묶어서 UQ). 중복 수집 방지 |
 | `pos_coupon_code` | VARCHAR(100) |  | N |  | POS가 보낸 쿠폰 식별자 |
@@ -1005,9 +953,7 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 <a id="schedule"></a>
 
-### `schedule` — 운영 일정 (행사 API 수집·사장님 직접 입력). 2주 범위 밖 → 3주차
-
-담당: 미정 (3주차)
+### `schedule` — 운영 일정 (행사 API 수집·사장님 직접 입력). 현재 범위 밖
 
 관계: store N:1
 
@@ -1032,8 +978,6 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 <a id="demand_forecast"></a>
 
 ### `demand_forecast` — 메뉴별 일 판매량 예측
-
-담당: 준표 · AI 후상
 
 관계: store N:1 · menu N:1
 

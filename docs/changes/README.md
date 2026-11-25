@@ -27,3 +27,4 @@
 | [10](2026-11-19-10-branch-per-member.md) | 2026-11-19 | 브랜치 전략: 팀원 이름 브랜치 → `dev` → `main`, 통합 브랜치 이름 `develop` → `dev` | 있음 |
 | [11](2026-11-23-11-aws-console-setup.md) | 2026-11-23 | AWS 구축을 콘솔만으로: GitHub 역할 3개 · OIDC 를 스택이 만들고, `secrets-put.sh` → 콘솔 JSON 틀 | 있음 (이미 역할을 만든 경우만) |
 | [12](2026-11-23-12-prod-single-stack.md) | 2026-11-23 | prod 스택 3개(network · data · app) → 스택 하나(`prod.yml`) | 있음 (이미 prod 를 만든 경우만) |
+| [13](2026-11-25-13-문서-구조-재설계.md) | 2026-11-25 | 규칙 문서 재구성: AGENTS.md 공통 규칙 + `docs/rules/` 세부 규칙, 계획 · 일정 · 담당 문서 삭제, 진행 관리는 GitHub Issue | 있음 |
