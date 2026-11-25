@@ -56,7 +56,7 @@
 
 **작업 중**
 - 다음 때만 댓글을 남긴다. 자잘한 진행마다 남기지 않는다.
-  - 커밋했을 때: 커밋 해시 · 메시지 · **실제로 실행한 검증 결과**
+  - push했을 때: 이번에 push한 커밋 해시 · 메시지 · **실제로 실행한 검증 결과**. 로컬에만 있는 커밋은 이슈에 적지 않는다 (push는 사용자가 요청할 때만 한다)
   - 막혔을 때: `status:blocked` 로 바꾸고 이유와 필요한 것(누구의 무엇)을 적는다. 다른 도메인 요청이면 `request` 이슈를 만들고 링크한다.
   - 완료 기준이 바뀌었을 때: 본문 체크리스트를 고치고 왜 바뀌었는지 댓글로 남긴다.
 - 끝낸 완료 기준은 본문 체크박스에 체크한다. **실행하지 않은 검증은 체크하지 않는다.**
@@ -78,5 +78,5 @@ gh issue list --assignee @me --state open
 gh issue view 12
 gh issue create --title "[FEAT] inventory: 판매 재고 차감 API 추가" --label feat,backend,domain:inventory,status:todo --body-file issue.md
 gh issue edit 12 --remove-label status:todo --add-label status:in-progress
-gh issue comment 12 --body "커밋 abc1234 [FEAT]: 판매 재고 차감 추가 / ./gradlew test 통과"
+gh issue comment 12 --body "push: abc1234 [FEAT]: 판매 재고 차감 추가 / ./gradlew test 통과"
 ```
