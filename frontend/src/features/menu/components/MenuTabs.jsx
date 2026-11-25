@@ -14,9 +14,9 @@ export default function MenuTabs() {
       aria-label="메뉴 화면"
       className="sticky top-[60px] z-10 -mx-screen bg-white px-screen py-2 md:-mx-6 md:px-6 lg:top-20 lg:-mx-8 lg:px-8"
     >
-      <div className="flex gap-1 rounded-input bg-surface-muted p-1">
+      <div className="mx-auto flex max-w-xl gap-1 rounded-input bg-surface-muted p-1">
         {TABS.map((t) => {
-          const on = pathname === t.to
+          const on = t.to === '/menu' ? pathname === '/menu' || /^\/menu\/[^/]+\/edit$/.test(pathname) : pathname === t.to || pathname.startsWith(t.to + '/')
           return (
             <Link
               key={t.to}

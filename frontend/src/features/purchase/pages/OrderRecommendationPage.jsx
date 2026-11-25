@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ThumbsDown, ThumbsUp, X } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
 import { Button, ButtonRow, Card, Divider, Eyebrow, H1, H2, HeadRow, KV, P, Pill } from '@/components/common/ui'
@@ -29,6 +29,12 @@ export default function OrderRecommendationPage() {
   const [rejectOpen, setRejectOpen] = useState(false)
   const [reason, setReason] = useState(null) // 미리 고르지 않는다
   const [feedback, setFeedback] = useState(null) // 'up' | 'down'
+  const { hash } = useLocation()
+
+  // 홈 배너의 [근거 보기] (#basis) 로 들어오면 산출 근거로 바로 내려간다
+  useEffect(() => {
+    if (hash === '#basis') document.getElementById('basis')?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [hash])
 
   const items = r.items.filter((it) => !removed.includes(it.id))
   const linkItems = items.filter((it) => channelOf(it).kind === 'link')
@@ -149,7 +155,8 @@ export default function OrderRecommendationPage() {
         </Card>
       )}
 
-      <Card>
+      <div id="basis" className="scroll-mt-24">
+      <Card className={hash === '#basis' ? 'ring-2 ring-inset ring-woori-blue' : undefined}>
         <div className="flex items-center gap-1">
           <H2>산출 근거</H2>
           <Tooltip label="발주 수량 계산 방법">
@@ -161,6 +168,7 @@ export default function OrderRecommendationPage() {
           금·월 비 예보로 우유를 18% 넉넉히 잡았어요. 컵은 쿠팡이 총비용이 더 낮아 쿠팡을 추천했어요.
         </P>
       </Card>
+      </div>
 
       {/* 👍👎 추천 피드백 */}
       <div className="flex items-center gap-2">
