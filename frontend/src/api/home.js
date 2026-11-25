@@ -40,6 +40,18 @@ export async function restoreHomeNotifications(storeId, notifications) {
   return notificationsFor(storeId).map((notification) => ({ ...notification }))
 }
 
-export async function getHomeEvents() {
-  return homeEvents.map((event) => ({ ...event }))
+// 운영을 종료한 프로모션처럼 기간이 줄어든 일정 (매장별 · 일정 id → 새 종료일)
+const eventEndOverrides = new Map()
+
+export async function getHomeEvents(storeId) {
+  const overrides = eventEndOverrides.get(storeId) ?? {}
+  return homeEvents.map((event) => ({
+    ...event,
+    ...(overrides[event.id] ? { endDate: overrides[event.id], description: '운영을 종료한 프로모션' } : {}),
+  }))
+}
+
+/** 일정 종료일을 앞당긴다 (예: 프로모션 운영 종료) */
+export async function endHomeEvent(storeId, eventId, endDate) {
+  eventEndOverrides.set(storeId, { ...(eventEndOverrides.get(storeId) ?? {}), [eventId]: endDate })
 }

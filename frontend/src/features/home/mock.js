@@ -110,7 +110,7 @@ export const homeEvents = [
   },
   {
     id: 'latte-promotion-period', type: 'promotion', title: '라떼 세트 프로모션',
-    startDate: '2026-11-20', endDate: '2026-11-24', description: '진행 중인 프로모션 1건',
+    startDate: '2026-11-20', endDate: '2026-11-26', description: '진행 중인 프로모션 1건',
   },
   {
     id: 'seongsu-festival', type: 'event', title: '성수 거리 축제',
