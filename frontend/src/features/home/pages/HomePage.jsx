@@ -102,10 +102,10 @@ export default function HomePage() {
           </Hero>
         </div>
 
-        <section aria-label="AI 수요 예측" className="flex min-w-0 flex-col justify-center gap-2 rounded-card bg-woori-tint p-4">
+        <section aria-label="날씨 데이터 기반 수요 예측" className="flex min-w-0 flex-col justify-center gap-2 rounded-card bg-woori-tint p-4">
           <div className="flex items-center gap-2">
             <h2 className="flex items-center gap-1.5 text-caption font-bold text-woori-blue">
-              AI 수요 예측 <AiLabel />
+              날씨 데이터 기반 수요 예측 <AiLabel />
             </h2>
             <button
               type="button"
@@ -141,8 +141,8 @@ export default function HomePage() {
         />
         <HomeCalendar events={calendar.data ?? []} isPending={calendar.isPending} error={calendar.error} />
       </div>
-      {/* AI 수요 예측 — 화면 이동 없이 팝업에서 분석 과정 → 결과 */}
-      <Sheet open={weatherOpen} onOpenChange={setWeatherOpen} title="AI 수요 예측" description="성수동 기준 · 기상청 예보">
+      {/* 날씨 데이터 기반 수요 예측 — 화면 이동 없이 팝업에서 분석 과정 → 결과 */}
+      <Sheet open={weatherOpen} onOpenChange={setWeatherOpen} title="날씨 데이터 기반 수요 예측" description="성수동 기준 · 기상청 예보">
         {/* 열 때마다 처음부터 분석 과정을 보여 준다 */}
         {weatherOpen && <WeatherAnalysis onNavigate={() => setWeatherOpen(false)} />}
       </Sheet>
