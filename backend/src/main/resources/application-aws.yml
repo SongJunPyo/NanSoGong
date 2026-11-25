@@ -51,10 +51,6 @@ app:
     pos-base-url: ${POS_BASE_URL}         # MVP 목업 서버 주소 (AWS 에 목업을 어디에 띄울지 정한 뒤 입력)
     supplier-base-url: ${SUPPLIER_BASE_URL}
     mydata-base-url: ${MYDATA_BASE_URL}
-  ai:
-    models:
-      general: ${AI_MODEL:claude-haiku-5-5}                 # 선택. 운영 모델로 바꿀 때만 넣는다
-      browser-agent: ${AI_MODEL_BROWSER:claude-sonnet-5-5}  # 선택
 
 logging:
   level:
