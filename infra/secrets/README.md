@@ -31,7 +31,7 @@
 | `ANTHROPIC_API_KEY` | 필수 | 필수 | AI 호출 |
 | `POS_BASE_URL` · `SUPPLIER_BASE_URL` · `MYDATA_BASE_URL` | 넣지 않음 (compose 에 들어 있음) | 필수 (없으면 서버가 뜨지 않는다) | 목업 주소 |
 | `CORS_ALLOWED_ORIGINS` | 선택 | 필수 `https://<도메인>` | |
-| `AI_MODEL` · `DATA_GO_KR_SERVICE_KEY` · `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `VERIFICATION_MODE` | 선택 | 선택 | 필요할 때만 행 추가 |
+| `AI_MODEL` · `AI_MODEL_BROWSER` · `DATA_GO_KR_SERVICE_KEY` · `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `VERIFICATION_MODE` | 선택 | 선택 | 필요할 때만 행 추가 |
 
 - 값이 없는 키는 **빈 값으로 두지 말고 아예 넣지 않습니다** (빈 값도 그대로 환경변수로 들어간다)
 - 🚨 `DB_URL` · `DB_USER` · `DB_PASSWORD` · `REDIS_HOST` 는 넣지 않습니다. prod 는 prod 스택이 넣어 주고, dev 는 같은 EC2 의 컨테이너를 씁니다

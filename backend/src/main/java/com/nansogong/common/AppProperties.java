@@ -4,6 +4,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Duration;
@@ -19,8 +21,15 @@ public record AppProperties(
         @Valid @NotNull Jwt jwt,
         @Valid @NotNull Verification verification,
         @Valid @NotNull Crypto crypto,
-        @Valid @NotNull External external
+        @Valid @NotNull External external,
+        @Valid @NotNull Ai ai
 ) {
+    // 🤖 AI 공통 설정 (ai/ 패키지). 업무별 모델 · 응답 검증 실패 시 재요청 횟수
+    public record Ai(@Valid @NotNull Models models, @Min(0) @Max(3) int schemaRetries) {}
+
+    // general = 레시피 · 운영 제안 · 쿠폰 등 기본 / browserAgent = 브라우저 주문 · 대안 탐색 (여러 단계 화면 조작)
+    public record Models(@NotBlank String general, @NotBlank String browserAgent) {}
+
     public record Cors(@NotNull List<String> allowedOrigins) {}
 
     public record Jwt(@NotBlank String secret, @NotNull Duration accessTokenTtl, @NotNull Duration refreshTokenTtl) {}
