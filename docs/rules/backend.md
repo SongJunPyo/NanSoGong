@@ -17,10 +17,9 @@ backend/src/main/java/com/nansogong/
 ├── model/        @Entity
 ├── dto/          요청 · 응답 record
 ├── exception/    BusinessException + 업무 예외
-└── ai/           Spring AI (Python 전환 전까지 유지하는 기존 코드)
+└── ai/           (비어 있음) AI 흐름은 Python 서비스에서 만든다
 backend/src/main/resources/
-├── db/migration/ Flyway SQL
-└── prompts/      Spring AI 프롬프트 (*.st)
+└── db/migration/ Flyway SQL
 ```
 
 - **기능별 패키지(`com.nansogong.inventory` 등)를 새로 만들지 않는다.** 도메인은 클래스 이름 접두사로 나눈다.

@@ -14,7 +14,7 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 |---|---|
 | FE | React 19, Vite, vite-plugin-pwa, Tailwind CSS v4, shadcn/ui, TanStack Query, Zustand (JavaScript · JSX, TypeScript 아님) |
 | BE | Java 21, Spring Boot 4, Spring Security + JWT, Spring Data JPA, Flyway, ShedLock, PostgreSQL 17, Redis |
-| AI | Python · FastAPI · LangGraph (전환 중, 기존 Spring AI 코드 유지 중), Claude API, `ml/` 수요 예측 (LightGBM), LangSmith 추적 |
+| AI | Python · FastAPI · LangGraph (구현 전), Claude API, `ml/` 수요 예측 (LightGBM), LangSmith 추적 |
 | Infra | Docker Compose(로컬), AWS (CloudFormation · ECR · CodeDeploy), GitHub Actions |
 
 ## 1. 기준 문서
