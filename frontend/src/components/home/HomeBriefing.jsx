@@ -5,6 +5,12 @@ import { HOME_SEVERITIES, sortHomeNotifications } from '@/utils/home'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/loading'
 
+// 중요한 순서대로 진하게 — 긴급은 연한 빨강, 주의는 연한 주황, 일반은 흰 바탕 (읽음 여부는 글자 굵기로만 구분)
+const SEVERITY_BG = {
+  urgent: 'bg-danger-bg hover:bg-[#fde3de]',
+  warning: 'bg-warning-bg hover:bg-[#fdefc9]',
+}
+
 export default function HomeBriefing({ notifications, approvals, onRead, isPending, error }) {
   const [filter, setFilter] = useState('all')
   const sorted = sortHomeNotifications(notifications)
@@ -18,7 +24,7 @@ export default function HomeBriefing({ notifications, approvals, onRead, isPendi
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 id="home-briefing-title" className="text-h2 font-bold text-ink">AI 운영 브리핑</h2>
         <span data-coach="home-approvals">
-          <Badge status={approvals.length ? 'pending' : 'neutral'}>승인 대기 {approvals.length}건</Badge>
+          <Badge status={approvals.length ? 'pending' : 'neutral'}>할 일 {approvals.length}건</Badge>
         </span>
         <Link to="/suggestions" className="ml-auto text-caption font-bold text-woori-blue">전체 보기 ›</Link>
       </div>
@@ -62,7 +68,7 @@ export default function HomeBriefing({ notifications, approvals, onRead, isPendi
               <li key={notification.id}>
                 <Link
                   to={notification.to} onClick={() => onRead(notification.id)}
-                  className={`flex min-w-0 items-start gap-2 rounded-lg px-2 py-2.5 hover:bg-surface-muted ${notification.read ? '' : 'bg-woori-tint/50'}`}
+                  className={`flex min-w-0 items-start gap-2 rounded-lg px-2 py-2.5 transition-colors ${SEVERITY_BG[notification.severity] ?? 'hover:bg-surface-muted'}`}
                 >
                   <span aria-hidden="true" className={`mt-1.5 size-1.5 shrink-0 rounded-full ${severity.dot}`} />
                   <div className="min-w-0 flex-1">
