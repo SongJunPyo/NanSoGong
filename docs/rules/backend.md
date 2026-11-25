@@ -67,12 +67,12 @@ public class InventoryItemNotFoundException extends BusinessException {
 
 ### 국세청 사업자 상태조회
 
-- 프론트 연결 전 임시 API 계약은 `POST /api/auth/business-status`, 요청은 `{ "bizRegNo": "숫자 10자리" }`다. 가입 전 조회이므로 로그인 없이 호출한다. 인증키는 요청에서 받지 않는다.
+- API 계약은 `POST /api/auth/business-status`, 요청은 `{ "bizRegNo": "숫자 10자리" }`다. 가입 전 조회이므로 로그인 없이 호출한다. 인증키는 요청에서 받지 않는다.
 - `AuthBusinessStatusService`가 기존 `ntsRestClient`와 `app.external.data-go-kr-service-key`를 사용해 국세청 `/status`를 호출한다. API 키·사업자번호·외부 오류 원문은 로그에 남기지 않는다.
 - 응답은 `{ "bizRegNo": "숫자 10자리", "status": "ACTIVE" }`다. `status`는 `ACTIVE`(계속사업자), `SUSPENDED`(휴업), `CLOSED`(폐업), `NOT_FOUND`(명확한 미등록 응답)다.
 - 잘못된 입력은 `400 INVALID_BUSINESS_NUMBER`, 외부 통신·HTTP 오류는 `503 NTS_UNAVAILABLE`, 누락·불일치·알 수 없는 응답은 `502 NTS_INVALID_RESPONSE`다. 오류 본문은 `{ "code": "...", "message": "사용자 안내" }`다.
 - 공용 `BusinessException`·`GlobalExceptionHandler` 구현 전에는 기존 인증 코드와 같은 `ResponseStatusException`을 사용하고 이 Controller 안에서만 오류를 변환한다. 공용 처리가 생기면 그 계약으로 합친다.
-- 이 API는 대표자명·개업일자 진위확인, 가입 허가, 매장 저장·상태 변경을 수행하지 않는다. 회원가입 화면의 Mock 연결도 유지한다.
+- 이 API는 대표자명·개업일자 진위확인, 가입 허가, 매장 저장·상태 변경을 수행하지 않는다. 회원가입 화면의 사업자 확인 버튼이 이 API를 호출한다. 나머지 회원 기능은 개발용 Mock을 유지한다.
 - 실제 주소·키는 기존 환경변수 `NTS_BASE_URL`, `DATA_GO_KR_SERVICE_KEY`로 전달한다. 실제 국세청과 목업을 어느 쪽으로 호출했는지 구분해서 검증한다. 기존 목업은 별도 미등록 시나리오가 없어 `0000000000`도 계속사업자로 응답한다.
 
 ## 테스트

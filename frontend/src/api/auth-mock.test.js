@@ -109,3 +109,53 @@ test('첫 매장 기본정보 저장·영업시간·휴무·소유권을 검증�
   updated.name = '외부 변경'
   assert.equal((await api.getMyStores(session.accessToken))[0].name, settings.name)
 })
+
+test('서버에서 영업 상태를 조회한 사업자로 개발용 가입·매장 저장을 이어간다', async () => {
+  const api = createAuthMock({ delayMs: 0 })
+  const input = business({ bizRegNo: '777-77-77777' })
+  const requested = []
+  const result = await api.verifyBusiness(input, async (bizRegNo) => {
+    requested.push(bizRegNo)
+    return { bizRegNo, status: 'ACTIVE' }
+  })
+  assert.deepEqual(requested, ['7777777777'])
+  assert.equal(result.status, 'ACTIVE') // Mock의 휴업 시나리오 대신 서버 결과를 사용한다.
+  assert.ok(result.verificationToken)
+  const signupInput = await payload(api, {}, [{ ...input, bizRegNo: '7777777777', verificationToken: result.verificationToken }])
+  await assert.rejects(api.signup({ ...signupInput, stores: [{ ...signupInput.stores[0], ownerName: '바뀐 입력' }] }), /다시 검증/)
+  assert.equal((await api.signup(signupInput)).businessCount, 1)
+  const session = await api.login(signupInput)
+  assert.equal((await api.getMyStores(session.accessToken))[0].bizRegNo, '7777777777')
+})
+
+test('서버의 휴업·폐업·미등록 결과에는 등록용 증명을 만들지 않는다', async () => {
+  const api = createAuthMock({ delayMs: 0 })
+  for (const status of ['SUSPENDED', 'CLOSED', 'NOT_FOUND']) {
+    const result = await api.verifyBusiness(business(), async (bizRegNo) => ({ bizRegNo, status }))
+    assert.deepEqual(result, { status })
+  }
+})
+
+test('서버 조회 실패를 그대로 전달하고 다시 시도할 수 있다', async () => {
+  const api = createAuthMock({ delayMs: 0 })
+  const unavailable = new Error('국세청 조회에 실패했어요. 잠시 후 다시 시도해 주세요')
+  await assert.rejects(api.verifyBusiness(business(), async () => { throw unavailable }), (error) => error === unavailable)
+  const input = await payload(api, {}, [{ ...business(), verificationToken: 'forged' }])
+  await assert.rejects(api.signup(input), /다시 검증/)
+  const retry = await api.verifyBusiness(business({ bizRegNo: '5555555555' }), async (bizRegNo) => ({ bizRegNo, status: 'ACTIVE' }))
+  assert.equal(retry.status, 'ACTIVE') // Mock의 첫 요청 오류를 적용하지 않는다.
+})
+
+test('누락·다른 사업자·알 수 없는 서버 응답을 확인 성공으로 처리하지 않는다', async () => {
+  const api = createAuthMock({ delayMs: 0 })
+  for (const response of [null, {}, { bizRegNo: '1234567890', status: 'UNKNOWN' }, { bizRegNo: '9999999999', status: 'ACTIVE' }]) {
+    await assert.rejects(api.verifyBusiness(business(), async () => response), (error) => error.status === 502)
+  }
+})
+
+test('입력 형식이 잘못되면 서버를 호출하지 않는다', async () => {
+  const api = createAuthMock({ delayMs: 0 })
+  let called = false
+  await assert.rejects(api.verifyBusiness(business({ bizRegNo: '123' }), async () => { called = true }), /숫자 10자리/)
+  assert.equal(called, false)
+})
