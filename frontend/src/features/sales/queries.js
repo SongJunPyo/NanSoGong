@@ -16,3 +16,6 @@ export const useCashTransactions = () => useMockQuery(['sales', 'cashTransaction
 export const useCosts = () => useMockQuery(['sales', 'costs'], mock.costs)
 export const useSalesSummary = () => useMockQuery(['sales', 'salesSummary'], mock.salesSummary)
 export const useMenuSales = () => useMockQuery(['sales', 'menuSales'], mock.menuSales)
+export const useSalesAnalytics = () => useMockQuery(['sales', 'analytics'], mock.salesAnalytics)
+export const useCostForecast = () => useMockQuery(['sales', 'costForecast'], mock.costForecast)
+export const useSalesPromotionPerformance = () => useMockQuery(['sales', 'promotionPerformance'], mock.promotionPerformance)
