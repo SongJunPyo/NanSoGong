@@ -8,7 +8,7 @@ function HeaderIcon({ to, label, icon: Icon }) {
     <Link
       to={to}
       aria-label={label}
-      className="group relative flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-woori-blue"
+      className="group relative flex size-10 items-center justify-center rounded-lg text-ink hover:bg-white/80 focus-visible:outline-2 focus-visible:outline-woori-blue"
     >
       <Icon size={24} strokeWidth={1.8} aria-hidden="true" className="transition-transform duration-150 group-hover:scale-115 group-focus-visible:scale-115" />
       <span aria-hidden="true" className="pointer-events-none absolute top-full left-1/2 z-40 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-0.5 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
@@ -18,12 +18,12 @@ function HeaderIcon({ to, label, icon: Icon }) {
   )
 }
 
-/** 상단 헤더 — Figma 'HF/Header' (뒤로가기 · 제목 · 설정 버튼) */
+/** 상단 헤더 — Figma 'HF/Header' (뒤로가기 · 제목 · 설정 버튼). 바탕은 연한 파랑(woori-tint) */
 export function Header({ title, eyebrow, back = true, backTo, settings = false, actions }) {
   const navigate = useNavigate()
   return (
     <header
-      className={`sticky top-0 z-30 flex min-w-0 items-center gap-2 bg-white px-5 lg:border-b lg:border-line lg:px-8 ${
+      className={`sticky top-0 z-30 flex min-w-0 items-center gap-2 bg-woori-tint px-5 lg:border-b lg:border-woori-blue/10 lg:px-8 ${
         eyebrow ? 'min-h-[60px] py-2 lg:min-h-20' : 'h-[60px] lg:h-20'
       }`}
     >

@@ -51,7 +51,7 @@ export default function HomeNotifications({ notifications, unreadCount, onRead, 
         ref={trigger} type="button" aria-label={`알림, 읽지 않은 알림 ${unreadCount}개`}
         aria-haspopup="dialog" aria-expanded={open} aria-controls="home-notification-panel"
         onClick={() => setOpen((value) => !value)}
-        className="group relative flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-woori-blue"
+        className="group relative flex size-10 items-center justify-center rounded-lg text-ink hover:bg-white/80 focus-visible:outline-2 focus-visible:outline-woori-blue"
       >
         <Bell size={24} strokeWidth={1.8} aria-hidden="true" className="transition-transform duration-150 group-hover:scale-115 group-focus-visible:scale-115" />
         {!open && <span aria-hidden="true" className="pointer-events-none absolute top-full left-1/2 z-40 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-0.5 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">알림</span>}
