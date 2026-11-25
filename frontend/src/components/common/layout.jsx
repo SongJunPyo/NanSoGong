@@ -1,25 +1,42 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { BarChart3, ChevronLeft, Coffee, Home, Package, Settings } from 'lucide-react'
+import { BadgePercent, BarChart3, ChevronLeft, Coffee, Home, Package, Settings } from 'lucide-react'
 import { HeaderNotifications } from '@/components/home/HomeNotifications'
 
 /** 상단 헤더 — Figma 'HF/Header' (뒤로가기 · 제목 · 설정 버튼) */
-export function Header({ title, back = true, settings = false, actions }) {
+export function Header({ title, eyebrow, back = true, settings = false, actions }) {
   const navigate = useNavigate()
   return (
-    <header className="sticky top-0 z-30 flex h-[60px] min-w-0 items-center gap-2 bg-white px-5 lg:h-20 lg:border-b lg:border-line lg:px-8">
+    <header
+      className={`sticky top-0 z-30 flex min-w-0 items-center gap-2 bg-white px-5 lg:border-b lg:border-line lg:px-8 ${
+        eyebrow ? 'min-h-[60px] py-2 lg:min-h-20' : 'h-[60px] lg:h-20'
+      }`}
+    >
       {back && (
         <button type="button" aria-label="뒤로" onClick={() => navigate(-1)} className="-ml-1 p-1 text-ink">
           <ChevronLeft size={24} strokeWidth={2.2} />
         </button>
       )}
-      <h1 className="truncate text-[22px] font-bold text-ink">{title}</h1>
+      {eyebrow ? (
+        <div className="flex min-w-0 flex-col">
+          {eyebrow}
+          <h1 className="truncate text-[22px] font-bold text-ink">{title}</h1>
+        </div>
+      ) : (
+        <h1 className="truncate text-[22px] font-bold text-ink">{title}</h1>
+      )}
       {(actions || settings) && (
         <div className="relative ml-auto flex shrink-0 items-center gap-2">
           {actions}
           {settings && (
-            <Link to="/settings" aria-label="설정" className="flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted">
-              <Settings size={24} strokeWidth={1.8} />
-            </Link>
+            <>
+              {/* 프로모션 운영 설정 — 설정 목록에서 헤더로 옮겼다 */}
+              <Link to="/settings/promotion" aria-label="프로모션" className="flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted">
+                <BadgePercent size={24} strokeWidth={1.8} />
+              </Link>
+              <Link to="/settings" aria-label="설정" className="flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted">
+                <Settings size={24} strokeWidth={1.8} />
+              </Link>
+            </>
           )}
         </div>
       )}
@@ -87,17 +104,6 @@ export function DesktopNav() {
           </NavLink>
         ))}
       </nav>
-      <NavLink
-        to="/settings"
-        className={({ isActive }) =>
-          `mt-auto flex items-center gap-3 rounded-input px-4 py-3.5 text-body font-bold focus-visible:outline-2 focus-visible:outline-woori-blue ${
-            isActive ? 'bg-woori-tint text-woori-deep' : 'text-ink-sub hover:bg-surface-muted'
-          }`
-        }
-      >
-        <Settings size={22} aria-hidden="true" />
-        설정
-      </NavLink>
     </aside>
   )
 }
@@ -111,12 +117,13 @@ export function DesktopNav() {
  * @param {boolean} wide  대시보드처럼 여러 열을 쓰는 화면
  * @param {boolean} compact 홈 요약 화면의 간격 축소
  * @param {React.ReactNode} headerActions 헤더 오른쪽에 표시할 도메인별 동작
+ * @param {React.ReactNode} eyebrow 제목 위 작은 줄 (예: 홈의 매장 선택)
  */
-export function Screen({ title, back = true, settings = false, tab = false, center = false, wide = false, compact = false, headerActions, children }) {
+export function Screen({ title, eyebrow, back = true, settings = false, tab = false, center = false, wide = false, compact = false, headerActions, children }) {
   return (
     <div className="flex min-h-dvh flex-col bg-white">
       <Header
-        title={title} back={back} settings={settings || tab}
+        title={title} eyebrow={eyebrow} back={back} settings={settings || tab}
         actions={headerActions ?? (tab ? <HeaderNotifications /> : undefined)}
       />
       <main

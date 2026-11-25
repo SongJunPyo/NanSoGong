@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { HOME_SEVERITIES, sortHomeNotifications } from '@/utils/home'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/loading'
 
 export default function HomeBriefing({ notifications, approvals, results, onRead, isPending, error }) {
   const [filter, setFilter] = useState('all')
@@ -15,8 +17,8 @@ export default function HomeBriefing({ notifications, approvals, results, onRead
     <section aria-labelledby="home-briefing-title" className="min-w-0 rounded-card border border-line bg-white p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 id="home-briefing-title" className="text-h2 font-bold text-ink">AI 운영 브리핑</h2>
-        <span className="rounded-md bg-woori-tint px-2 py-1 text-caption font-bold text-woori-deep">
-          승인 대기 {approvals.length}건
+        <span data-coach="home-approvals">
+          <Badge status={approvals.length ? 'pending' : 'neutral'}>승인 대기 {approvals.length}건</Badge>
         </span>
         <Link to="/suggestions" className="ml-auto text-caption font-bold text-woori-blue">전체 보기 ›</Link>
       </div>
@@ -41,7 +43,14 @@ export default function HomeBriefing({ notifications, approvals, results, onRead
 
       {error && <p role="alert" className="py-2 text-caption text-danger">{error.message}</p>}
       {isPending ? (
-        <p role="status" className="py-6 text-center text-label text-ink-sub">알림을 불러오는 중이에요.</p>
+        <div role="status" aria-label="알림을 불러오는 중이에요" className="flex flex-col gap-3 py-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex flex-col gap-1.5 px-2">
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-3 w-3/5" />
+            </div>
+          ))}
+        </div>
       ) : visible.length === 0 ? (
         <p role="status" className="py-6 text-center text-label text-ink-sub">해당하는 알림이 없어요.</p>
       ) : (

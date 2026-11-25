@@ -37,7 +37,6 @@ export default function SettingsPage() {
         <ListRow title="쇼핑몰 AI 대신 주문" value="쿠팡 연결" to="/settings/agent-order" />
       </Group>
       <Group title="운영">
-        <ListRow title="프로모션 운영 설정" value="월 30만원" to="/settings/promotion" />
         <ListRow title="알림 설정" to="/settings/notifications" />
         <ListRow title="운영 일정 관리" to="/schedule/new" />
       </Group>

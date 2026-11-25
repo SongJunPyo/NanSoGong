@@ -1,11 +1,13 @@
 import { CloudRain } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
 import { BarChart, Card, Chips, H2, KV } from '@/components/common/ui'
+import MenuTabs from '@/features/menu/components/MenuTabs'
 
 /** 33 메뉴 판매 분석 (UF-16 1) */
 export default function MenuAnalysisPage() {
   return (
     <Screen title="판매 분석">
+      <MenuTabs />
       <Chips items={['일', '주', '월', '직접 선택']} defaultIndex={1} />
       <Card tone="line">
         <H2>이번 주 판매량</H2>

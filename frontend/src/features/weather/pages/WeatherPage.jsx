@@ -1,10 +1,11 @@
 import { Screen } from '@/components/common/layout'
 import { Card, Eyebrow, H1, H2, KV, ListRow, P, WeatherStrip } from '@/components/common/ui'
-import { useWeekForecast } from '@/features/weather/queries'
+import { useDemandByWeather, useWeekForecast } from '@/features/weather/queries'
 
 /** 12 날씨·수요 예측 */
 export default function WeatherPage() {
   const { data: week } = useWeekForecast()
+  const { data: d } = useDemandByWeather()
   return (
     <Screen title="날씨·수요 예측">
       <Eyebrow>성수동 기준 · 기상청 예보</Eyebrow>
@@ -14,10 +15,10 @@ export default function WeatherPage() {
       </Card>
       <Card>
         <H2>날씨별 예상 주문</H2>
-        <KV label="맑은 날 평균" value="68건" />
-        <KV label="비 오는 날 평균" value="61건 · 10% ↓" tone="warn" />
-        <KV label="비 오는 날 따뜻한 음료 비중" value="22% ↑" tone="deep" />
-        <KV label="비 오는 날 아이스 음료" value="31% ↓" tone="sub" />
+        <KV label="맑은 날 하루 평균 주문" value={`${d.sunny}건`} />
+        <KV label="비 오는 날 하루 평균 주문" value={`${d.rainy}건 · ${d.sunny - d.rainy}건 적어요`} tone="warn" />
+        <KV label="비 오는 날 따뜻한 음료" value={`${d.warmMore}잔 더 팔려요`} tone="deep" />
+        <KV label="비 오는 날 아이스 음료" value={`${d.icedLess}잔 덜 팔려요`} tone="sub" />
       </Card>
       <Card>
         <H2>날씨가 반영된 제안</H2>

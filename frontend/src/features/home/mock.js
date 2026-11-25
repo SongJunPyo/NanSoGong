@@ -3,6 +3,8 @@
 
 export const home = {
   sales: { amount: 482000, orders: 63, diff: '지난주보다 8.2% ↑' },
+  // 발주 자금 부족 안내 — 이번 주 발주 예정 금액이 연동 통장 잔액보다 클 때 (없으면 null)
+  orderFund: { planned: 145800, balance: 98000 },
   forecast: [
     { d: '오늘', w: 'sun', t: '8°' },
     { d: '금', w: 'rain', t: '6°' },

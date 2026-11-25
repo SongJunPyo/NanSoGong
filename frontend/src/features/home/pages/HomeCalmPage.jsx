@@ -1,4 +1,3 @@
-import { CircleCheck } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
 import {
   Button,
@@ -15,12 +14,16 @@ import {
   SectionHead,
 } from '@/components/common/ui'
 import StoreLine from '@/features/home/components/StoreLine'
+import StoreSwitcher from '@/features/home/components/StoreSwitcher'
+import HomeDate from '@/features/home/components/HomeDate'
+import { HeaderNotifications } from '@/components/home/HomeNotifications'
+import { EmptyState } from '@/components/ui/empty-state'
 
 /** 11-2 홈 — 긴급한 일이 없을 때 (UF-05 홈 표시 기준) */
 export default function HomeCalmPage() {
   return (
-    <Screen title="오늘의 매장 운영" back={false} settings tab wide>
-      <StoreLine date="11.24 화" />
+    <Screen title="오늘의 매장 운영" eyebrow={<StoreSwitcher />} headerActions={<><HomeDate /><HeaderNotifications /></>} back={false} settings tab wide>
+      <StoreLine />
       <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:gap-6">
         <Hero className="justify-center md:min-h-48 md:p-6">
           <HeroLabel>오늘 매출</HeroLabel>
@@ -30,14 +33,8 @@ export default function HomeCalmPage() {
             <span className="ml-auto font-bold text-white">지난주보다 2.1% ↑</span>
           </div>
         </Hero>
-        <Card tone="ok" className="justify-center">
-          <div className="flex items-center gap-2.5">
-            <CircleCheck size={28} className="shrink-0 text-white" fill="var(--color-success)" />
-            <div className="min-w-0">
-              <p className="text-[17px] font-bold text-ink">오늘은 급한 일이 없어요</p>
-              <P small>재고·발주·입고 모두 정상이에요</P>
-            </div>
-          </div>
+        <Card tone="ok" className="justify-center" pad="p-2">
+          <EmptyState kind="done" compact title="오늘 할 일을 다 끝냈어요" description="재고·발주·입고 모두 정상이에요." />
         </Card>
       </div>
       <div className="grid min-w-0 gap-4 md:grid-cols-2 lg:gap-6">

@@ -11,3 +11,6 @@ const useMockQuery = (key, data) => {
 }
 
 export const useMenus = () => useMockQuery(['menu', 'menus'], mock.menus)
+export const useMenuRecommendations = () => useMockQuery(['menu', 'recommendations'], mock.menuRecommendations)
+export const useSetRecommendations = () => useMockQuery(['menu', 'setRecommendations'], mock.setRecommendations)
+export const useImproveRecommendations = () => useMockQuery(['menu', 'improveRecommendations'], mock.improveRecommendations)
