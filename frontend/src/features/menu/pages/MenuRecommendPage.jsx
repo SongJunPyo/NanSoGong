@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
@@ -9,6 +9,8 @@ import MenuTabs from '@/features/menu/components/MenuTabs'
 import { toast } from '@/components/ui/toast'
 import { Tooltip } from '@/components/ui/tooltip'
 import { InlineError } from '@/components/ui/inline-error'
+import { AgentSteps } from '@/components/ui/agent-steps'
+import { Spinner } from '@/components/ui/loading'
 
 const PRICE_ERROR_ID = 'menu-price-error'
 
@@ -21,6 +23,8 @@ export default function MenuRecommendPage() {
   const { data: improves } = useImproveRecommendations()
   const [kind, setKind] = useState(0)
   const [index, setIndex] = useState(0)
+  const [analyzed, setAnalyzed] = useState([]) // 분석을 마친 추천 종류 (한 번 본 종류는 다시 기다리지 않는다)
+  const analyzing = !analyzed.includes(kind)
 
   const list = [newMenus, sets, improves][kind]
   const rec = list[index % list.length]
@@ -37,37 +41,103 @@ export default function MenuRecommendPage() {
       <H1>{['이번 겨울엔\n이 메뉴 어때요?', '같이 팔면\n더 잘 나가요', '이 메뉴는\n손보면 좋아요'][kind]}</H1>
       <Chips items={KINDS} onChange={changeKind} />
 
-      {/* 다시 추천 ‹ 1/3 › */}
-      <div className="flex items-center gap-2">
-        <span className="text-label font-medium text-ink-sub">다시 추천</span>
-        <div className="ml-auto flex items-center gap-1">
-          <button
-            type="button"
-            aria-label="이전 추천"
-            onClick={() => go(-1)}
-            className="flex size-10 items-center justify-center rounded-full text-ink hover:bg-surface-muted"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <span className="num w-10 text-center text-label font-bold text-ink" aria-live="polite">
-            {(index % list.length) + 1}/{list.length}
-          </span>
-          <button
-            type="button"
-            aria-label="다음 추천"
-            onClick={() => go(1)}
-            className="flex size-10 items-center justify-center rounded-full text-ink hover:bg-surface-muted"
-          >
-            <ChevronRight size={20} />
-          </button>
+      {analyzing ? (
+        <AnalysisLoading key={kind} steps={ANALYSIS_STEPS[kind]} onDone={() => setAnalyzed((a) => [...a, kind])} />
+      ) : (
+        <>
+          {/* 다시 추천 ‹ 1/3 › */}
+          <div className="flex items-center gap-2">
+            <span className="text-label font-medium text-ink-sub">다시 추천</span>
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="이전 추천"
+                onClick={() => go(-1)}
+                className="flex size-10 items-center justify-center rounded-full text-ink hover:bg-surface-muted"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <span className="num w-10 text-center text-label font-bold text-ink" aria-live="polite">
+                {(index % list.length) + 1}/{list.length}
+              </span>
+              <button
+                type="button"
+                aria-label="다음 추천"
+                onClick={() => go(1)}
+                className="flex size-10 items-center justify-center rounded-full text-ink hover:bg-surface-muted"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          </div>
+    
+          {/* 후보가 바뀌면 입력값도 그 후보 기준으로 새로 시작 */}
+          {kind === 0 && <Recommendation key={rec.id} rec={rec} />}
+          {kind === 1 && <SetRecommendation key={rec.id} rec={rec} />}
+          {kind === 2 && <ImproveRecommendation key={rec.id} rec={rec} />}
+        </>
+      )}
+    </Screen>
+  )
+}
+
+// 추천 종류별로 AI가 보는 것 (목업 문구 — 실제 서비스는 분석 요청의 단계 상태를 받아 표시)
+const ANALYSIS_STEPS = [
+  [
+    { label: '최근 4주 판매 추이 보기', detail: '메뉴 24개 · 주문 1,820건' },
+    { label: '검색 트렌드 확인', detail: '네이버 데이터랩 · 겨울 음료 키워드' },
+    { label: '가게에 있는 재료와 맞춰 보기', detail: '기존 재료로 만들 수 있는 후보 추리기' },
+    { label: '원가 · 판매가 계산', detail: '레시피 기준 원가율 확인' },
+  ],
+  [
+    { label: '같이 주문된 메뉴 찾기', detail: '최근 4주 주문 1,820건' },
+    { label: '시간대별 주문 보기', detail: '오후 2~5시 주문이 적어요' },
+    { label: '세트 가격 · 마진 계산', detail: '할인해도 남는 금액 확인' },
+  ],
+  [
+    { label: '판매가 줄어든 메뉴 찾기', detail: '지난달과 판매량 비교' },
+    { label: '원가율 확인', detail: '재료 단가 변동 반영' },
+    { label: '개선안 정리', detail: '가격 · 레시피 · 구성 중 효과가 큰 것' },
+  ],
+]
+
+const TICK = 700 // 목업에서 분석 단계 하나가 끝나는 시간 (ms)
+
+/** AI 분석 중 — 단계별로 무엇을 보고 있는지 보여 주고, 다 끝나면 onDone */
+function AnalysisLoading({ steps, onDone }) {
+  const [step, setStep] = useState(0)
+
+  useEffect(() => {
+    const t = setTimeout(() => (step >= steps.length - 1 ? onDone() : setStep((s) => s + 1)), TICK)
+    return () => clearTimeout(t)
+  }, [step, steps.length, onDone])
+
+  return (
+    <div className="flex flex-col gap-4" aria-live="polite">
+      <div className="flex flex-col items-center gap-2 rounded-card bg-woori-tint px-4 py-6 text-center">
+        <Spinner size={32} />
+        <p className="text-h2 font-bold text-ink">AI가 메뉴를 분석하고 있어요</p>
+        <p className="text-label text-ink-sub">
+          {step + 1} / {steps.length} 단계 · {steps[step].label}
+        </p>
+        <div className="mt-1 h-1.5 w-full max-w-[260px] overflow-hidden rounded-full bg-white">
+          <div
+            className="h-full rounded-full bg-woori-blue transition-[width] duration-500"
+            style={{ width: `${((step + 1) / steps.length) * 100}%` }}
+          />
         </div>
       </div>
-
-      {/* 후보가 바뀌면 입력값도 그 후보 기준으로 새로 시작 */}
-      {kind === 0 && <Recommendation key={rec.id} rec={rec} />}
-      {kind === 1 && <SetRecommendation key={rec.id} rec={rec} />}
-      {kind === 2 && <ImproveRecommendation key={rec.id} rec={rec} />}
-    </Screen>
+      <div className="rounded-card border border-line p-4">
+        <AgentSteps
+          label="AI 분석 단계"
+          steps={steps.map((s, i) => ({
+            label: s.label,
+            status: i < step ? 'done' : i === step ? 'active' : 'pending',
+            detail: i <= step ? s.detail : undefined,
+          }))}
+        />
+      </div>
+    </div>
   )
 }
 
