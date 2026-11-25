@@ -30,6 +30,7 @@ export default function HomeCalendar({ events, isPending, error }) {
   const [month, setMonth] = useState(() => `${today.slice(0, 7)}-01`)
   const [selected, setSelected] = useState(today)
   const [popupOpen, setPopupOpen] = useState(false)
+  const todayEvents = getHomeEventsForDate(events, today)
 
   // 날짜를 누르면 그 날짜 팝업을 연다
   const openDay = (date) => {
@@ -75,7 +76,8 @@ export default function HomeCalendar({ events, isPending, error }) {
           const inMonth = date.slice(0, 7) === month.slice(0, 7)
           const dayEvents = getHomeEventsForDate(events, date)
           const types = [...new Set(dayEvents.map((event) => event.type))]
-          const isSelected = selected === date
+          // 오늘만 꽉 찬 파랑. 다른 날 테두리는 그 날 팝업을 보고 있을 때만
+          const isSelected = popupOpen && selected === date && date !== today
           const isToday = date === today
           return (
             <button
@@ -102,6 +104,35 @@ export default function HomeCalendar({ events, isPending, error }) {
         {Object.entries(HOME_EVENT_TYPES).map(([key, type]) => (
           <span key={key} className="inline-flex items-center gap-1"><span aria-hidden="true" className={`size-1.5 rounded-full ${type.dot}`} />{type.label}</span>
         ))}
+      </div>
+
+      {/* 오늘 일정 — 점만으로는 무슨 일정인지 알 수 없어서 목록으로 함께 보여 준다 */}
+      <div aria-label="오늘 일정" className="mt-3 border-t border-line pt-2.5">
+        <h3 className="mb-1.5 text-caption font-bold text-ink">오늘 일정 · {formatCalendarDate(today)}</h3>
+        {error ? (
+          <p role="alert" className="text-caption text-danger">{error.message}</p>
+        ) : isPending ? (
+          <div role="status" aria-label="일정을 불러오는 중이에요" className="flex flex-col gap-2">
+            <Skeleton className="h-3.5 w-4/5" />
+            <Skeleton className="h-3.5 w-3/5" />
+          </div>
+        ) : todayEvents.length ? (
+          <ul className="space-y-1">
+            {todayEvents.map((event) => (
+              <li key={event.id}>
+                <button type="button" onClick={() => openDay(today)} className="flex w-full items-start gap-2 rounded-md px-1 py-1 text-left text-caption hover:bg-surface-muted">
+                  <span aria-hidden="true" className={`mt-1 size-2 shrink-0 rounded-[3px] ${HOME_EVENT_TYPES[event.type].dot}`} />
+                  <span className="min-w-0">
+                    <span className="font-bold text-ink">{event.title}</span>
+                    <span className="ml-1.5 text-ink-sub">{event.description}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-caption text-ink-sub">오늘은 일정이 없어요.</p>
+        )}
       </div>
 
       <DayPopup
