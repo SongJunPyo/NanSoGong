@@ -4,6 +4,7 @@ import com.nansogong.dto.MenuOptionRequest;
 import com.nansogong.dto.MenuOptionResponse;
 import com.nansogong.dto.MenuRequest;
 import com.nansogong.dto.MenuResponse;
+import com.nansogong.dto.ResolvedMenu;
 import com.nansogong.model.Menu;
 import com.nansogong.model.MenuSaleStatus;
 import com.nansogong.model.MenuSource;
@@ -18,10 +19,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -101,6 +104,44 @@ public class MenuService {
         Menu option = Menu.createOption(storeId, parent.getId(), request.name(), request.price(), MenuSource.MANUAL);
         menuRepository.save(option);
         return MenuOptionResponse.from(option, false);
+    }
+
+    /**
+     * POS 코드 → 앱 메뉴 번호 (AGENTS.md 3-5 계약, 경모 매출 수집 · 준표 재고 차감에서 부른다).
+     * 화면에서 부르는 API 가 아니라 서버 안에서 부르는 함수라 checkOwner 를 하지 않는다.
+     * 옵션 연결은 (메뉴 코드, 옵션 코드) 묶음으로 찾는다: 같은 O101(샷 추가)이라도 메뉴마다 다른 옵션 행이다.
+     *
+     * @param optionCodes 메뉴 1개에 붙은 POS 옵션 코드들 (없으면 빈 목록)
+     */
+    @Transactional(readOnly = true)
+    public ResolvedMenu resolve(Long storeId, String posMenuCode, List<String> optionCodes) {
+        List<String> codes = new ArrayList<>();
+        codes.add("");                       // 기본 메뉴 연결은 옵션 코드가 빈 문자열
+        codes.addAll(optionCodes);
+
+        Map<String, PosMenuMapping> byOptionCode = posMenuMappingRepository
+                .findByStoreIdAndPosMenuCodeAndPosOptionCodeIn(storeId, posMenuCode, codes).stream()
+                .collect(Collectors.toMap(PosMenuMapping::getPosOptionCode, Function.identity(), (a, b) -> a));
+
+        PosMenuMapping menuMapping = byOptionCode.get("");
+        List<ResolvedMenu.ResolvedOption> options = optionCodes.stream()
+                .map(code -> {
+                    PosMenuMapping m = byOptionCode.get(code);
+                    return new ResolvedMenu.ResolvedOption(code, menuIdOf(m), statusOf(m));
+                })
+                .toList();
+
+        return new ResolvedMenu(posMenuCode, menuIdOf(menuMapping), statusOf(menuMapping), options);
+    }
+
+    /** MAPPED 일 때만 메뉴 번호. 제외 · 미연결이면 null */
+    private Long menuIdOf(PosMenuMapping mapping) {
+        return mapping != null && mapping.getStatus() == PosMappingStatus.MAPPED ? mapping.getMenuId() : null;
+    }
+
+    /** 연결 행이 없으면 UNMAPPED */
+    private PosMappingStatus statusOf(PosMenuMapping mapping) {
+        return mapping == null ? PosMappingStatus.UNMAPPED : mapping.getStatus();
     }
 
     // ---- 내부 도우미 ----
