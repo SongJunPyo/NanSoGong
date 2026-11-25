@@ -12,12 +12,14 @@ export function HeaderNotifications() {
     <HomeNotifications
       notifications={alerts.notifications} unreadCount={alerts.unreadCount}
       onRead={alerts.markRead} onReadAll={alerts.markAllRead}
+      onRemove={alerts.remove} onRemoveRead={alerts.removeRead}
       isPending={alerts.isPending} isSaving={alerts.isSaving} error={alerts.error}
     />
   )
 }
 
-export default function HomeNotifications({ notifications, unreadCount, onRead, onReadAll, isPending, isSaving, error }) {
+export default function HomeNotifications({ notifications, unreadCount, onRead, onReadAll, onRemove, onRemoveRead, isPending, isSaving, error }) {
+  const readCount = notifications.filter((item) => item.read).length
   const [open, setOpen] = useState(false)
   const container = useRef(null)
   const trigger = useRef(null)
@@ -49,9 +51,10 @@ export default function HomeNotifications({ notifications, unreadCount, onRead, 
         ref={trigger} type="button" aria-label={`알림, 읽지 않은 알림 ${unreadCount}개`}
         aria-haspopup="dialog" aria-expanded={open} aria-controls="home-notification-panel"
         onClick={() => setOpen((value) => !value)}
-        className="relative flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-woori-blue"
+        className="group relative flex size-10 items-center justify-center rounded-lg text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-woori-blue"
       >
-        <Bell size={22} strokeWidth={1.8} aria-hidden="true" />
+        <Bell size={24} strokeWidth={1.8} aria-hidden="true" className="transition-transform duration-150 group-hover:scale-115 group-focus-visible:scale-115" />
+        {!open && <span aria-hidden="true" className="pointer-events-none absolute top-full left-1/2 z-40 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-0.5 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">알림</span>}
         {unreadCount > 0 && <span aria-hidden="true" data-unread-indicator className="absolute top-2 right-2 size-2 rounded-full bg-danger ring-2 ring-white" />}
       </button>
       {open && (
@@ -63,6 +66,9 @@ export default function HomeNotifications({ notifications, unreadCount, onRead, 
             <h2 className="text-base font-bold text-ink">알림</h2>
             <span aria-live="polite" className="text-caption font-bold text-woori-blue">읽지 않음 {unreadCount}개</span>
             <button type="button" disabled={unreadCount === 0 || isSaving} onClick={onReadAll} className="ml-auto text-caption font-bold text-woori-blue disabled:text-ink-mute">모두 읽음</button>
+            {onRemoveRead && (
+              <button type="button" disabled={readCount === 0 || isSaving} onClick={onRemoveRead} className="text-caption font-bold text-ink-sub disabled:text-ink-mute">읽은 알림 지우기</button>
+            )}
             <button type="button" aria-label="알림 닫기" onClick={() => { setOpen(false); trigger.current?.focus() }} className="rounded p-1 text-ink-sub hover:bg-surface-muted">
               <X size={18} aria-hidden="true" />
             </button>
@@ -72,13 +78,13 @@ export default function HomeNotifications({ notifications, unreadCount, onRead, 
             {sortHomeNotifications(notifications, false).map((notification) => {
               const severity = HOME_SEVERITIES[notification.severity]
               return (
-                <li key={notification.id}>
+                <li key={notification.id} className="group/item relative">
                   <Link
                     to={notification.to} onClick={() => { onRead(notification.id); setOpen(false) }}
                     className={`flex gap-2.5 border-b border-line px-4 py-3 last:border-b-0 hover:bg-surface-muted ${notification.read ? 'bg-white' : 'bg-woori-tint/70'}`}
                   >
                     <span aria-hidden="true" className={`mt-1.5 size-1.5 shrink-0 rounded-full ${severity.dot}`} />
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 pr-6">
                       <p className={`text-label text-ink ${notification.read ? 'font-medium' : 'font-bold'}`}>
                         <span className={`mr-1.5 text-caption font-bold ${severity.text}`}>{severity.label}</span>
                         {notification.title}
@@ -87,6 +93,14 @@ export default function HomeNotifications({ notifications, unreadCount, onRead, 
                       <time dateTime={notification.createdAt} className="mt-1 block text-caption text-ink-mute">{formatNotificationTime(notification.createdAt)}</time>
                     </div>
                   </Link>
+                  {onRemove && (
+                    <button
+                      type="button" aria-label={`${notification.title} 알림 지우기`} onClick={() => onRemove(notification.id)}
+                      className="absolute top-2.5 right-2.5 rounded-md p-1 text-ink-mute hover:bg-white hover:text-danger focus-visible:outline-2 focus-visible:outline-woori-blue"
+                    >
+                      <X size={16} aria-hidden="true" />
+                    </button>
+                  )}
                 </li>
               )
             })}

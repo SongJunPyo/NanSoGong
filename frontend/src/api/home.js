@@ -24,6 +24,22 @@ export async function markHomeNotificationsRead(storeId, notificationIds) {
   return updated.map((notification) => ({ ...notification }))
 }
 
+export async function deleteHomeNotifications(storeId, notificationIds) {
+  const ids = new Set(notificationIds)
+  const current = notificationsFor(storeId)
+  const removed = current.filter((notification) => ids.has(notification.id))
+  notificationsByStore.set(storeId, current.filter((notification) => !ids.has(notification.id)))
+  return removed.map((notification) => ({ ...notification }))
+}
+
+// 삭제 되돌리기 — 지운 알림을 다시 넣는다 (이미 있으면 그대로)
+export async function restoreHomeNotifications(storeId, notifications) {
+  const current = notificationsFor(storeId)
+  const missing = notifications.filter((item) => !current.some((notification) => notification.id === item.id))
+  notificationsByStore.set(storeId, [...current, ...missing.map((item) => ({ ...item }))])
+  return notificationsFor(storeId).map((notification) => ({ ...notification }))
+}
+
 export async function getHomeEvents() {
   return homeEvents.map((event) => ({ ...event }))
 }
