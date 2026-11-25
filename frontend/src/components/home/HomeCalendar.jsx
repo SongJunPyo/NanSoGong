@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { Dialog } from 'radix-ui'
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
 import { useIsDesktop } from '@/hooks/useViewport'
 import { HOME_EVENT_TYPES, getCalendarDays, getHomeEventsForDate, shiftCalendarMonth } from '@/utils/home'
 import { formatCalendarDate, formatCalendarMonth, todayDateKey } from '@/utils/format'
-import { Skeleton } from '@/components/ui/loading'
+import { ButtonLoading, Skeleton } from '@/components/ui/loading'
+import { InlineError } from '@/components/ui/inline-error'
+import { toast } from '@/components/ui/toast'
+import { useAddHomeEvent } from '@/features/home/queries'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -150,12 +152,21 @@ export default function HomeCalendar({ events, isPending, error }) {
 }
 
 /** 날짜 팝업 — 그날 일정 목록 + 오른쪽 아래 [+] 로 그날 일정 추가 (웹: 가운데 창 / 앱: 바텀시트) */
-function DayPopup({ open, onOpenChange, date, today, events, isPending, error, onMove }) {
+function DayPopup({ open, onOpenChange, date, today, events, isPending, error, onMove: moveTo }) {
   const desktop = useIsDesktop()
   const isToday = date === today
+  const [adding, setAdding] = useState(false) // 팝업 안 일정 추가 입력 칸
+  const onMove = (next) => {
+    setAdding(false)
+    moveTo(next)
+  }
+  const change = (next) => {
+    if (!next) setAdding(false)
+    onOpenChange(next)
+  }
 
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root open={open} onOpenChange={change}>
       <Dialog.Portal>
         <Dialog.Overlay className="animate-fade-in fixed inset-0 z-[60] bg-black/45" />
         <Dialog.Content
@@ -183,7 +194,8 @@ function DayPopup({ open, onOpenChange, date, today, events, isPending, error, o
           </div>
           <Dialog.Description className="sr-only">{formatCalendarDate(date)} 일정</Dialog.Description>
 
-          <div aria-live="polite" className="min-h-0 flex-1 overflow-y-auto px-5 pb-24 lg:px-6">
+          <div aria-live="polite" className={`min-h-0 flex-1 overflow-y-auto px-5 lg:px-6 ${adding ? 'pb-4' : 'pb-24'}`}>
+            {adding && <AddEventForm key={date} date={date} onDone={() => setAdding(false)} />}
             {error ? (
               <p role="alert" className="text-label text-danger">{error.message}</p>
             ) : isPending ? (
@@ -206,12 +218,12 @@ function DayPopup({ open, onOpenChange, date, today, events, isPending, error, o
                   </li>
                 ))}
               </ul>
-            ) : (
+            ) : adding ? null : (
               <p className="pt-6 text-center text-label text-ink-sub">이 날은 일정이 없어요.</p>
             )}
           </div>
 
-          {!isToday && (
+          {!adding && !isToday && (
             <button
               type="button"
               onClick={() => onMove(today)}
@@ -220,15 +232,110 @@ function DayPopup({ open, onOpenChange, date, today, events, isPending, error, o
               오늘 <ChevronRight size={16} aria-hidden="true" />
             </button>
           )}
-          <Link
-            to={`/schedule/new?date=${date}`}
-            aria-label={`${formatCalendarDate(date)}에 일정 추가`}
-            className="absolute right-5 bottom-5 flex size-14 items-center justify-center rounded-full bg-woori-blue text-white shadow-lg transition-transform hover:scale-105 lg:right-6 lg:bottom-6"
-          >
-            <Plus size={28} aria-hidden="true" />
-          </Link>
+          {!adding && (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              aria-label={`${formatCalendarDate(date)}에 일정 추가`}
+              className="absolute right-5 bottom-5 flex size-14 items-center justify-center rounded-full bg-woori-blue text-white shadow-lg transition-transform hover:scale-105 lg:right-6 lg:bottom-6"
+            >
+              <Plus size={28} aria-hidden="true" />
+            </button>
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  )
+}
+
+// 일정 등록 화면(11-1)과 같은 선택지. 주변 행사는 '지역 행사', 나머지는 '직접 등록' 색으로 표시한다
+const EVENT_KINDS = ['주변 행사', '시험·방학', '매장 휴무', '단체 주문', '기타']
+const EVENT_IMPACTS = ['손님 많아짐', '손님 줄어듦', '잘 모르겠음']
+const TITLE_ERROR_ID = 'day-event-title-error'
+
+/** 팝업 안에서 바로 일정 추가 — 고른 날짜 하루 일정으로 저장한다 */
+function AddEventForm({ date, onDone }) {
+  const addEvent = useAddHomeEvent()
+  const [title, setTitle] = useState('')
+  const [kind, setKind] = useState(null) // 미리 고르지 않는다
+  const [impact, setImpact] = useState(null)
+  const [tried, setTried] = useState(false)
+  const titleError = tried && !title.trim() ? '일정 이름을 입력해 주세요' : ''
+
+  const save = (e) => {
+    e.preventDefault()
+    setTried(true)
+    if (!title.trim()) return
+    addEvent.mutate(
+      {
+        title: title.trim(),
+        type: kind === '주변 행사' ? 'event' : 'custom',
+        startDate: date,
+        endDate: date,
+        description: [kind ?? '사장님 등록 일정', impact].filter(Boolean).join(' · '),
+      },
+      {
+        onSuccess: () => {
+          toast(`${formatCalendarDate(date)}에 일정을 추가했어요`)
+          onDone()
+        },
+        onError: (err) => toast(err.message, { tone: 'error' }),
+      },
+    )
+  }
+
+  const chip = (on) =>
+    `rounded-chip px-3 py-1.5 text-[13px] ${on ? 'bg-woori-deep font-bold text-white' : 'bg-surface-muted font-medium text-ink-sub'}`
+
+  return (
+    <form onSubmit={save} className="mb-3 flex flex-col gap-3 rounded-card border border-woori-blue/30 bg-woori-tint/40 p-4">
+      <p className="text-label font-bold text-ink">{formatCalendarDate(date)} 일정 추가</p>
+      <div>
+        <label htmlFor="day-event-title" className="mb-1.5 block text-[13px] font-medium text-ink-sub">
+          일정 이름
+        </label>
+        <input
+          id="day-event-title"
+          autoFocus
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="예: 성수 거리 축제"
+          aria-invalid={!!titleError || undefined}
+          aria-describedby={titleError ? TITLE_ERROR_ID : undefined}
+          className={`h-12 w-full rounded-input bg-white px-4 text-body text-ink outline-none placeholder:text-ink-mute ${
+            titleError ? 'ring-[1.5px] ring-danger' : 'focus:ring-2 focus:ring-woori-blue'
+          }`}
+        />
+        <InlineError id={TITLE_ERROR_ID}>{titleError}</InlineError>
+      </div>
+      <div>
+        <p className="mb-1.5 text-[13px] font-medium text-ink-sub">종류 (선택)</p>
+        <div className="flex flex-wrap gap-1.5">
+          {EVENT_KINDS.map((k) => (
+            <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(kind === k ? null : k)} className={chip(kind === k)}>
+              {k}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <p className="mb-1.5 text-[13px] font-medium text-ink-sub">예상 영향 (선택)</p>
+        <div className="flex flex-wrap gap-1.5">
+          {EVENT_IMPACTS.map((k) => (
+            <button key={k} type="button" aria-pressed={impact === k} onClick={() => setImpact(impact === k ? null : k)} className={chip(impact === k)}>
+              {k}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="mt-1 grid grid-cols-2 gap-2">
+        <button type="button" onClick={onDone} className="h-[52px] rounded-button border border-line bg-white text-base font-bold text-ink">
+          취소
+        </button>
+        <ButtonLoading type="submit" loading={addEvent.isPending} loadingText="저장 중">
+          저장
+        </ButtonLoading>
+      </div>
+    </form>
   )
 }
