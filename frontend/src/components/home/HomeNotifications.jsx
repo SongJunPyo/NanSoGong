@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, X } from 'lucide-react'
-import { HOME_SEVERITIES, sortHomeNotifications } from '@/utils/home'
+import { HOME_RESULTS, HOME_SEVERITIES, sortNotificationLog } from '@/utils/home'
 import { formatNotificationTime } from '@/utils/format'
 import { useHomeNotifications } from '@/hooks/useHomeNotifications'
 
@@ -75,8 +75,10 @@ export default function HomeNotifications({ notifications, unreadCount, onRead, 
           </div>
           {error && <p role="alert" className="px-4 py-2 text-caption text-danger">{error.message}</p>}
           <ul className="max-h-[min(60dvh,420px)] overflow-y-auto overscroll-contain">
-            {sortHomeNotifications(notifications, false).map((notification) => {
-              const severity = HOME_SEVERITIES[notification.severity]
+            {/* 알림 = 이미 일어난 일의 기록. 읽지 않은 긴급만 위에 고정, 나머지는 최근순 */}
+            {sortNotificationLog(notifications).map((notification) => {
+              // 실행 결과가 있으면 결과(성공 · 부분 성공 …)로, 없으면 중요도로 표시
+              const severity = HOME_RESULTS[notification.result] ?? HOME_SEVERITIES[notification.severity]
               return (
                 <li key={notification.id} className="group/item relative">
                   <Link

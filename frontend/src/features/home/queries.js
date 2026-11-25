@@ -12,6 +12,8 @@ const useMockQuery = (key, data) => {
 }
 
 export const useHome = () => useMockQuery(['home', 'home'], mock.home)
+export const useHomeBriefing = () => useMockQuery(['home', 'briefing'], mock.homeBriefing)
+export const useAiSummary = () => useMockQuery(['home', 'aiSummary'], mock.aiSummary)
 
 export const useHomeEvents = () => {
   const storeId = useStoreSelection((state) => state.storeId)
