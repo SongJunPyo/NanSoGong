@@ -6,10 +6,11 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/loading'
 import { AiLabel } from '@/components/ui/ai-label'
 
-// 중요한 순서대로 진하게 — 긴급은 연한 빨강, 주의는 연한 주황, 일반은 흰 바탕 (읽음 여부는 글자 굵기로만 구분)
-const SEVERITY_BG = {
-  urgent: 'bg-danger-bg hover:bg-[#fde3de]',
-  warning: 'bg-warning-bg hover:bg-[#fdefc9]',
+// 항목마다 카드 하나. 왼쪽 색 막대로 중요도를 보이고, 긴급만 연한 빨강 바탕으로 가장 진하게 한다
+const SEVERITY_CARD = {
+  urgent: { card: 'border-danger/25 bg-danger-bg/60 hover:bg-danger-bg', bar: 'bg-danger', chip: 'bg-danger text-white' },
+  warning: { card: 'border-line bg-white hover:bg-surface-muted', bar: 'bg-amber-500', chip: 'bg-warning-bg text-amber-700' },
+  normal: { card: 'border-line bg-white hover:bg-surface-muted', bar: 'bg-success', chip: 'bg-success-bg text-success' },
 }
 
 /**
@@ -76,27 +77,37 @@ export default function HomeBriefing({ items, approvals, aiSummary, isPending, e
       ) : visible.length === 0 ? (
         <p role="status" className="py-6 text-center text-label text-ink-sub">해당하는 할 일이 없어요.</p>
       ) : (
-        <ul aria-label="지금 해야 할 일" className="divide-y divide-line">
+        <ul aria-label="지금 해야 할 일" className="flex flex-col gap-2">
           {visible.map((notification) => {
             const severity = HOME_SEVERITIES[notification.severity]
+            const look = SEVERITY_CARD[notification.severity] ?? SEVERITY_CARD.normal
             const approval = approvals.find((item) => item.to === notification.to)
             return (
               <li key={notification.id}>
                 <Link
                   to={notification.to}
-                  className={`flex min-w-0 items-start gap-2 rounded-lg px-2 py-2.5 transition-colors ${SEVERITY_BG[notification.severity] ?? 'hover:bg-surface-muted'}`}
+                  className={`relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-input border py-3 pr-3 pl-4 transition-colors focus-visible:outline-2 focus-visible:outline-woori-blue ${look.card}`}
                 >
-                  <span aria-hidden="true" className={`mt-1.5 size-1.5 shrink-0 rounded-full ${severity.dot}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-label leading-snug font-bold text-ink">
-                      <span className={`mr-1.5 text-caption font-bold ${severity.text}`}>{severity.label}</span>
-                      {notification.title}
-                    </p>
-                    <p className="mt-1 line-clamp-1 text-caption text-ink-sub">{notification.description}</p>
-                    {notification.basis && <p className="mt-0.5 text-caption text-ink-mute">근거: {notification.basis}</p>}
-                    {approval && <p className="mt-1 text-caption font-bold text-woori-blue">{approval.title} · {approval.value} ›</p>}
+                  <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${look.bar}`} />
+                  <div className="flex items-start gap-2">
+                    <span className={`mt-px shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold ${look.chip}`}>{severity.label}</span>
+                    <p className="min-w-0 flex-1 text-label leading-snug font-bold text-ink">{notification.title}</p>
+                    {!approval && <ChevronRight size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-ink-mute" />}
                   </div>
-                  <ChevronRight size={14} aria-hidden="true" className="mt-1 shrink-0 text-ink-mute" />
+                  <p className="line-clamp-2 text-caption leading-relaxed text-ink-sub">{notification.description}</p>
+                  {(notification.basis || approval) && (
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-0.5">
+                      {notification.basis && (
+                        <span className="min-w-0 flex-1 text-[11px] leading-snug text-ink-mute">근거 · {notification.basis}</span>
+                      )}
+                      {approval && (
+                        <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-woori-tint px-2.5 py-1 text-caption font-bold text-woori-deep">
+                          {approval.title} · {approval.value}
+                          <ChevronRight size={14} aria-hidden="true" />
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </Link>
               </li>
             )
