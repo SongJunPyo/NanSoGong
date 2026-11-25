@@ -41,7 +41,7 @@ export default function HomeBriefing({ items, approvals, aiSummary, isPending, e
 
       {aiSummary && (
         <p className="mb-2 text-caption text-ink-sub">
-          재고 {aiSummary.inventoryChecked}개 점검 · 발주안 {aiSummary.orderDrafts}건 · 가격 비교 {aiSummary.priceCompared}곳 · 약 {aiSummary.minutesSaved}분 절약
+          발주안 {aiSummary.orderDrafts}건과 {aiSummary.priceCompared}곳 가격 비교를 미리 준비해 약 {aiSummary.minutesSaved}분을 아꼈어요.
         </p>
       )}
 
