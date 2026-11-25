@@ -6,7 +6,7 @@
 |---|---|
 | FE | React 19, Vite 8, vite-plugin-pwa, Tailwind CSS v4, shadcn/ui, TanStack Query, Zustand |
 | BE | Java 21, Spring Boot 4, Spring Security + JWT, Spring Data JPA, ShedLock, PostgreSQL(RDS), Redis(ElastiCache) |
-| AI | Claude API (Spring AI 2.0 ChatClient), LightGBM |
+| AI | Python · FastAPI · LangGraph (구현 전), Claude API, LightGBM |
 | Infra | AWS (EC2 ASG Graviton · ALB · WAF · RDS · ElastiCache · S3 · CloudFront · ECR · CodeDeploy · CloudFormation), Docker, Prometheus, Grafana |
 | CI/CD · Test | GitHub Actions, JUnit 5, Testcontainers, Postman · Boomerang |
 
@@ -14,7 +14,7 @@
 
 ```
 .
-├── .github/workflows/   # GitHub Actions: backend.yml(서버) · frontend.yml(화면)
+├── .github/             # workflows/ = GitHub Actions(backend.yml · frontend.yml), PR · 이슈 템플릿
 ├── backend/             # Spring Boot 서버 (build.gradle · gradlew · Dockerfile · src)
 │   └── src/             #   계층별 패키지(controller · service · repository · model · dto · exception · ai · common), resources/db/migration = Flyway SQL, api.http = 요청 모음
 ├── frontend/            # React · Vite 화면 (src/features = 도메인별 폴더)
