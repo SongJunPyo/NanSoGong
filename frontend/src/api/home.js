@@ -43,12 +43,24 @@ export async function restoreHomeNotifications(storeId, notifications) {
 // 운영을 종료한 프로모션처럼 기간이 줄어든 일정 (매장별 · 일정 id → 새 종료일)
 const eventEndOverrides = new Map()
 
+// 사장님이 캘린더 팝업에서 직접 추가한 일정 (매장별)
+const addedEventsByStore = new Map()
+let addedSequence = 1
+
 export async function getHomeEvents(storeId) {
   const overrides = eventEndOverrides.get(storeId) ?? {}
-  return homeEvents.map((event) => ({
+  const added = addedEventsByStore.get(storeId) ?? []
+  return [...homeEvents, ...added].map((event) => ({
     ...event,
     ...(overrides[event.id] ? { endDate: overrides[event.id], description: '운영을 종료한 프로모션' } : {}),
   }))
+}
+
+/** 일정 추가 — { title, type, startDate, endDate, description } */
+export async function addHomeEvent(storeId, input) {
+  const event = { id: `custom-${addedSequence++}`, ...input }
+  addedEventsByStore.set(storeId, [...(addedEventsByStore.get(storeId) ?? []), event])
+  return { ...event }
 }
 
 /** 일정 종료일을 앞당긴다 (예: 프로모션 운영 종료) */
