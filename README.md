@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# NanSoGong
-
-=======
 # 난소공
 
 소상공인 맞춤형 AI 매장 운영 에이전트 · 사장님 전용 서비스
@@ -10,7 +6,7 @@
 |---|---|
 | FE | React 19, Vite 8, vite-plugin-pwa, Tailwind CSS v4, shadcn/ui, TanStack Query, Zustand |
 | BE | Java 21, Spring Boot 4, Spring Security + JWT, Spring Data JPA, ShedLock, PostgreSQL(RDS), Redis(ElastiCache) |
-| AI | Claude API (Spring AI 2.0 ChatClient), LightGBM |
+| AI | Python · FastAPI · LangGraph (구현 전), Claude API, LightGBM |
 | Infra | AWS (EC2 ASG Graviton · ALB · WAF · RDS · ElastiCache · S3 · CloudFront · ECR · CodeDeploy · CloudFormation), Docker, Prometheus, Grafana |
 | CI/CD · Test | GitHub Actions, JUnit 5, Testcontainers, Postman · Boomerang |
 
@@ -18,7 +14,7 @@
 
 ```
 .
-├── .github/workflows/   # GitHub Actions: backend.yml(서버) · frontend.yml(화면)
+├── .github/             # workflows/ = GitHub Actions(backend.yml · frontend.yml), PR · 이슈 템플릿
 ├── backend/             # Spring Boot 서버 (build.gradle · gradlew · Dockerfile · src)
 │   └── src/             #   계층별 패키지(controller · service · repository · model · dto · exception · ai · common), resources/db/migration = Flyway SQL, api.http = 요청 모음
 ├── frontend/            # React · Vite 화면 (src/features = 도메인별 폴더)
@@ -26,7 +22,7 @@
 ├── ml/                  # 🤖 수요 예측 실험 (Python · LightGBM · Jupyter)
 ├── monitoring/          # 로컬 Prometheus 설정 · Grafana 상황판(JSON)
 ├── infra/               # AWS: CloudFormation 템플릿 · CodeDeploy 배포 스크립트 · dev 갱신 스크립트 · 데모 데이터 · 비밀값 틀
-├── docs/                # 팀 문서 (changes/ = 개발 환경 변경 기록)
+├── docs/                # 팀 문서 (rules/ = 세부 규칙 · 설계, pjt_source/ = 원본 자료)
 ├── docker-compose.yml   # 🐳 로컬 개발용 서버 · PostgreSQL · Redis · 목업 (· 화면 nginx · Prometheus · Grafana · Jupyter)
 ├── docker-compose.dev.yml # AWS dev EC2 전용 덧씌우기 (ECR 이미지 · 80 포트 화면). 내 PC 에서는 쓰지 않는다
 └── .env.example         # 환경변수 견본 → 복사해서 .env 를 만든다
@@ -37,38 +33,12 @@
 > Node 버전은 `.nvmrc`, npm 패키지 버전은 `frontend/package-lock.json` 이 고정합니다.
 > AWS ECR 에는 **배포용 이미지**(서버 · dev 화면, arm64)만 Actions 가 올립니다.
 
-## 담당
+## 규칙 · 설계 · 진행 상황
 
-역할(백엔드 · 프론트엔드 · 인프라 · AI)별로 나누고, 백엔드와 프론트엔드는 **같은 도메인을 맡는 2인 1조**로 짝을 지었습니다. 같은 조끼리 API 모양을 바로 맞출 수 있게 하기 위해서입니다.
-
-| 역할 | 담당 | 맡는 범위 |
-|---|---|---|
-| 백엔드 | **예원** | 회원 · 인증, 매장, 연동, 날씨, 매출 · 비용, 홈, 쿠폰 |
-| 백엔드 | **준표** | 메뉴, 재고, 발주 · 입고, 승인 · 실행 공통(에이전트의 승인 · 중복 방지 · 이력) |
-| 프론트엔드 | **소정** | 예원 님 도메인의 화면: 로그인 · 회원가입 · 매장 · 연동 설정, 홈 탭, 매출 탭(쿠폰 포함) |
-| 프론트엔드 | **민성** | 준표 님 도메인의 화면: 재고 탭(재고 · 발주 · 입고), 메뉴 탭, 승인 · 실행 이력. 화면 공통 틀(하단 탭 · 레이아웃 · 공통 컴포넌트) |
-| 인프라 | **경모** | 개발 환경 · CI/CD · AWS · 모니터링 · 목업 · 데모 데이터, `common/` 설정(보안 · 외부 API 클라이언트) |
-| AI | **후상** | `ai/` 공통 틀, 에이전트의 제안 · 실행 계획 생성 · Tool Calling, 수요 예측(`ml/`), 각 도메인의 AI 기능(레시피 · 신메뉴 · 쿠폰 문구 · 운영 제안) |
-
-도메인별 담당입니다. 백엔드는 [07_cicd](https://github.com/WONIT-A/07_cicd) 처럼 **계층별 패키지**(`controller` · `service` · `repository` · `model` · `dto` · `exception` · `ai`)를 같이 쓰고, 클래스 이름 앞에 도메인 이름을 붙여 구분합니다 (예: `InventoryService`, `StoreController`). 개발 메모까지 포함한 전체 표는 [개발 시작 안내 7-2장](docs/notice/2026-11-23-개발-시작-안내.md) 에 있습니다.
-
-| 도메인 | 백엔드 | 프론트엔드 | AI | 유저 플로우 | 요구사항 |
-|---|---|---|---|---|---|
-| `auth` | 예원 | 소정 | — | UF-01, 02 | 구현-1-1, 1-3, 1-4, 1-5, 7-1, 7-2 |
-| `store` | 예원 | 소정 | — | UF-01, 02 | 구현-1-2, 1-6 |
-| `integration` | 예원 | 소정 | — | UF-03, 04 | 구현-1-7 ~ 1-12, 1-14 |
-| `weather` | 예원 | 소정 | 후상 (수요 예측 입력) | UF-02, 05 | 구현-1-13 |
-| `home` | 예원 | 소정 | 후상 (2-3 운영 제안) | UF-05, 06 | 구현-2-1 ~ 2-5 |
-| `coupon` | 예원 | 소정 | 후상 (2-6 추천 문구) | UF-07, 08 | 구현-2-6 ~ 2-8, 5-6 |
-| `sales` | 예원 | 소정 | — | UF-17, 18 | 구현-5-1 ~ 5-5 |
-| `menu` | 준표 | 민성 | 후상 (4-2 레시피, 4-5 신메뉴) | UF-15, 16 | 구현-4-1 ~ 4-5 |
-| `inventory` | 준표 | 민성 | 후상 (3-3 수요 예측 연계) | UF-09 ~ 11 | 구현-3-1 ~ 3-8 |
-| `purchase` | 준표 | 민성 | 후상 (6-5 Tool Calling 실행) | UF-12 ~ 14 | 구현-3-9 ~ 3-14 |
-| `agent` | 준표 (승인 · 실행 · 이력) | 민성 | 후상 (수요 예측 · 제안 생성 · Tool Calling) | UF-06, 19, 20 | 구현-6-1 ~ 6-9 |
-| `common` | 경모 (설정 · 보안 · 외부 API 클라이언트) | 민성 (화면 공통 틀) | 후상 (`ai/` 공통 틀) | — | 구현-7-3 |
-
-- **AI 기능은 나눠서 만듭니다.** AI 결과를 쓰는 API · 저장은 그 도메인의 백엔드 담당이, AI 호출 부분(프롬프트 · ChatClient · `@Tool`)은 후상 님이 만듭니다.
-- 데모 데이터(`infra/demo-data/`)의 SQL 은 그 표를 만든 백엔드 담당이 추가하고, 실행 흐름은 경모 님이 관리합니다.
+- 코드 규칙: [AGENTS.md](AGENTS.md) (공통) + [`docs/rules/`](docs/rules/) (백엔드 · 프론트 · AI · 도메인 · DB · 아키텍처)
+- 도메인 구분 · 유저 플로우 · 요구사항 번호: [도메인 규칙](docs/rules/domain.md#도메인-목록)
+- 목표 시스템 구조 (Spring Boot + Python · LangGraph): [아키텍처](docs/rules/architecture.md). 아래 기술 · 실행 안내는 현재 코드 기준입니다.
+- 진행 상황 · 일정 · 담당: GitHub Issues ([이슈 규칙](docs/rules/issue.md))
 
 ## 요구사항이 개발 환경에 요구하는 것
 
@@ -159,11 +129,41 @@ npm ci                            # 🚨 npm install 이 아니라 npm ci (lock 
 npm run dev                       # 화면 5173
 ```
 
-**http://localhost:5173** 에 서버 · PostgreSQL · Redis · 외부 연동 목업 네 줄이 모두 `연결됨` 이면 세팅 완료 ✅
+**http://localhost:5173/dev** 에 서버 · PostgreSQL · Redis · 외부 연동 목업 네 줄이 모두 `연결됨` 이면 세팅 완료 ✅
+(화면 라우터가 들어오면서 연결 확인판은 `/` 가 아니라 `/dev` 로 옮겼습니다)
+
+### 화면만 둘러보기 (서버 없이)
+
+지금 화면들은 서버 API 대신 각 영역의 `mock.js` 데이터로 그려집니다. 그래서 **`docker compose` 없이 `npm run dev` 만으로** 모든 화면을 볼 수 있습니다.
+
+```bash
+cd frontend
+npm ci                            # 처음 한 번, 또는 package-lock.json 이 바뀐 날
+npm run dev                       # → http://localhost:5173/screens
+```
+
+- **http://localhost:5173/screens**: Figma 프레임 번호 순 전체 화면 목록입니다. 누르면 그 화면으로 갑니다. `:id` 가 있는 화면은 예시 id(`o1`, `milk` 등)로 열립니다.
+- 브라우저 개발자 도구의 모바일 보기(폭 360px)로 확인합니다. 화면은 가운데 최대 430px 폭으로 그려집니다.
+- 화면 목록과 주소는 `frontend/src/routes.js` 의 `ROUTES` 한 곳에서 관리합니다. 새 화면은 여기에 `['Figma 번호 이름', '/경로', 컴포넌트, 'UF-xx']` 한 줄을 추가합니다.
+- 서버 API 가 생기면 각 영역 `queries.js` 의 `queryFn` 만 `api.js` 호출로 바꿉니다. 화면 코드는 그대로 둡니다.
+
+재고 · 발주 · 입고 · 메뉴 · 승인 이력 화면
+
+| 영역 | 주요 화면 | 주소 |
+|---|---|---|
+| 재고 (UF-09 ~ 11) | 재고 목록 · 품목 상세 · 품목 등록 · 실사 · 폐기 | `/inventory`, `/inventory/items/milk`, `/inventory/adjust` |
+| 발주 추천 (UF-12) | 발주 추천 · 가격 비교 · 조건 수정 | `/orders/recommendation`, `/orders/recommendation/compare` |
+| AI 대신 주문 (UF-13) | 24-6 대신 주문 설정, 24-7 AI 대신 주문 진행 · 완료 | `/settings/agent-order`, `/orders/agent` |
+| 발주 상태 (UF-13) | 발주 목록 · 발주 상태 · 직접 주문 등록 | `/orders`, `/orders/o1`, `/orders/o1/direct` |
+| 입고 · 정정 (UF-14) | 입고 확인 · 정정 요청 | `/receiving`, `/corrections/new` |
+| 메뉴 (UF-15, 16) | 메뉴 · 레시피 편집 · 판매 분석 · AI 메뉴 추천 | `/menu`, `/menu/analysis`, `/menu/recommendations` |
+| 승인 · 실행 이력 (UF-19, 20) | 실행 결과 · 재승인 · 반려 · 보류 | `/results`, `/reapproval/o2`, `/on-hold` |
 
 | 주소 | 용도 |
 |---|---|
 | http://localhost:5173 | 화면 (CORS 때문에 꼭 이 주소로) |
+| http://localhost:5173/screens | 전체 화면 목록 (개발용 바로가기) |
+| http://localhost:5173/dev | 서버 · DB · Redis · 목업 연결 확인판 |
 | http://localhost:8080/api/ping | 서버 · DB · Redis 연결 상태 |
 | http://localhost:8080/swagger-ui/index.html | API 문서 |
 | http://localhost:8080/actuator/health | 서버 상태 |
@@ -213,7 +213,7 @@ cd frontend && npm ci             # package-lock.json 이 바뀐 날만
 | VS Code 로 서버 실행 시 `Port 8080 was already in use` | 컨테이너 서버가 켜져 있다. `docker compose stop app` 후 다시 실행 (VS Code 실행 버튼은 자동으로 멈춘다) |
 | 코드를 고쳤는데 컨테이너 서버에 반영이 안 됨 | `docker compose up -d` 를 다시 실행 (안 되면 `docker compose up -d --build app`) |
 | VS Code 에서 `NansogongApplication` 에 빨간 줄 · 실행 목록에 서버가 없음 | Java 확장이 아직 프로젝트를 불러오는 중이거나 JDK 21 이 없다. 왼쪽 아래 `Java: Ready` 확인, 안 되면 Ctrl+Shift+P → `Java: Clean Java Language Server Workspace` |
-| `ConflictingBeanDefinitionException: ... bean name 'xxx'` (같은 이름의 클래스가 두 패키지에) | 파일을 옮긴 뒤 **옛 위치의 파일이나 옛 빌드 결과물**이 남은 것. 옛 파일을 지우고 `gradlew clean` 후 다시 실행 (docs/changes/2026-11-19-08 참고) |
+| `ConflictingBeanDefinitionException: ... bean name 'xxx'` (같은 이름의 클래스가 두 패키지에) | 파일을 옮긴 뒤 **옛 위치의 파일이나 옛 빌드 결과물**이 남은 것. 옛 파일을 지우고 `gradlew clean` 후 다시 실행 |
 | `Task 'bootRun' not found` · `gradlew` 를 찾을 수 없음 | 저장소 맨 위가 아니라 `backend` 폴더에서 실행한다 |
 | Windows 에서 `gradlew` 가 `\r` 오류 | `.gitattributes` 가 막아 주지만, 이미 받은 파일이면 `git rm --cached -r . && git reset --hard` |
 | `npm ci` 가 lock 파일 불일치로 실패 | `package.json` 만 고치고 lock 을 안 올린 경우 → 고친 사람이 `npm install` 후 lock 커밋 |
@@ -313,11 +313,10 @@ AWS 쪽 준비 · 생성 · 삭제(CloudFormation, IAM 역할, Secrets Manager, 
 
 | 항목 | 현재 상태 | 영향 |
 |---|---|---|
-| 쿠폰 발행 방식 | 유저 플로우 1.01 은 **POS 역동기화**, 요구사항 1.1(구현-2-8)은 **네이버 플레이스 직접 발행** | 목업에 POS 쿠폰 등록(`/pos/v1/coupons`)은 넣어 둠. 직접 발행으로 정하면 안 쓰면 됨 |
-| 수요 예측 모델 실행 방식 | 요구사항에 없음 | `ml/README.md` 의 A(Python 배치) / B(Java 추론) 중 선택 |
+| 쿠폰 발행 방식 | **POS 역동기화**로 기능 흐름 확정 ([유저 플로우 1.04](docs/pjt_source/유저_플로우_1.04.md) "확정한 적용 기준"). POS 지원 범위는 연동 검증 필요 | 목업에 POS 쿠폰 등록(`/pos/v1/coupons`)은 넣어 둠 |
+| 수요 예측 모델 실행 방식 | **FastAPI 예측 API**로 방향 결정 ([아키텍처 수요 예측](docs/rules/architecture.md#수요-예측)). 구현 전 | `ml/` 에서 학습 · 검증한 모델을 FastAPI가 불러오고, Spring이 결과를 검증 · 저장 |
 | AWS 에서 목업 서버 위치 | dev 는 EC2 의 compose 에 함께 뜬다. **prod 는 미정** | prod 서버가 뜨려면 `nansogong/prod` 에 `POS_BASE_URL` 등이 필요. 서버 EC2 에 함께 띄우기 / 별도 서비스 중 선택 |
-| 화면 이동(라우터) · 차트 라이브러리 | 기술 스택에 없음 | 하단 4개 탭 · 매출 그래프에 필요. 예: React Router · Recharts(shadcn/ui charts) |
+| 차트 라이브러리 | 기술 스택에 없음 | 매출 그래프에 필요. 예: Recharts(shadcn/ui charts). (화면 이동 라우터는 `react-router-dom` 으로 정함) |
 | 알림 방식 | 재고 부족 · 입고 확인 · 주간 실사 알림 (구현-3-6 ~ 3-8, 3-13) | 앱 안 알림 목록만이면 추가 설정 없음. PWA 푸시면 VAPID 키 · 서비스워커 설정 추가 |
 | 정정 요청 증빙 사진 (구현-3-14) | 업로드 포함 여부 확인 필요 | 포함하면 S3 버킷 · 업로드 권한 추가 |
 | 앱 → POS 메뉴 역동기화 (구현-4-1) | 팀 논의 예정 | 정하면 목업에 POS 메뉴 등록 스텁 추가 |
->>>>>>> d8137f8e920665b9dc9083ac8e57ad0c380c9dd7
