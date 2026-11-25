@@ -1,16 +1,46 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useStoreSelection } from '@/store/useStoreSelection'
-import * as mock from './mock'
+import { menuService } from './menuService'
+import { analyzeMenuSales } from './menuLogic'
 
-// TODO 서버 API가 생기면 queryFn 을 api.js 함수로 바꾼다 (화면 코드는 그대로)
-//   예) queryFn: () => getInventory(storeId)
-// queryKey 에 storeId 를 넣어 매장별로 캐시를 나눈다 (useStoreSelection 주석 참고)
-const useMockQuery = (key, data) => {
-  const storeId = useStoreSelection((s) => s.storeId)
-  return useQuery({ queryKey: [...key, storeId], queryFn: async () => data, initialData: data })
+const workspaceKey = (storeId) => ['menu', 'workspace', storeId]
+
+export function useMenuWorkspace() {
+  const storeId = useStoreSelection((state) => state.storeId)
+  return useQuery({ queryKey: workspaceKey(storeId), queryFn: () => menuService.getWorkspace(storeId), staleTime: 30000 })
 }
 
-export const useMenus = () => useMockQuery(['menu', 'menus'], mock.menus)
-export const useMenuRecommendations = () => useMockQuery(['menu', 'recommendations'], mock.menuRecommendations)
-export const useSetRecommendations = () => useMockQuery(['menu', 'setRecommendations'], mock.setRecommendations)
-export const useImproveRecommendations = () => useMockQuery(['menu', 'improveRecommendations'], mock.improveRecommendations)
+export function useMenus() {
+  const query = useMenuWorkspace()
+  return { ...query, data: query.data?.menus ?? [] }
+}
+
+export function useMenuActions() {
+  const storeId = useStoreSelection((state) => state.storeId)
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (action) => menuService.execute(storeId, action),
+    onSuccess: ({ workspace }) => client.setQueryData(workspaceKey(storeId), workspace),
+  })
+}
+
+export function useMenuAnalysis(filters) {
+  const storeId = useStoreSelection((state) => state.storeId)
+  const workspace = useMenuWorkspace()
+  const query = useQuery({
+    queryKey: ['menu', 'analysis', storeId, workspace.data?.revision, filters],
+    enabled: Boolean(workspace.data),
+    queryFn: async () => analyzeMenuSales(workspace.data, filters),
+    staleTime: 30000,
+  })
+  return { ...query, error: workspace.error ?? query.error, isPending: workspace.isPending || query.isPending }
+}
+
+export function useMenuRecommendationAction(onStage) {
+  const storeId = useStoreSelection((state) => state.storeId)
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (kind) => menuService.generateRecommendation(storeId, kind, onStage),
+    onSuccess: ({ workspace }) => client.setQueryData(workspaceKey(storeId), workspace),
+  })
+}

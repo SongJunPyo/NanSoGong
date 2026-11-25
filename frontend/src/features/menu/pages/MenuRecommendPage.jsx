@@ -1,321 +1,68 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Coffee, Lightbulb, Sparkles, TrendingUp } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
-import { Button, Card, Chips, Eyebrow, Field, H1, H2, HeadRow, KV, P, Pill } from '@/components/common/ui'
-import { won } from '@/lib/format'
-import { useImproveRecommendations, useMenuRecommendations, useSetRecommendations } from '@/features/menu/queries'
-import MenuTabs from '@/features/menu/components/MenuTabs'
+import { Card, H2, Pill } from '@/components/common/ui'
+import { ButtonLoading, SkeletonCard, Spinner } from '@/components/ui/loading'
+import { Sheet } from '@/components/ui/sheet'
 import { toast } from '@/components/ui/toast'
-import { Tooltip } from '@/components/ui/tooltip'
-import { InlineError } from '@/components/ui/inline-error'
-import { AgentSteps } from '@/components/ui/agent-steps'
-import { Spinner } from '@/components/ui/loading'
+import { useMenuAnalysis, useMenuRecommendationAction, useMenuWorkspace } from '@/features/menu/queries'
+import { demoPeriod } from '@/features/menu/mock'
+import { RECOMMENDATION_STATUSES, shortDate } from '@/features/menu/menuLogic'
+import { won } from '@/lib/format'
+import MenuTabs from '@/features/menu/components/MenuTabs'
+import MenuForm from '@/features/menu/components/MenuForm'
+import MenuRecommendationCard, { MenuSetForm } from '@/features/menu/components/MenuRecommendationCard'
+import { MenuSelect } from '@/features/menu/components/MenuFields'
 
-const PRICE_ERROR_ID = 'menu-price-error'
-
-const KINDS = ['신메뉴', '세트 구성', '메뉴 개선']
-
-/** 34 AI 메뉴 추천 — 바로 추가 (UF-16 2~4) */
 export default function MenuRecommendPage() {
-  const { data: newMenus } = useMenuRecommendations()
-  const { data: sets } = useSetRecommendations()
-  const { data: improves } = useImproveRecommendations()
-  const [kind, setKind] = useState(0)
-  const [index, setIndex] = useState(0)
-  const [analyzed, setAnalyzed] = useState([]) // 분석을 마친 추천 종류 (한 번 본 종류는 다시 기다리지 않는다)
-  const analyzing = !analyzed.includes(kind)
-
-  const list = [newMenus, sets, improves][kind]
-  const rec = list[index % list.length]
-  const go = (d) => setIndex((i) => (i + d + list.length) % list.length)
-  const changeKind = (k) => {
-    setKind(k)
-    setIndex(0)
+  const workspaceQuery = useMenuWorkspace()
+  const analysis = useMenuAnalysis({ ...demoPeriod, group: 'ALL', weather: 'ALL' })
+  const [stage, setStage] = useState('')
+  const [pendingKind, setPendingKind] = useState(null)
+  const [filter, setFilter] = useState('ALL')
+  const [editing, setEditing] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [focusId, setFocusId] = useState(null)
+  const generationLock = useRef(false)
+  const generate = useMenuRecommendationAction(setStage)
+  const workspace = workspaceQuery.data
+  const best = analysis.data?.popular[0]
+  const poor = analysis.data?.poor[0]
+  const recommendations = workspace?.recommendations.filter((rec) => filter === 'ALL' || rec.status === filter) ?? []
+  useEffect(() => { if (focusId) document.getElementById(focusId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, [focusId])
+  const create = async (kind) => {
+    if (generationLock.current) return
+    generationLock.current = true; setPendingKind(kind)
+    try {
+      const response = await generate.mutateAsync(kind)
+      setFilter('ALL'); setFocusId(response.result.id)
+      toast('판매 근거가 포함된 시연 추천안을 만들었어요.')
+    } catch (err) { toast(err.message, { tone: 'error' }) }
+    finally { generationLock.current = false; setPendingKind(null) }
   }
+  const approve = (recommendation) => { setEditing(recommendation); setSaving(false); setFilter('ALL') }
+  const finish = () => { setEditing(null); setFocusId(null) }
+  const busy = generate.isPending || !analysis.data
 
   return (
-    <Screen title="AI 메뉴 추천">
+    <Screen title="메뉴" back={false} tab wide>
       <MenuTabs />
-      <Eyebrow>트렌드 · 판매 추이 분석</Eyebrow>
-      <H1>{['이번 겨울엔\n이 메뉴 어때요?', '같이 팔면\n더 잘 나가요', '이 메뉴는\n손보면 좋아요'][kind]}</H1>
-      <Chips items={KINDS} onChange={changeKind} />
-
-      {analyzing ? (
-        <AnalysisLoading key={kind} steps={ANALYSIS_STEPS[kind]} onDone={() => setAnalyzed((a) => [...a, kind])} />
-      ) : (
-        <>
-          {/* 다시 추천 ‹ 1/3 › */}
-          <div className="flex items-center gap-2">
-            <span className="text-label font-medium text-ink-sub">다시 추천</span>
-            <div className="ml-auto flex items-center gap-1">
-              <button
-                type="button"
-                aria-label="이전 추천"
-                onClick={() => go(-1)}
-                className="flex size-10 items-center justify-center rounded-full text-ink hover:bg-surface-muted"
-              >
-                <ChevronLeft size={20} />
-              </button>
-              <span className="num w-10 text-center text-label font-bold text-ink" aria-live="polite">
-                {(index % list.length) + 1}/{list.length}
-              </span>
-              <button
-                type="button"
-                aria-label="다음 추천"
-                onClick={() => go(1)}
-                className="flex size-10 items-center justify-center rounded-full text-ink hover:bg-surface-muted"
-              >
-                <ChevronRight size={20} />
-              </button>
-            </div>
-          </div>
-    
-          {/* 후보가 바뀌면 입력값도 그 후보 기준으로 새로 시작 */}
-          {kind === 0 && <Recommendation key={rec.id} rec={rec} />}
-          {kind === 1 && <SetRecommendation key={rec.id} rec={rec} />}
-          {kind === 2 && <ImproveRecommendation key={rec.id} rec={rec} />}
-        </>
-      )}
+      <div><p className="mb-1 flex items-center gap-1.5 text-caption font-bold text-woori-blue"><Sparkles size={15} aria-hidden="true" />오늘의 AI 메뉴 분석</p><h2 className="text-h1 font-bold text-ink">AI가 추천하는 메뉴 구성</h2><p className="mt-2 text-label text-ink-sub">잘 팔리는 메뉴는 유지하고, 필요한 변화를 근거와 함께 검토해요.</p></div>
+      <p className="rounded-input bg-woori-tint px-4 py-3 text-caption text-woori-deep">시연 모드 · {shortDate(demoPeriod.from)}–{shortDate(demoPeriod.to)} 판매 자료를 집계해 추천 초안을 만들어요. AI·네이버 검색 API는 연결되지 않았으며 실제 검색량은 조회하지 않아요.</p>
+      {workspaceQuery.error || analysis.error ? <Card tone="warn"><p role="alert" className="text-label text-danger">{(workspaceQuery.error ?? analysis.error).message}</p></Card> : workspaceQuery.isPending || analysis.isPending ? <SkeletonCard lines={5} /> : <>
+        <div className="grid items-stretch gap-4 lg:grid-cols-2">
+          <Card gap="gap-4" pad="p-5"><div className="flex items-center justify-between gap-2"><H2><span className="flex items-center gap-2"><TrendingUp size={18} className="text-woori-blue" aria-hidden="true" />인기 메뉴 유지 추천</span></H2><Pill tone="deep">판매 상위</Pill></div>{best ? <><p className="text-label leading-relaxed text-ink"><strong>{best.menu.name}</strong>가 꾸준히 잘 팔리고 있어요. 현재 메뉴 구성을 유지해 보세요!</p><div className="flex flex-wrap gap-2"><Pill>{best.rank}위</Pill><Pill>{won(best.quantity)}개 판매</Pill><Pill tone="gray">최근 {best.change === null ? '비교 자료 부족' : (best.change >= 0 ? '+' : '') + best.change.toFixed(1) + '%'}</Pill></div><p className="text-caption text-ink-sub">근거: 같은 기간의 판매 수량·순위·직전 기간 대비 변화</p></> : <p className="text-label text-ink-sub">유지 추천을 판단할 판매 자료가 부족합니다.</p>}</Card>
+          <Card tone="line" gap="gap-4" pad="p-5"><H2><span className="flex items-center gap-2"><Lightbulb size={18} className="text-woori-blue" aria-hidden="true" />부진 분석 · 신메뉴 제안</span></H2><p className="text-label leading-relaxed text-ink">{poor ? poor.menu.name + ' 판매가 직전 기간보다 ' + Math.abs(poor.change).toFixed(1) + '% 감소했어요. 기존 재료를 활용한 새 구성을 검토해 보세요.' : '메뉴별 판매와 기존 재료를 바탕으로 새로운 구성을 검토해 보세요.'}</p><p className="text-caption text-ink-sub">시즌 외 메뉴나 출시 직후 메뉴를 부진으로 단정하지 않아요.</p><ButtonLoading variant="secondary" loading={pendingKind === 'NEW'} disabled={busy && pendingKind !== 'NEW'} loadingText="추천 구성 중..." onClick={() => create('NEW')}>AI 신메뉴 추천받기</ButtonLoading></Card>
+          <Card tone="line" gap="gap-4" pad="p-5"><H2><span className="flex items-center gap-2"><Coffee size={18} className="text-woori-blue" aria-hidden="true" />세트 메뉴 제안</span></H2><p className="text-label leading-relaxed text-ink">함께 주문된 시연 이력이 있는 인기 음료와 디저트로 세트를 구성해 보세요.</p><p className="text-caption text-ink-sub">구성·세트 가격·할인 부담을 확인한 뒤 저장할 수 있어요.</p><ButtonLoading variant="secondary" loading={pendingKind === 'SET'} disabled={busy && pendingKind !== 'SET'} loadingText="구성 검토 중..." onClick={() => create('SET')}>AI 세트 추천받기</ButtonLoading></Card>
+          <Card tone="line" gap="gap-4" pad="p-5"><H2><span className="flex items-center gap-2"><Sparkles size={18} className="text-woori-blue" aria-hidden="true" />기존 메뉴 개선 제안</span></H2><p className="text-label leading-relaxed text-ink">{poor ? poor.menu.name + '의 이름·레시피를 점검하고 변경 전후를 확인해 보세요.' : '현재는 비교 자료가 충분한 판매 감소 메뉴가 없어요.'}</p><p className="text-caption text-ink-sub">개선안 승인만으로 가격·레시피·판매 상태가 바뀌지는 않아요.</p><ButtonLoading variant="secondary" loading={pendingKind === 'IMPROVE'} disabled={!poor || busy && pendingKind !== 'IMPROVE'} loadingText="개선안 구성 중..." onClick={() => create('IMPROVE')}>AI 메뉴 개선안 받기</ButtonLoading></Card>
+        </div>
+        {generate.isPending && <div aria-live="polite" className="rounded-input bg-woori-tint p-4"><Spinner showLabel label={stage} /><p className="mt-2 text-caption text-ink-sub">현재 시연 데이터를 집계하는 단계예요. 외부 검색은 수행하지 않아요.</p></div>}
+        <div className="flex flex-wrap items-end justify-between gap-3"><div><H2>추천안 검토</H2><p className="mt-1 text-caption text-ink-sub">검토 → 승인 → 상세 수정 → 최종 저장 순서로 반영돼요.</p></div><div className="w-full sm:w-44"><MenuSelect label="추천 상태" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="ALL">모든 상태</option>{Object.entries(RECOMMENDATION_STATUSES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</MenuSelect></div></div>
+        <div className="flex flex-col gap-4">{recommendations.map((rec) => <MenuRecommendationCard key={rec.id} recommendation={rec} onApproved={approve} />)}{!recommendations.length && <Card tone="line"><p className="py-8 text-center text-label text-ink-sub">{workspace.recommendations.length ? '해당 상태의 추천안이 없어요.' : '위 분석에서 필요한 추천받기 버튼을 눌러 초안을 만들어 보세요.'}</p></Card>}</div>
+      </>}
+      <Sheet open={Boolean(editing)} onOpenChange={(open) => { if (!open && !saving) setEditing(null) }} title={editing?.kind === 'SET' ? '승인한 세트 구성 수정' : '승인한 추천 상세 수정'} description="승인한 초안을 검토하는 단계예요. 최종 저장 전에는 메뉴가 변경되지 않아요.">
+        {editing && workspace && (editing.kind === 'SET' ? <MenuSetForm key={editing.id} recommendation={editing} onSaved={finish} onCancel={() => setEditing(null)} onBusyChange={setSaving} /> : <MenuForm key={editing.id} initial={editing.draft} recommendationId={editing.id} submitLabel={editing.kind === 'NEW' ? '메뉴 추가하기' : '변경 내용 저장'} onSaved={finish} onCancel={() => setEditing(null)} onBusyChange={setSaving} />)}
+      </Sheet>
     </Screen>
-  )
-}
-
-// 추천 종류별로 AI가 보는 것 (목업 문구 — 실제 서비스는 분석 요청의 단계 상태를 받아 표시)
-const ANALYSIS_STEPS = [
-  [
-    { label: '최근 4주 판매 추이 보기', detail: '메뉴 24개 · 주문 1,820건' },
-    { label: '검색 트렌드 확인', detail: '네이버 데이터랩 · 겨울 음료 키워드' },
-    { label: '가게에 있는 재료와 맞춰 보기', detail: '기존 재료로 만들 수 있는 후보 추리기' },
-    { label: '원가 · 판매가 계산', detail: '레시피 기준 원가율 확인' },
-  ],
-  [
-    { label: '같이 주문된 메뉴 찾기', detail: '최근 4주 주문 1,820건' },
-    { label: '시간대별 주문 보기', detail: '오후 2~5시 주문이 적어요' },
-    { label: '세트 가격 · 마진 계산', detail: '할인해도 남는 금액 확인' },
-  ],
-  [
-    { label: '판매가 줄어든 메뉴 찾기', detail: '지난달과 판매량 비교' },
-    { label: '원가율 확인', detail: '재료 단가 변동 반영' },
-    { label: '개선안 정리', detail: '가격 · 레시피 · 구성 중 효과가 큰 것' },
-  ],
-]
-
-const TICK = 700 // 목업에서 분석 단계 하나가 끝나는 시간 (ms)
-
-/** AI 분석 중 — 단계별로 무엇을 보고 있는지 보여 주고, 다 끝나면 onDone */
-function AnalysisLoading({ steps, onDone }) {
-  const [step, setStep] = useState(0)
-
-  useEffect(() => {
-    const t = setTimeout(() => (step >= steps.length - 1 ? onDone() : setStep((s) => s + 1)), TICK)
-    return () => clearTimeout(t)
-  }, [step, steps.length, onDone])
-
-  return (
-    <div className="flex flex-col gap-4" aria-live="polite">
-      <div className="flex flex-col items-center gap-2 rounded-card bg-woori-tint px-4 py-6 text-center">
-        <Spinner size={32} />
-        <p className="text-h2 font-bold text-ink">AI가 메뉴를 분석하고 있어요</p>
-        <p className="text-label text-ink-sub">
-          {step + 1} / {steps.length} 단계 · {steps[step].label}
-        </p>
-        <div className="mt-1 h-1.5 w-full max-w-[260px] overflow-hidden rounded-full bg-white">
-          <div
-            className="h-full rounded-full bg-woori-blue transition-[width] duration-500"
-            style={{ width: `${((step + 1) / steps.length) * 100}%` }}
-          />
-        </div>
-      </div>
-      <div className="rounded-card border border-line p-4">
-        <AgentSteps
-          label="AI 분석 단계"
-          steps={steps.map((s, i) => ({
-            label: s.label,
-            status: i < step ? 'done' : i === step ? 'active' : 'pending',
-            detail: i <= step ? s.detail : undefined,
-          }))}
-        />
-      </div>
-    </div>
-  )
-}
-
-/** 세트 구성 추천 */
-function SetRecommendation({ rec }) {
-  const off = rec.regular - rec.price
-  return (
-    <>
-      <Card>
-        <HeadRow title={rec.name}>
-          <Pill tone="deep">AI 추천</Pill>
-        </HeadRow>
-        <div className="flex items-baseline gap-2">
-          <span className="text-label text-ink-sub">세트 가격</span>
-          <span className="num ml-auto text-h1 font-bold text-woori-deep">{won(rec.price)}원</span>
-        </div>
-        <KV label="따로 사면" value={`${won(rec.regular)}원 · ${won(off)}원 할인`} />
-        <KV label="구성" value={rec.items.join(' + ')} />
-        <KV label="예상 효과" value={rec.expected} tone="deep" />
-      </Card>
-      <Card>
-        <H2>추천 이유</H2>
-        <P tone="ink">{rec.reason}</P>
-        <P tone="mute" small>
-          출처: 우리 매장 POS 주문 데이터 · 최근 4주
-        </P>
-      </Card>
-      <Button to="/promotions/latte-set">프로모션으로 만들기</Button>
-    </>
-  )
-}
-
-/** 메뉴 개선 추천 */
-function ImproveRecommendation({ rec }) {
-  return (
-    <>
-      <Card tone="amber">
-        <HeadRow title={rec.menu}>
-          <Pill tone="amberWhite">개선 제안</Pill>
-        </HeadRow>
-        <P tone="ink">{rec.problem}</P>
-      </Card>
-      <Card>
-        <H2>이렇게 해 보세요</H2>
-        <P tone="ink">{rec.suggestion}</P>
-        <KV label="기대 효과" value={rec.effect} tone="deep" />
-      </Card>
-      <Button variant="outline" onClick={() => toast('제안을 메모해 뒀어요', { tone: 'info' })}>
-        나중에 볼게요
-      </Button>
-      <Button to="/menu">메뉴에서 바꾸기</Button>
-    </>
-  )
-}
-
-function Recommendation({ rec }) {
-  const navigate = useNavigate()
-  const [price, setPrice] = useState(rec.price)
-
-  const priceError =
-    price === '' || price <= 0
-      ? '판매가를 입력해 주세요'
-      : price < rec.cost
-        ? `판매가가 예상 원가(${won(rec.cost)}원)보다 낮아요`
-        : ''
-  const margin = priceError ? null : Math.round(((price - rec.cost) / price) * 100)
-
-  return (
-    <>
-      <Card>
-        {rec.image && (
-          <img
-            src={rec.image}
-            alt={rec.name}
-            className="-mx-[18px] -mt-[18px] mb-1 aspect-[16/10] w-[calc(100%+36px)] max-w-none rounded-t-card object-cover"
-          />
-        )}
-        <HeadRow title={rec.name}>
-          <Pill tone="deep">AI 추천</Pill>
-        </HeadRow>
-        <KV
-          label={
-            <span className="inline-flex items-center gap-0.5">
-              검색 관심도
-              <Tooltip label="검색 관심도 설명">
-                네이버에서 이 메뉴를 얼마나 찾는지 0~100으로 나타낸 값이에요. 기간 안에서 가장 많이 찾은 날이 100이에요.
-              </Tooltip>
-            </span>
-          }
-          value={`${rec.interest} · ${rec.trend}`}
-        />
-        <P tone="mute" small>
-          출처: 네이버 데이터랩 · {rec.period}
-        </P>
-        <KV label="재료" value={rec.ingredients} />
-      </Card>
-
-      <Card tone="line">
-        <H2>기본 정보</H2>
-        <Field label="메뉴명" defaultValue={rec.name} />
-        <div className="flex flex-col gap-2">
-          <label htmlFor="menu-price" className="text-[13px] font-medium text-ink-sub">
-            판매가
-          </label>
-          <div
-            className={`flex h-[52px] items-center rounded-input bg-surface-muted px-4 ${
-              priceError ? 'ring-[1.5px] ring-danger' : 'focus-within:ring-2 focus-within:ring-woori-blue'
-            }`}
-          >
-            <input
-              id="menu-price"
-              inputMode="numeric"
-              value={price === '' ? '' : price.toLocaleString('ko-KR')}
-              onChange={(e) => {
-                const raw = e.target.value.replace(/[^\d]/g, '')
-                setPrice(raw === '' ? '' : Number(raw))
-              }}
-              aria-invalid={!!priceError || undefined}
-              aria-describedby={priceError ? PRICE_ERROR_ID : undefined}
-              className="num w-full min-w-0 bg-transparent text-body font-medium text-ink outline-none"
-            />
-            <span className="ml-1.5 text-label text-ink-sub">원</span>
-          </div>
-          <InlineError id={PRICE_ERROR_ID}>{priceError}</InlineError>
-        </div>
-        <Field label="카테고리" defaultValue={rec.category} />
-      </Card>
-
-      <Card tone="line">
-        <H2>AI 표준 레시피 초안</H2>
-        {rec.recipe.map((r) =>
-          r.linked ? (
-            <KV key={r.name} label={r.name} value={r.amount} />
-          ) : (
-            <div key={r.name} className="flex items-center gap-2">
-              <span className="text-label text-ink-sub">{r.name}</span>
-              <Pill tone="amber">신규 재료 · 미연결</Pill>
-              <span className="num ml-auto text-body font-bold">{r.amount}</span>
-            </div>
-          ),
-        )}
-        <div>
-          <Button variant="text" to="/inventory/items/new/edit">
-            재료 연결·수정
-          </Button>
-        </div>
-      </Card>
-
-      <Card>
-        <KV label="예상 원가" value={`${won(rec.cost)}원${rec.estimated ? ' (추정)' : ''}`} tone="amber" />
-        <KV
-          label={
-            <span className="inline-flex items-center gap-0.5">
-              예상 마진율
-              <Tooltip label="마진율 설명">(판매가 − 원가) ÷ 판매가예요. 원가율은 100%에서 이 값을 뺀 값이에요.</Tooltip>
-            </span>
-          }
-          value={margin == null ? '—' : `${margin}%`}
-          tone="deep"
-        />
-        {rec.estimated && (
-          <P tone="mute" small>
-            단가가 없는 재료가 있어 추정값이에요.
-          </P>
-        )}
-      </Card>
-
-      {priceError ? (
-        <button
-          type="button"
-          disabled
-          className="h-[52px] w-full rounded-button bg-woori-deep text-base font-bold text-white opacity-50"
-        >
-          메뉴 추가하기
-        </button>
-      ) : (
-        <Button onClick={() => navigate('/menu/recommendations/added', { replace: true })}>메뉴 추가하기</Button>
-      )}
-    </>
   )
 }
