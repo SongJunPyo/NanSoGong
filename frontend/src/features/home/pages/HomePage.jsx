@@ -19,7 +19,7 @@ import { CoachMark } from '@/components/ui/coach-mark'
 // 첫 로그인 안내 — 이 기기에서 처음 홈을 열 때 한 번만 (localStorage 에 본 기록만 남긴다)
 const COACH_STEPS = [
   { target: 'home-sales', title: '오늘 매출', body: 'POS 매출을 실시간으로 모아 보여 드려요.' },
-  { target: 'home-approvals', title: '승인 대기', body: 'AI가 준비한 발주 · 프로모션은 사장님이 승인해야 실행돼요.' },
+  { target: 'home-approvals', title: '할 일', body: '승인 · 입고 확인처럼 사장님이 할 일을 모아 보여 드려요.' },
   { target: 'home-calendar', title: '운영 캘린더', body: '입고 · 프로모션 · 휴무 일정을 한눈에 볼 수 있어요.' },
 ]
 
@@ -29,10 +29,29 @@ export default function HomePage() {
   const alerts = useHomeNotifications()
   const calendar = useHomeEvents()
   const [weatherOpen, setWeatherOpen] = useState(false)
+  // 긴급 알림이 있을 때만 매출보다 위에 배너로 (가장 최근 1건)
+  const urgent = alerts.notifications.find((n) => n.severity === 'urgent')
+  const urgentAction = urgent && data.approvals.find((a) => a.to === urgent.to)
 
   return (
     <Screen title="오늘의 매장 운영" eyebrow={<StoreSwitcher />} headerActions={<><HomeDate /><HeaderNotifications /></>} back={false} settings tab wide compact>
       <StoreLine />
+      {urgent && (
+        <Banner
+          key={urgent.id}
+          tone="danger"
+          title={urgent.title}
+          dismissKey={`home-urgent-${urgent.id}`}
+          dismissFor="day"
+          action={
+            <Link to={urgent.to} onClick={() => alerts.markRead(urgent.id)}>
+              {urgentAction ? `${urgentAction.title} · ${urgentAction.value} ›` : '바로 확인하기 ›'}
+            </Link>
+          }
+        >
+          {urgent.description}
+        </Banner>
+      )}
       {/* 닫으면 같은 주에는 다시 띄우지 않는다 */}
       {data.orderFund && data.orderFund.planned > data.orderFund.balance && (
         <Banner
