@@ -1,4 +1,5 @@
-import { AlertTriangle, Info, Plus } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, ChevronRight, Info, Plus } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
 import { Button, Card, H2, Pill } from '@/components/common/ui'
 import { useCostForecast, useCosts } from '@/features/sales/queries'
@@ -57,7 +58,16 @@ export default function CostsPage() {
             <dl className="flex flex-col gap-3 text-caption">
               {[['반영 항목', '원가 · 운영비 4종'], ['원가 추정', '레시피 기준 · 원가율 26%'], ['월 비용 배분', '적용 기간에 따라 일할 계산']].map(([label, value]) => <div key={label} className="flex justify-between gap-3"><dt className="text-ink-sub">{label}</dt><dd className="text-right font-medium text-ink">{value}</dd></div>)}
             </dl>
-            <p className="rounded-lg bg-warning-bg p-3 text-caption text-warning">포장재 단가 일부가 누락되어 있어요. 비용이 보완되면 예상 이익이 달라질 수 있어요.</p>
+            <div className="flex flex-col gap-2 rounded-lg bg-warning-bg p-3 sm:flex-row sm:items-center">
+              <p className="flex-1 text-caption text-warning">포장재 단가 일부가 누락되어 있어요. 비용이 보완되면 예상 이익이 달라질 수 있어요.</p>
+              <Link
+                to={`/sales/costs/new?category=${encodeURIComponent('포장재')}`}
+                className="inline-flex shrink-0 items-center gap-0.5 self-end rounded-md bg-white px-2.5 py-1.5 text-caption font-bold text-amber-700 hover:bg-white/70 sm:self-auto"
+              >
+                포장재 비용 입력
+                <ChevronRight size={14} aria-hidden="true" />
+              </Link>
+            </div>
           </Card>
         </div>
       </div>

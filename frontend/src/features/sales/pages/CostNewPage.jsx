@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Screen } from '@/components/common/layout'
 import { InlineError } from '@/components/ui/inline-error'
 import { Button, ButtonRow, Card, Chips, HeadRow, KV2, Label, P, Pill } from '@/components/common/ui'
@@ -23,7 +23,12 @@ const NAME_MAX = 30 // ⚠️ 가정: 비용 이름 최대 길이 (expense 표 �
 /** 43-1 비용 추가 (UF-18 2) — '기타'를 고르면 비용 이름을 직접 적는다 */
 export default function CostNewPage() {
   const navigate = useNavigate()
-  const [category, setCategory] = useState(3)
+  // ?category=포장재 처럼 들어오면 그 항목을 골라 둔다 (비용 화면의 '포장재 비용 입력')
+  const [params] = useSearchParams()
+  const [category, setCategory] = useState(() => {
+    const i = CATEGORIES.indexOf(params.get('category'))
+    return i >= 0 ? i : 3
+  })
   const [name, setName] = useState('')
   const [nameError, setNameError] = useState('')
   const nameRef = useRef(null)
