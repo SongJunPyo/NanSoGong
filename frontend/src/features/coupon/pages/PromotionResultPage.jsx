@@ -1,13 +1,16 @@
+import { useState } from 'react'
 import { Screen } from '@/components/common/layout'
-import { Button, Card, Eyebrow, H1, KV, P, Stepper } from '@/components/common/ui'
+import { Button, Card, Divider, Eyebrow, H1, KV, P, Stepper } from '@/components/common/ui'
 import { useCouponDraft } from '@/features/coupon/useCouponDraft'
+import { usePromotion } from '@/features/coupon/queries'
 import { DoneCheck } from '@/components/ui/agent-steps'
-
-const ID = 'latte-set'
+import { Sheet } from '@/components/ui/sheet'
 
 /** 16-1 POS 반영 결과 — 성공 (UF-07 7) */
 export default function PromotionResultPage() {
   const name = useCouponDraft((s) => s.promotionName)
+  const { data: p } = usePromotion()
+  const [conditionsOpen, setConditionsOpen] = useState(false)
   return (
     <Screen title="POS 반영 결과">
       <div className="flex flex-col items-center gap-2 pt-4 text-center">
@@ -26,9 +29,34 @@ export default function PromotionResultPage() {
         <KV label="사용 내역" value="운영 시작 후 집계" tone="sub" />
       </Card>
       <Button to="/sales/promotions">사용 현황 보기</Button>
-      <Button variant="outline" to={`/promotions/${ID}`}>
+      {/* 이미 등록된 조건은 다시 결정할 일이 아니라서, 화면 이동 없이 창으로 보여 준다 */}
+      <Button variant="outline" onClick={() => setConditionsOpen(true)}>
         등록한 조건 보기
       </Button>
+      <Sheet
+        open={conditionsOpen}
+        onOpenChange={setConditionsOpen}
+        title="등록한 조건"
+        description={`${name} · POS에 반영된 조건이에요.`}
+        footer={
+          <Button variant="outline" onClick={() => setConditionsOpen(false)}>
+            닫기
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-2.5 pb-2">
+          <KV label="혜택" value={p.benefit} />
+          <KV label="적용 메뉴" value={p.menu} />
+          <KV label="정가 → 프로모션가" value={p.price} />
+          <KV label="이용 시간" value={p.time} />
+          <KV label="기간" value={p.period} />
+          <KV label="수량 · 횟수" value={p.limit} />
+          <KV label="중복 할인" value="불가 · 매장 주문 전용" tone="sub" />
+          <Divider />
+          <KV label="최대 할인 부담" value={p.maxDiscount} />
+          <KV label="예상 마진율" value={p.margin} tone="deep" />
+        </div>
+      </Sheet>
       <P tone="mute" small>
         사용 내역은 운영이 시작되면 매일 모아서 보여 드려요.
       </P>
