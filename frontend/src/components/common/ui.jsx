@@ -116,7 +116,7 @@ export function ListRow({ title, value, to, onClick }) {
   const cls = 'flex min-h-[54px] w-full items-center gap-1.5 py-3 text-left'
   if (to)
     return (
-      <Link to={to} className={cls}>
+      <Link to={to} onClick={onClick} className={cls}>
         {inner}
       </Link>
     )

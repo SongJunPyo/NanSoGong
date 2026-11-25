@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Screen } from '@/components/common/layout'
 import { Hero, HeroLabel, HeroValue, WeatherIcon } from '@/components/common/ui'
@@ -11,6 +12,8 @@ import HomeDate from '@/features/home/components/HomeDate'
 import { HeaderNotifications } from '@/components/home/HomeNotifications'
 import { useHome, useHomeEvents } from '@/features/home/queries'
 import { Banner } from '@/components/ui/banner'
+import { Sheet } from '@/components/ui/sheet'
+import WeatherDetail from '@/features/weather/components/WeatherDetail'
 import { CoachMark } from '@/components/ui/coach-mark'
 
 // 첫 로그인 안내 — 이 기기에서 처음 홈을 열 때 한 번만 (localStorage 에 본 기록만 남긴다)
@@ -25,6 +28,7 @@ export default function HomePage() {
   const { data } = useHome()
   const alerts = useHomeNotifications()
   const calendar = useHomeEvents()
+  const [weatherOpen, setWeatherOpen] = useState(false)
 
   return (
     <Screen title="오늘의 매장 운영" eyebrow={<StoreSwitcher />} headerActions={<><HomeDate /><HeaderNotifications /></>} back={false} settings tab wide compact>
@@ -56,7 +60,7 @@ export default function HomePage() {
         <section aria-label="날씨·수요 예측" className="flex min-w-0 flex-col justify-center gap-2 rounded-card bg-woori-tint p-4">
           <div className="flex items-center gap-2">
             <h2 className="text-caption font-bold text-woori-blue">날씨 · 수요 예측</h2>
-            <Link to="/weather" className="ml-auto text-caption font-bold text-woori-blue">자세히 ›</Link>
+            <button type="button" onClick={() => setWeatherOpen(true)} className="ml-auto text-caption font-bold text-woori-blue">자세히 ›</button>
           </div>
           <div>
             <p className="text-base font-bold text-ink">내일 비 · 따뜻한 라떼 14잔 더 팔릴 것 같아요</p>
@@ -78,11 +82,17 @@ export default function HomePage() {
 
       <div className="grid min-w-0 items-start gap-4 md:grid-cols-2">
         <HomeBriefing
-          notifications={alerts.notifications} approvals={data.approvals} results={data.results}
+          notifications={alerts.notifications} approvals={data.approvals}
           onRead={alerts.markRead} isPending={alerts.isPending} error={alerts.error}
         />
         <HomeCalendar events={calendar.data ?? []} isPending={calendar.isPending} error={calendar.error} />
       </div>
+      {/* 날씨는 화면 이동 없이 팝업으로 */}
+      <Sheet open={weatherOpen} onOpenChange={setWeatherOpen} title="날씨·수요 예측" description="성수동 기준 · 기상청 예보">
+        <div className="pb-4">
+          <WeatherDetail onNavigate={() => setWeatherOpen(false)} />
+        </div>
+      </Sheet>
       <CoachMark storageKey="home-first-v1" steps={COACH_STEPS} enabled={!alerts.isPending && !calendar.isPending} />
 
     </Screen>
