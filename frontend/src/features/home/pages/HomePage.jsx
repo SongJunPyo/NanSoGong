@@ -40,7 +40,7 @@ export default function HomePage() {
       <StoreLine />
       {/* AI 요약 — 숫자는 목업 aiSummary 와 브리핑 개수에서 계산 */}
       <p className="-mt-2 text-label text-ink-sub">
-        밤사이 AI가 재고 {aiSummary.inventoryChecked}개 품목을 점검하고, 확인할 일 {todo.length}건을 골라 뒀어요.
+        판매·재고 데이터로 밤사이 {aiSummary.inventoryChecked}개 품목을 점검해 확인할 일 {todo.length}건을 골라 뒀어요.
       </p>
       {/* 닫으면 같은 날에는 다시 띄우지 않는다 */}
       {urgent && (

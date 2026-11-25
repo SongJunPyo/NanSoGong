@@ -31,7 +31,7 @@ export default function HomeBriefing({ items, approvals, aiSummary, isPending, e
     <section aria-labelledby="home-briefing-title" className="min-w-0 rounded-card border border-line bg-white p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 id="home-briefing-title" className="flex items-center gap-1.5 text-h2 font-bold text-ink">
-          AI 운영 브리핑 <AiLabel />
+          매장 데이터 기반 운영 브리핑 <AiLabel />
         </h2>
         <span data-coach="home-approvals">
           <Badge status={approvals.length ? 'pending' : 'neutral'}>할 일 {approvals.length}건</Badge>
@@ -41,8 +41,7 @@ export default function HomeBriefing({ items, approvals, aiSummary, isPending, e
 
       {aiSummary && (
         <p className="mb-2 text-caption text-ink-sub">
-          오늘 AI가 한 일 · 재고 점검 {aiSummary.inventoryChecked}개 · 발주안 {aiSummary.orderDrafts}건 · 가격 비교 {aiSummary.priceCompared}곳 · 약{' '}
-          {aiSummary.minutesSaved}분 절약
+          재고 {aiSummary.inventoryChecked}개 점검 · 발주안 {aiSummary.orderDrafts}건 · 가격 비교 {aiSummary.priceCompared}곳 · 약 {aiSummary.minutesSaved}분 절약
         </p>
       )}
 
