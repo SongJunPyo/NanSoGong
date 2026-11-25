@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Cloud, CloudRain, Sun } from 'lucide-react'
+import { Check, ChevronRight, Cloud, CloudRain, Sun, X } from 'lucide-react'
 
 // 클래스 합치기 — text-h2 · text-label 같은 커스텀 크기 토큰을 tailwind-merge(cn)가
 // 글자색과 같은 그룹으로 보고 지워버려서, 여기서는 단순히 이어 붙인다
@@ -116,7 +116,7 @@ export function ListRow({ title, value, to, onClick }) {
   const cls = 'flex min-h-[54px] w-full items-center gap-1.5 py-3 text-left'
   if (to)
     return (
-      <Link to={to} className={cls}>
+      <Link to={to} onClick={onClick} className={cls}>
         {inner}
       </Link>
     )
@@ -287,34 +287,68 @@ export function Toggle({ label, desc, defaultChecked = true }) {
   )
 }
 
-/** 진행 단계 표시 — failAt 단계는 빨간색 */
+/**
+ * 진행 단계 표시 — 점과 선으로 어디까지 왔는지 보여 준다
+ *   지난 단계 ✓ (진한 파랑) · 지금 진행 중인 단계 ● + 테두리 강조 · 남은 단계 번호 (회색) · failAt 단계 ✕ (빨강)
+ *   지난 단계 사이 선은 파랑, 남은 구간은 회색
+ */
 export const Stepper = ({ steps, current, failAt = -1 }) => (
-  <div className="flex gap-1">
+  <ol className="flex w-full items-start" aria-label="진행 단계">
     {steps.map((s, i) => {
-      const done = i <= current
       const fail = i === failAt
+      const done = i < current && !fail
+      const now = i === current && !fail
+      const last = i === steps.length - 1
       return (
-        <div key={s} className="flex flex-1 flex-col items-center gap-1.5">
+        <li
+          key={s}
+          aria-current={now || fail ? 'step' : undefined}
+          className="relative flex min-w-0 flex-1 flex-col items-center gap-2"
+        >
+          {!last && (
+            <span
+              aria-hidden="true"
+              className={cx(
+                'absolute top-[15px] left-1/2 h-0.5 w-full',
+                i < current && i + 1 !== failAt ? 'bg-woori-deep' : i < current ? 'bg-danger/50' : 'bg-line',
+              )}
+            />
+          )}
           <span
             className={cx(
-              'rounded-full',
-              done ? 'size-3.5' : 'size-2.5',
-              fail ? 'bg-danger' : done ? 'bg-woori-deep' : 'bg-line',
+              'relative z-10 flex size-8 items-center justify-center rounded-full text-[13px] font-bold',
+              fail
+                ? 'bg-danger text-white ring-4 ring-danger/15'
+                : done
+                  ? 'bg-woori-deep text-white'
+                  : now
+                    ? 'bg-woori-deep text-white ring-4 ring-woori-deep/15'
+                    : 'border-2 border-line bg-white text-ink-mute',
             )}
-          />
+          >
+            {fail ? (
+              <X size={16} strokeWidth={3} aria-hidden="true" />
+            ) : done ? (
+              <Check size={16} strokeWidth={3} aria-hidden="true" />
+            ) : now ? (
+              <span aria-hidden="true" className="size-2.5 rounded-full bg-white" />
+            ) : (
+              i + 1
+            )}
+          </span>
           <span
             className={cx(
-              'text-[11px]',
-              i === current && 'font-bold',
-              fail ? 'text-danger' : done ? 'text-woori-deep' : 'text-ink-mute',
+              'px-0.5 text-center text-[12px] leading-tight break-keep',
+              fail ? 'font-bold text-danger' : now ? 'font-bold text-woori-deep' : done ? 'font-medium text-ink' : 'text-ink-mute',
             )}
           >
             {s}
+            <span className="sr-only">{fail ? ' (실패)' : now ? ' (지금 단계)' : done ? ' (완료)' : ' (남음)'}</span>
           </span>
-        </div>
+        </li>
       )
     })}
-  </div>
+  </ol>
 )
 
 /** 간단 막대그래프 */

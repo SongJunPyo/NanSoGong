@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getHomeNotifications, markHomeNotificationsRead } from '@/api/home'
+import { deleteHomeNotifications, getHomeNotifications, markHomeNotificationsRead, restoreHomeNotifications } from '@/api/home'
+import { toast } from '@/components/ui/toast'
 import { useStoreSelection } from '@/store/useStoreSelection'
 
 const notificationKey = (storeId) => ['home', 'notifications', storeId]
@@ -23,6 +24,22 @@ export function useHomeNotifications() {
       )
     },
   })
+  // 삭제 — 지운 뒤 [되돌리기] 토스트로 살릴 수 있다
+  const removeMutation = useMutation({
+    mutationFn: ({ storeId, ids }) => deleteHomeNotifications(storeId, ids),
+    onSuccess: (removed, variables) => {
+      queryClient.setQueryData(notificationKey(variables.storeId), (current = []) =>
+        current.filter((notification) => !variables.ids.includes(notification.id)),
+      )
+      if (!removed.length) return
+      toast(removed.length > 1 ? `알림 ${removed.length}개를 지웠어요` : '알림을 지웠어요', {
+        undo: async () => {
+          const restored = await restoreHomeNotifications(variables.storeId, removed)
+          queryClient.setQueryData(notificationKey(variables.storeId), restored)
+        },
+      })
+    },
+  })
   const notifications = query.data ?? []
   const unreadCount = notifications.filter((notification) => !notification.read).length
 
@@ -30,9 +47,11 @@ export function useHomeNotifications() {
     notifications,
     unreadCount,
     isPending: query.isPending,
-    isSaving: mutation.isPending,
-    error: query.error ?? mutation.error,
+    isSaving: mutation.isPending || removeMutation.isPending,
+    error: query.error ?? mutation.error ?? removeMutation.error,
     markRead: (id) => mutation.mutate({ storeId, ids: [id] }),
     markAllRead: () => mutation.mutate({ storeId, ids: notifications.filter((item) => !item.read).map((item) => item.id) }),
+    remove: (id) => removeMutation.mutate({ storeId, ids: [id] }),
+    removeRead: () => removeMutation.mutate({ storeId, ids: notifications.filter((item) => item.read).map((item) => item.id) }),
   }
 }

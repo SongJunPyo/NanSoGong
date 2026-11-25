@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { endPromotion, getPromotions } from '@/api/coupon'
 import { useStoreSelection } from '@/store/useStoreSelection'
 import * as mock from './mock'
 
@@ -11,3 +12,23 @@ const useMockQuery = (key, data) => {
 }
 
 export const usePromotion = () => useMockQuery(['coupon', 'promotion'], mock.promotion)
+
+const promotionsKey = (storeId) => ['coupon', 'promotions', storeId]
+
+export const usePromotions = () => {
+  const storeId = useStoreSelection((s) => s.storeId)
+  return useQuery({ queryKey: promotionsKey(storeId), queryFn: () => getPromotions(storeId) })
+}
+
+/** 운영 종료 — 끝나면 프로모션 목록과 홈 캘린더를 다시 불러온다 */
+export const useEndPromotion = () => {
+  const storeId = useStoreSelection((s) => s.storeId)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (promotionId) => endPromotion(storeId, promotionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: promotionsKey(storeId) })
+      queryClient.invalidateQueries({ queryKey: ['home', 'events', storeId] })
+    },
+  })
+}

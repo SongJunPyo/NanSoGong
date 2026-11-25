@@ -1,11 +1,17 @@
+import { useParams } from 'react-router-dom'
 import { CloudRain } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
 import { Button, ButtonRow, Card, Eyebrow, H2, KV } from '@/components/common/ui'
+import { useInventory } from '@/features/inventory/queries'
 
 /** 22 품목 상세 (UF-10 3 · UF-09 6) */
 export default function ItemDetailPage() {
+  const { id } = useParams()
+  const { data: items } = useInventory()
+  // 제목은 저장된 품목명 (아래 수치는 아직 우유 1L 목업 예시)
+  const name = items.find((i) => i.id === id)?.name ?? '우유 1L'
   return (
-    <Screen title="우유 1L">
+    <Screen title={name}>
       <Card>
         <Eyebrow>현재 상태</Eyebrow>
         <div className="flex items-baseline gap-1.5">

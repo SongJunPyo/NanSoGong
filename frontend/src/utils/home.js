@@ -4,6 +4,14 @@ export const HOME_SEVERITIES = {
   normal: { label: '일반', dot: 'bg-success', text: 'text-success', filter: 'bg-success-bg text-success' },
 }
 
+// 알림(실행 기록) 결과 표시 — 부분 성공 · 확인 필요는 주황, 성공은 파랑, 완료는 초록
+export const HOME_RESULTS = {
+  success: { label: '성공', dot: 'bg-woori-blue', text: 'text-woori-blue' },
+  done: { label: '완료', dot: 'bg-success', text: 'text-success' },
+  partial: { label: '부분 성공', dot: 'bg-amber-500', text: 'text-amber-700' },
+  check: { label: '확인 필요', dot: 'bg-amber-500', text: 'text-amber-700' },
+}
+
 export const HOME_EVENT_TYPES = {
   delivery: { label: '입고', dot: 'bg-woori-blue' },
   promotion: { label: '프로모션', dot: 'bg-violet-500' },
@@ -17,6 +25,12 @@ export function sortHomeNotifications(notifications, bySeverity = true) {
     (bySeverity ? priority[a.severity] - priority[b.severity] : 0) ||
     new Date(b.createdAt) - new Date(a.createdAt),
   )
+}
+
+/** 알림 패널 순서 — 읽지 않은 긴급 알림만 맨 위에 고정, 나머지는 최근 것이 위 */
+export function sortNotificationLog(notifications) {
+  const pinned = (item) => (item.severity === 'urgent' && !item.read ? 0 : 1)
+  return [...notifications].sort((a, b) => pinned(a) - pinned(b) || new Date(b.createdAt) - new Date(a.createdAt))
 }
 
 export function getHomeEventsForDate(events, dateKey) {
