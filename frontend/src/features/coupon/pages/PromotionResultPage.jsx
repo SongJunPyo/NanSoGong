@@ -15,8 +15,9 @@ export default function PromotionResultPage() {
         <Eyebrow>{name}</Eyebrow>
         <H1>{'POS에 프로모션이\n등록됐어요'}</H1>
       </div>
-      <Card>
-        <Stepper steps={['승인', '반영 요청', '반영 완료', '사용 집계']} current={2} />
+      {/* 반영까지 끝났고, 지금은 사용 집계 중 */}
+      <Card tone="line" pad="px-3 py-5">
+        <Stepper steps={['승인', '반영 요청', '반영 완료', '사용 집계']} current={3} />
       </Card>
       <Card tone="line">
         <KV label="승인" value="11.19 16:02" />
