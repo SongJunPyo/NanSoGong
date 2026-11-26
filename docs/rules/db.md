@@ -121,21 +121,35 @@ POS 원본 JSON은 `sales_order.raw_payload` (JSONB)에 **주문 단위로 통�
 - **미결제면 `paid_amount` · `paid_at` 이 둘 다 NULL이어야 한다.** 지금 DB `CHECK` 는 둘 중 하나만 채운 경우를 막지 못한다. 그래서 서비스에서 검증하고, 새 마이그레이션으로 제약을 보완해야 한다.
 - `suggestion.status` 에는 "생성 중" · "생성 실패" 코드가 없다. `payload` · `evidence` 는 NOT NULL이라 결과 전에는 행을 만들 수 없다. **생성 중 · 실패 상태는 `ai_job.status` 로 본다** ([AI 작업 기록](#ai-작업-기록-ai_job)). `PENDING`(검토 대기)을 "생성 중"으로 같이 쓰지 않는다.
 - `execution.approval_id` 는 필수다. 생성 작업을 넣으려고 가짜 승인을 만들지 않는다.
-- `lease_owner` · `lease_expires_at` 칸은 지금 없다. 여러 워커 처리 · 장애 후 자동 인계를 만들 때만 따로 검토한다. 없는 칸을 있다고 가정하지 않는다.
+- `suggestion` · `execution` 에는 `lease_owner` · `lease_expires_at` 칸이 없다. 여러 워커 처리 · 장애 후 자동 인계를 만들 때만 따로 검토한다. 없는 칸을 있다고 가정하지 않는다. AI 작업 단위의 처리 기한은 `ai_job.expires_at` 이 맡는다 ([AI 작업 기록](#ai-작업-기록-ai_job)).
 - Java 코드에는 `EXPIRED` · `WAITING_AUTH` · `CHECKING` 이 아직 없다. 구현할 때 이 이름을 그대로 쓴다.
 
 ## AI 작업 기록 (`ai_job`)
 
 AI 작업의 **기준 기록**은 Spring 업무 DB의 `ai_job` 표다. 칸은 [표 설계 설명](../pjt_source/store-agent-db-desc.md#ai_job)에 있다.
 
+**시작 · 기준**
+
 - Spring이 작업을 시작할 때 행을 먼저 만들고, `ai_job_id` 를 Python에 `jobId` 로 넘긴다.
 - Python의 보고 · 내부 호출에서 매장 · 사용자는 **이 행으로 정한다.** 요청 본문 · 경로의 `storeId` 를 쓰지 않는다.
+- 같은 매장 · 같은 `job_type` 으로 진행 중(`PENDING` · `RUNNING` · `WAITING_AUTH`)인 작업은 하나만 있을 수 있다 (조건부 유일 인덱스). 버튼을 두 번 눌러도 작업이 두 개 생기지 않는다. 발주 실행도 매장당 하나씩이다 ([아키텍처 배포 범위](architecture.md#배포-범위): 매장당 실행기 변경 명령 1개). 두 번째 요청은 실패로 돌려주지 않고 앞 작업이 끝난 뒤 시작한다.
+- 화면은 이 표만 본다. Python 작업 등록부 · 체크포인트를 화면이 직접 보지 않는다.
+
+**보고**
+
 - 보고 순번은 `last_report_seq` 와 비교한다. 같으면 중복이라 무시하고, 작으면 순서가 뒤바뀐 것이라 거절하고, 크면 반영한다.
-- `CANCELED` · `SUPERSEDED` 작업의 보고는 거절한다.
+- **끝난 작업(`SUCCEEDED` · `FAILED` · `CANCELED` · `SUPERSEDED`)의 보고는 모두 거절한다.** 늦게 온 보고가 끝난 작업을 되살리지 않게 한다.
+- 보고 반영과 만료 처리는 조건부로 갱신한다 (`WHERE status IN (진행 중) AND last_report_seq < :seq`). 스케줄러와 늦은 보고가 동시에 와도 한쪽만 반영된다.
 - 작업에 이미 `suggestion_id` 가 있으면, 같은 작업의 제안 저장 요청은 새 버전을 만들지 않고 기존 제안을 돌려준다 (응답 유실 후 재시도로 제안이 두 번 생기는 것을 막는다).
 - `suggestion_id` · `execution_id` 를 연결할 때 그 행의 `store_id` 가 `ai_job.store_id` 와 같은지 서비스에서 확인한다. DB FK는 매장까지 확인하지 않는다.
-- 같은 `workflow_key` 로 진행 중(`PENDING` · `RUNNING` · `WAITING_AUTH`)인 작업은 하나만 있을 수 있다 (조건부 유일 인덱스).
-- 화면은 이 표만 본다. Python 작업 등록부 · 체크포인트를 화면이 직접 보지 않는다.
+
+**기한 (`expires_at`)**
+
+- Spring은 작업을 만들 때 `expires_at` 을 작업 종류별 제한 시간으로 채우고, 보고가 오면 연장한다.
+- 보고로 `WAITING_AUTH` 가 되면 `expires_at` 을 인증 대기 기한으로 다시 정한다. 대기 중에는 보고가 오지 않기 때문이다.
+- 기한이 지난 작업은 스케줄러가 정리한다. Python 장애로 `RUNNING` 에 멈춰 있지 않게 한다.
+  - 제안 · 분석 작업: `FAILED`(`error_code` `TIMED_OUT`)로 끝낸다.
+  - **발주 실행(`PURCHASE_EXECUTE`)은 시간 초과로 `FAILED` 처리하지 않는다.** 주문이 이미 나갔을 수 있으므로 연결된 `execution` 을 `CHECKING` 으로 두고 외부 주문 내역부터 확인한다 ([도메인 규칙 주문 · 결제 · 입고 결과](domain.md#주문--결제--입고-결과)). `ai_job` 은 확인 결과가 나온 뒤 닫는다.
 
 ## AI 작업 저장소 (설계 예정)
 
