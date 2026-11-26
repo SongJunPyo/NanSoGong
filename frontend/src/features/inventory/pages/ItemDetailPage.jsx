@@ -5,7 +5,7 @@ import { Button, ButtonRow, Card, Eyebrow, H2, KV } from '@/components/common/ui
 import StockBar from '@/features/inventory/components/StockBar'
 import { useInventory } from '@/features/inventory/queries'
 import { ITEM_UNITS } from '@/features/inventory/mock'
-import { dayText, stockInfo, stockMessage } from '@/features/inventory/stock'
+import { STATES, emptyText, qtyText, reasonText, stockInfo } from '@/features/inventory/stock'
 import { won } from '@/lib/format'
 
 const shortDate = (iso) => iso?.slice(5).replace('-', '.')
@@ -26,7 +26,6 @@ export default function ItemDetailPage() {
 
   const info = stockInfo(item)
   const unit = ITEM_UNITS.find((u) => u.value === item.unit)?.label ?? ''
-  const pack = item.packLabel ?? '개'
   const low = info.state === 'low'
 
   return (
@@ -43,28 +42,34 @@ export default function ItemDetailPage() {
       }
     >
       <Card>
-        <Eyebrow>지금 남은 양</Eyebrow>
-        <div className="flex items-baseline gap-1.5">
-          <span className={`num text-[30px] font-bold ${low ? 'text-danger' : 'text-woori-deep'}`}>
-            {won(info.packs)}
-            {pack}
+        <div className="flex items-center gap-2">
+          <Eyebrow>지금 남은 양</Eyebrow>
+          <span className={`ml-auto rounded-md px-2 py-1 text-[13px] leading-none font-bold ${STATES[info.state].badge}`}>
+            <span aria-hidden="true">{STATES[info.state].mark}</span> {STATES[info.state].label}
           </span>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <span className="num text-[30px] font-bold text-ink">{qtyText(info.left)}</span>
           {item.packSize > 1 && (
             <span className="num text-label text-ink-sub">
-              {won(info.stock)}
+              {won(info.left * item.packSize)}
               {unit}
             </span>
           )}
         </div>
-        <p className={`text-label ${low ? 'font-bold text-danger' : 'text-ink-sub'}`}>{stockMessage(item, info)}</p>
-        <StockBar item={item} />
+        {(reasonText(info) || item.incoming) && (
+          <p className={`text-label ${info.state === 'incoming' ? 'font-bold text-woori-deep' : 'text-ink-sub'}`}>
+            {item.incoming ? `${item.incoming.arriveDays === 1 ? '내일' : `${item.incoming.arriveDays}일 뒤`} ${qtyText(item.incoming.qty)} 도착 예정` : reasonText(info)}
+          </p>
+        )}
+        <StockBar item={item} info={info} />
       </Card>
 
       <Card tone="line">
         <H2>운영 기준</H2>
-        {item.safeStock != null && <KV label="적정 재고" value={`${won(item.safeStock)}${unit}`} />}
-        {item.dailyUse != null && <KV label="하루 평균 사용" value={`${won(item.dailyUse)}${unit}`} />}
-        {info.daysLeft != null && <KV label="다 떨어지는 날" value={dayText(info.daysLeft)} tone={low ? 'warn' : 'ink'} />}
+        {info.safe != null && <KV label="적정 재고" value={qtyText(info.safe)} />}
+        {info.perDay != null && <KV label="하루 평균 사용" value={qtyText(Math.round(info.perDay * 10) / 10)} />}
+        {info.daysLeft != null && <KV label="다 떨어지는 때" value={emptyText(info.daysLeft)} tone={low ? 'warn' : 'ink'} />}
         <KV label="최근 실사" value="11.15" />
         {item.id === 'milk' && (
           <p className="flex items-center gap-1.5 text-[13px] font-medium text-woori-blue">
@@ -75,12 +80,12 @@ export default function ItemDetailPage() {
 
       {item.lots?.length > 0 && (
         <Card tone="line">
-          <H2>입고분별 남은 양</H2>
-          {item.lots.map((lot) => (
+          <H2>입고분별 남은 양 · 소비기한 빠른 순</H2>
+          {[...item.lots].filter((lot) => lot.qty > 0).sort((a, b) => (a.expiresAt ?? '9').localeCompare(b.expiresAt ?? '9')).map((lot) => (
             <KV
               key={lot.id}
               label={`${shortDate(lot.receivedAt)} 입고${lot.expiresAt ? ` · ~${shortDate(lot.expiresAt)}` : ''}`}
-              value={`${lot.qty}${pack}`}
+              value={qtyText(lot.qty)}
             />
           ))}
         </Card>
