@@ -2,6 +2,7 @@ package com.nansogong.dto;
 
 import com.nansogong.model.RecipeAppliesTo;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
@@ -20,7 +21,7 @@ public record RecipeSaveRequest(
      */
     public record Line(
             @NotNull Long itemId,
-            @NotNull BigDecimal quantity,
+            @NotNull @Digits(integer = 16, fraction = 3) BigDecimal quantity,   // DB DECIMAL(19,3): 소수 4자리부터 400
             RecipeAppliesTo appliesTo
     ) {}
 }
