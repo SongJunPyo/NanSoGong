@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, Search, X } from 'lucide-react'
+import { ChevronDown, Plus, Search, X } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
 import { Pill } from '@/components/common/ui'
 import StockBar from '@/features/inventory/components/StockBar'
 import InventoryTabs from '@/features/inventory/components/InventoryTabs'
 import PullToRefresh from '@/features/inventory/components/PullToRefresh'
 import { useInventory } from '@/features/inventory/queries'
+import { ITEM_CATEGORIES } from '@/features/inventory/mock'
 import { byUrgency, stockInfo, stockMessage } from '@/features/inventory/stock'
 import { EmptyState } from '@/components/ui/empty-state'
 import { toast } from '@/components/ui/toast'
@@ -19,7 +20,7 @@ const FILTERS = [
 const STATE_PILL = { low: ['warn', '부족'], expiring: ['amber', '임박'], check: ['gray', '실사 필요'] }
 
 /**
- * 21 재고 (UF-10) — 급한 것부터 한 줄씩
+ * 21 재고 (UF-10) — 분류별로 묶고, 분류 안에서는 급한 것부터 한 줄씩
  *   카드: 이름 · 상태, 사람 말 한 줄("내일 떨어져요 · 4팩 남음"), 막대. 부족할 때만 [발주]
  *   숫자(ml · 적정 재고) · 입고분 · 실사 · 폐기 · 수정은 카드를 눌러 품목 상세에서
  */
@@ -28,10 +29,17 @@ export default function InventoryPage() {
   const [filter, setFilter] = useState('all')
   const [searching, setSearching] = useState(false)
   const [query, setQuery] = useState('')
+  const [closed, setClosed] = useState([]) // 접은 분류
 
   const items = allItems.map((i) => ({ ...i, info: stockInfo(i) })).sort(byUrgency)
   const count = (id) => (id === 'all' ? items.length : items.filter((i) => i.info.state === id).length)
   const shown = items.filter((i) => (filter === 'all' || i.info.state === filter) && i.name.includes(query.trim()))
+  // 분류 순서는 ITEM_CATEGORIES, 목록에 없는 분류는 '기타'로
+  const groups = ITEM_CATEGORIES.map((name) => ({
+    name,
+    items: shown.filter((i) => (ITEM_CATEGORIES.includes(i.category) ? i.category : '기타') === name),
+  })).filter((g) => g.items.length)
+  const toggleGroup = (name) => setClosed((list) => (list.includes(name) ? list.filter((x) => x !== name) : [...list, name]))
 
   const refresh = async () => {
     await refetch()
@@ -104,13 +112,36 @@ export default function InventoryPage() {
             <EmptyState kind="done" compact title="여기에 해당하는 품목이 없어요" />
           )
         ) : (
-          <ul className="grid gap-2.5 md:grid-cols-2">
-            {shown.map((i) => (
-              <li key={i.id}>
-                <ItemCard item={i} />
-              </li>
-            ))}
-          </ul>
+          groups.map((g) => {
+            const open = !closed.includes(g.name)
+            const lowCount = g.items.filter((i) => i.info.state === 'low').length
+            return (
+              <section key={g.name} aria-label={g.name} className="flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(g.name)}
+                  aria-expanded={open}
+                  className="flex items-center gap-2 rounded-lg py-1 text-left focus-visible:outline-2 focus-visible:outline-woori-blue"
+                >
+                  <span aria-hidden="true" className="h-5 w-1 rounded-full bg-woori-blue" />
+                  <span className="text-body font-bold text-ink">{g.name}</span>
+                  <span className="text-caption text-ink-mute">{g.items.length}개</span>
+                  <span aria-hidden="true" className="h-px flex-1 bg-line" />
+                  {lowCount > 0 && <Pill tone="warn">부족 {lowCount}</Pill>}
+                  <ChevronDown size={16} aria-hidden="true" className={`text-ink-mute transition-transform ${open ? 'rotate-180' : ''}`} />
+                </button>
+                {open && (
+                  <ul className="grid gap-2.5 md:grid-cols-2">
+                    {g.items.map((i) => (
+                      <li key={i.id}>
+                        <ItemCard item={i} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            )
+          })
         )}
 
         <Link
