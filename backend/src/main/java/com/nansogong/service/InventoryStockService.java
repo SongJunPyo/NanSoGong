@@ -28,9 +28,8 @@ import java.util.UUID;
  * 재고 수량: 초기 재고 · 실사 · 폐기 · 손실 기록과 추정 재고 계산 (구현-3-2, 3-4, 3-5, 3-6, UF-09 ~ 11).
  * 규칙은 docs/rules/domain.md 재고 계산.
  * 기록하는 메서드는 모두 품목 행을 잠그고 확인한다 → 같은 품목에 동시에 요청이 와도 확인과 저장이 섞이지 않는다.
+ * 모든 메서드는 맨 앞에서 StoreService.checkOwner 로 내 매장인지 확인한다 (남의 매장이면 403, docs/rules/db.md 매장 분리).
  *
- * TODO(매장 분리): 모든 메서드 맨 앞에서 StoreService.checkOwner(memberId, storeId) 를 부른다 (docs/rules/db.md 매장 분리).
- *   StoreService 가 아직 dev 에 없어서 비워 두었다. 그 전까지는 다른 매장 품목에 접근해도 403 이 나지 않는다.
  * TODO(예외): 공용 BusinessException · GlobalExceptionHandler 가 생기면 ResponseStatusException 을 업무 예외로 바꾼다.
  * TODO(원가): 폐기 · 손실의 unit_cost(발생 시점 단가 사본)는 단가 이력(item_cost) 조회 계약이 정해지면 채운다. 지금은 비워 둔다.
  */
@@ -44,6 +43,7 @@ public class InventoryStockService {
     /** idempotency_key 칸이 VARCHAR(100) 이라 앞부분(ADJUST:)을 빼고 남는 길이 */
     private static final int MAX_CLIENT_KEY_LENGTH = 100 - ADJUSTMENT_KEY_PREFIX.length();
 
+    private final StoreService storeService;
     private final InventoryItemRepository inventoryItemRepository;
     private final InventoryStockCountRepository inventoryStockCountRepository;
     private final InventoryTransactionRepository inventoryTransactionRepository;
@@ -52,6 +52,7 @@ public class InventoryStockService {
     @Transactional
     public InventoryStockCountResponse setInitialStock(Long memberId, Long storeId, Long itemId,
                                                        InventoryStockCountRequest request) {
+        storeService.checkOwner(memberId, storeId);
         lockActiveItem(storeId, itemId, "초기 재고를 입력할");
         Instant countedAt = notFuture(request.countedAt(), "기준 일시");
         if (inventoryStockCountRepository.existsByItemIdAndCountType(itemId, InventoryStockCountType.INITIAL)) {
@@ -69,6 +70,7 @@ public class InventoryStockService {
      */
     @Transactional
     public InventoryStockCountResponse recordCount(Long memberId, Long storeId, Long itemId, InventoryStockCountRequest request) {
+        storeService.checkOwner(memberId, storeId);
         lockActiveItem(storeId, itemId, "실사를 등록할");
         Instant countedAt = notFuture(request.countedAt(), "실사 일시");
         InventoryStockCount latest = requireAfterLatestBase(itemId, countedAt, "실사 일시", true);
@@ -87,6 +89,7 @@ public class InventoryStockService {
     @Transactional
     public InventoryTransactionResponse recordAdjustment(Long memberId, Long storeId, Long itemId,
                                                          InventoryStockAdjustmentRequest request, String idempotencyKey) {
+        storeService.checkOwner(memberId, storeId);
         lockActiveItem(storeId, itemId, "폐기 · 손실을 등록할");
         String clientKey = idempotencyKey == null || idempotencyKey.isBlank() ? UUID.randomUUID().toString() : idempotencyKey.strip();
         if (clientKey.length() > MAX_CLIENT_KEY_LENGTH) {
@@ -114,6 +117,7 @@ public class InventoryStockService {
      */
     @Transactional(readOnly = true)
     public InventoryStockResponse getStock(Long memberId, Long storeId, Long itemId, OffsetDateTime at) {
+        storeService.checkOwner(memberId, storeId);
         InventoryItem item = inventoryItemRepository.findByIdAndStoreId(itemId, storeId)
                 .orElseThrow(() -> itemNotFound(itemId));
         Instant asOf = at == null ? Instant.now() : at.toInstant();
