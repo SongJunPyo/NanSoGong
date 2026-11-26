@@ -37,7 +37,7 @@ class InventoryStockDtoTest {
     }
 
     private Set<String> invalidFields(String qty, OffsetDateTime countedAt) {
-        var request = new InventoryInitialStockRequest(qty == null ? null : new BigDecimal(qty), countedAt, null);
+        var request = new InventoryStockCountRequest(qty == null ? null : new BigDecimal(qty), countedAt, null);
         return validator.validate(request).stream()
                 .map(ConstraintViolation::getPropertyPath)
                 .map(Object::toString)

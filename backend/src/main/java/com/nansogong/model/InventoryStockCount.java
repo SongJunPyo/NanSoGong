@@ -70,4 +70,13 @@ public class InventoryStockCount {
         stockCount.memo = memo;
         return stockCount;
     }
+
+    /** 실사. estimatedQty 는 그 시각의 추정 재고 (서버가 계산한 값). 실제 수량과의 차이를 나중에 볼 수 있게 남긴다 */
+    public static InventoryStockCount count(Long storeId, Long itemId, BigDecimal estimatedQty, BigDecimal countedQty,
+                                            Instant countedAt, String memo) {
+        InventoryStockCount stockCount = initial(storeId, itemId, countedQty, countedAt, memo);
+        stockCount.countType = InventoryStockCountType.COUNT;
+        stockCount.estimatedQty = estimatedQty;
+        return stockCount;
+    }
 }

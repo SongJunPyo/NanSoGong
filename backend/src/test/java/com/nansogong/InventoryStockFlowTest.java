@@ -1,7 +1,7 @@
 package com.nansogong;
 
 import com.jayway.jsonpath.JsonPath;
-import com.nansogong.dto.InventoryInitialStockRequest;
+import com.nansogong.dto.InventoryStockCountRequest;
 import com.nansogong.model.InventoryItem;
 import com.nansogong.model.InventoryTransaction;
 import com.nansogong.model.InventoryTransactionType;
@@ -164,8 +164,8 @@ class InventoryStockFlowTest {
 
     @Test
     void 동시에_두번_요청해도_하나만_저장된다() throws Exception {
-        var request1 = new InventoryInitialStockRequest(new BigDecimal("100"), baseAt.atOffset(ZoneOffset.UTC), null);
-        var request2 = new InventoryInitialStockRequest(new BigDecimal("200"), baseAt.plusSeconds(60).atOffset(ZoneOffset.UTC), null);
+        var request1 = new InventoryStockCountRequest(new BigDecimal("100"), baseAt.atOffset(ZoneOffset.UTC), null);
+        var request2 = new InventoryStockCountRequest(new BigDecimal("200"), baseAt.plusSeconds(60).atOffset(ZoneOffset.UTC), null);
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(2);
         try {
