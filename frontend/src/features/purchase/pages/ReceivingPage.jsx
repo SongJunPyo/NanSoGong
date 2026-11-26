@@ -15,10 +15,11 @@ const PROBLEM_ERROR_ID = 'receiving-problem-error'
 // 28 정정 요청 화면과 같은 요청 종류
 const CORRECTION_TYPES = ['재배송', '교환', '환불']
 const RECEIVED_AT = '2026-11-26'
-// 목업: 오늘 도착한 발주 품목 (itemId = 재고 품목 id)
+// 목업: 오늘 도착한 발주 품목 (itemId = 재고 품목 id) — purchase/mock 의 o4 · o7, inventory/mock 의 incoming 과 같은 값
+//   expiresAt: null 이면 소비기한이 없는 품목 (칸을 그리지 않는다)
 const DELIVERY = [
-  { itemId: 'milk', name: '우유 1L', ordered: 10, expiresAt: '2026-11-28' },
-  { itemId: 'bean', name: '원두 1kg', ordered: 2, expiresAt: '2027-02-26' },
+  { itemId: 'financier', name: '휘낭시에', ordered: 20, expiresAt: '2026-12-01' },
+  { itemId: 'lid', name: '뚜껑', ordered: 300, expiresAt: null },
 ]
 
 const n = (v) => (v === '' ? 0 : v)
@@ -120,12 +121,14 @@ export default function ReceivingPage() {
               {r.receivedError || (r.missing > 0 ? `${r.missing}개가 덜 왔어요. 미입고로 남겨요.` : '')}
             </InlineError>
           </div>
-          <Field
-            label="소비기한"
-            placeholder={r.expiresAt}
-            value={expires[r.itemId]}
-            onChange={(e) => setExpires((s) => ({ ...s, [r.itemId]: e.target.value }))}
-          />
+          {r.expiresAt !== null && (
+            <Field
+              label="소비기한"
+              placeholder={r.expiresAt}
+              value={expires[r.itemId]}
+              onChange={(e) => setExpires((s) => ({ ...s, [r.itemId]: e.target.value }))}
+            />
+          )}
         </Card>
       ))}
 

@@ -11,16 +11,16 @@
 //   safeStock : 적정 재고 (관리 단위)
 //   dailyUse  : 하루 평균 사용량 (관리 단위, 가정: 최근 7일 판매 × 레시피로 서버가 계산)
 //   draft     : AI 발주안 (개수 · 금액) — 부족 카드 버튼에 미리 보여 준다
-//   incoming  : 발주했지만 아직 안 온 수량 · 도착까지 남은 날
+//   incoming  : 발주했지만 아직 안 온 수량 · 도착까지 남은 날 (purchase/mock 의 진행 중 발주와 맞출 것)
 //   lots      : 입고분 — qty 는 남은 구매 단위 수, amount 는 그 입고분 구매 금액
 export const inventory = [
   {
     id: 'milk', name: '우유 1L', value: '추정 4개', tags: ['low'],
     category: '유제품', unit: 'ML', packSize: 1000, packLabel: '팩', packPrice: 2800, safeStock: 8000, dailyUse: 3400,
-    draft: { qty: 12, amount: 145800 }, // AI 발주안 (홈 브리핑 목업과 같은 값)
+    draft: { qty: 12, amount: 33600 }, // AI 발주안 중 이 품목 몫 (purchase/mock 의 orderRecommendation 우유 줄과 같은 값)
     lots: [
-      { id: 'milk-1114', receivedAt: '2026-11-14', qty: 3, amount: 8400, expiresAt: '2026-11-22' },
-      { id: 'milk-1117', receivedAt: '2026-11-17', qty: 1, amount: 2800, expiresAt: '2026-11-25' },
+      { id: 'milk-1124', receivedAt: '2026-11-24', qty: 3, amount: 8400, expiresAt: '2026-12-01' },
+      { id: 'milk-1125', receivedAt: '2026-11-25', qty: 1, amount: 2800, expiresAt: '2026-12-02' },
     ],
   },
   {
@@ -36,17 +36,18 @@ export const inventory = [
   {
     id: 'cup', name: '컵 16oz', value: '추정 320개', tags: ['check'],
     category: '포장재', unit: 'EA', packSize: 1, packLabel: '개', packPrice: 90, safeStock: 300, dailyUse: 35,
-    incoming: { qty: 500, arriveDays: 1 }, // 발주 완료 · 도착 전
     lots: [{ id: 'cup-1105', receivedAt: '2026-11-05', qty: 320, amount: 28800, expiresAt: null }],
   },
   {
     id: 'lid', name: '뚜껑', value: '추정 290개', tags: [],
     category: '포장재', unit: 'EA', packSize: 1, packLabel: '개', packPrice: 40, safeStock: 200, dailyUse: 35,
+    incoming: { qty: 300, arriveDays: 0 }, // 발주 o7 · 오늘 도착 (입고 확인 화면과 같은 값)
     lots: [{ id: 'lid-1105', receivedAt: '2026-11-05', qty: 290, amount: 11600, expiresAt: null }],
   },
   {
     id: 'financier', name: '휘낭시에', value: '추정 18개', tags: [],
     category: '디저트', unit: 'EA', packSize: 1, packLabel: '개', packPrice: 1500, safeStock: 12, dailyUse: 6,
+    incoming: { qty: 20, arriveDays: 0 }, // 발주 o4 부분 입고의 나머지 · 오늘 도착
     lots: [{ id: 'financier-1124', receivedAt: '2026-11-24', qty: 18, amount: 27000, expiresAt: '2026-11-29' }],
   },
 ]

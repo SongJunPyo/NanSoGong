@@ -8,7 +8,7 @@ import InventoryTabs from '@/features/inventory/components/InventoryTabs'
 import PullToRefresh from '@/features/inventory/components/PullToRefresh'
 import { useInventory } from '@/features/inventory/queries'
 import { ITEM_CATEGORIES } from '@/features/inventory/mock'
-import { DATA_AT, STATES, byUrgency, dayText, emptyText, qtyText, reasonText, stockInfo } from '@/features/inventory/stock'
+import { DATA_AT, STATES, byUrgency, emptyText, incomingText, qtyText, reasonText, stockInfo } from '@/features/inventory/stock'
 import { useIsDesktop } from '@/hooks/useViewport'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Modal } from '@/components/ui/modal'
@@ -38,7 +38,12 @@ function primaryAction(item, info) {
     const d = item.draft
     return { to: '/orders/recommendation', label: d ? `AI 발주안 보기 · ${qtyText(d.qty)} ${won(d.amount)}원` : 'AI 발주안 보기' }
   }
-  if (info.state === 'expiring') return { to: `/inventory/items/${item.id}`, label: '먼저 쓸 입고분 보기' }
+  if (info.state === 'expiring') {
+    // 기한이 이미 지났으면 폐기 등록, 아니면 먼저 쓸 입고분 (상세의 입고분 목록으로 바로)
+    return info.expired
+      ? { to: `/inventory/adjust/discard?item=${item.id}`, label: `기한 지난 ${qtyText(info.expired)} 폐기 등록` }
+      : { to: `/inventory/items/${item.id}#lots`, label: '먼저 쓸 입고분 보기' }
+  }
   return null
 }
 
@@ -106,7 +111,9 @@ export default function InventoryPage() {
           </div>
         ) : (
           <div className="flex items-center gap-1.5">
-            <div role="group" aria-label="재고 상태" className="flex gap-2 overflow-x-auto">
+            {/* 좁은 화면에서는 옆으로 밀어 보는 칩 — 오른쪽 흐림으로 더 있다는 단서를 준다 */}
+            <div className="relative min-w-0 flex-1">
+            <div role="group" aria-label="재고 상태" className="flex gap-2 overflow-x-auto pr-6 [scrollbar-width:none] sm:pr-0">
               {FILTERS.map((f) => {
                 const on = filter === f.id
                 return (
@@ -124,11 +131,13 @@ export default function InventoryPage() {
                 )
               })}
             </div>
+              <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent sm:hidden" />
+            </div>
             <button
               type="button"
               aria-label="품목 검색"
               onClick={() => setSearching(true)}
-              className="ml-auto inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted"
             >
               <Search size={20} />
             </button>
@@ -248,9 +257,7 @@ function ItemCard({ item, onDelete }) {
         <p className="num text-[24px] leading-tight font-bold text-ink">{qtyText(info.left)} 남음</p>
         {reason && <p className={`text-[13px] ${SUB}`}>{reason}</p>}
         {info.state === 'incoming' && (
-          <p className="text-[13px] font-bold text-woori-deep">
-            {dayText(item.incoming.arriveDays)} {qtyText(item.incoming.qty)} 도착 예정
-          </p>
+          <p className="text-[13px] font-bold text-woori-deep">{incomingText(item.incoming)}</p>
         )}
       </div>
 
@@ -277,11 +284,11 @@ function MoreMenu({ item, onDelete }) {
   const desktop = useIsDesktop()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  // '상세 보기'는 카드를 누르는 것과 같아서 뺐다 (힉의 법칙: 선택지 줄이기)
   const entries = [
     ['수정', `/inventory/items/${item.id}/edit`],
-    ['실사 등록', '/inventory/adjust'],
-    ['폐기 등록', '/inventory/adjust/discard'],
-    ['상세 보기', `/inventory/items/${item.id}`],
+    ['실사 등록', `/inventory/adjust?item=${item.id}`],
+    ['폐기 등록', `/inventory/adjust/discard?item=${item.id}`],
   ]
   const trigger =
     'relative z-10 -my-2 -mr-2 inline-flex size-11 shrink-0 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-woori-blue'
@@ -352,7 +359,11 @@ function MoreMenu({ item, onDelete }) {
   )
 }
 
-/** 웹: 분류별 표 한 줄 = 품목 · 상태 · 남은 양 · 막대 · 소진 시점 · 행동. 체크박스로 골라 한꺼번에 발주 */
+/**
+ * 웹: 표 하나 = 품목 · 상태 · 남은 양 · 막대 · 소진 시점 · 행동. 분류는 표 안의 묶음 줄로
+ *   (분류마다 표를 따로 그리면 열 위치가 표마다 달라 위아래 비교가 안 된다 → 열 너비 고정 · 머리줄 한 번)
+ *   체크박스로 골라 한꺼번에 발주
+ */
 function InventoryTable({ groups, closed, onToggle, onDelete }) {
   const navigate = useNavigate()
   const [selected, setSelected] = useState([])
@@ -361,9 +372,9 @@ function InventoryTable({ groups, closed, onToggle, onDelete }) {
   const toggle = (id) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       {picked.length > 0 && (
-        <div aria-live="polite" className="sticky top-[132px] z-10 flex items-center gap-2 rounded-input bg-woori-tint px-4 py-2.5 lg:top-[152px]">
+        <div aria-live="polite" className="sticky top-[152px] z-10 flex items-center gap-2 rounded-input bg-woori-tint px-4 py-2.5">
           <span className="text-label font-bold text-woori-deep">{picked.length}개 선택</span>
           <button
             type="button"
@@ -377,90 +388,99 @@ function InventoryTable({ groups, closed, onToggle, onDelete }) {
           </button>
         </div>
       )}
-      {groups.map((g) => {
-        const open = !closed.includes(g.name)
-        return (
-          <section key={g.name} aria-label={g.name} className="flex flex-col gap-2">
-            <GroupHead group={g} open={open} onToggle={() => onToggle(g.name)} />
-            {open && (
-              <div className="overflow-hidden rounded-card border border-line">
-                <table className="w-full text-left">
-                  <thead className={`bg-surface-muted text-caption ${SUB}`}>
-                    <tr>
-                      <th className="w-12 px-4 py-2.5">
-                        <span className="sr-only">선택</span>
-                      </th>
-                      <th className="py-2.5 font-medium">품목</th>
-                      <th className="py-2.5 font-medium">상태</th>
-                      <th className="py-2.5 text-right font-medium">남은 양</th>
-                      <th className="w-56 px-6 py-2.5 font-medium">적정 대비</th>
-                      <th className="py-2.5 font-medium">소진 시점</th>
-                      <th className="py-2.5 font-medium">
-                        <span className="sr-only">행동</span>
-                      </th>
-                      <th className="w-14" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {g.items.map((i) => {
-                      const action = primaryAction(i, i.info)
-                      return (
-                        <tr key={i.id} title={reasonText(i.info) || undefined} className="border-t border-line hover:bg-surface-muted/60">
-                          <td className="px-4 py-3">
-                            <input
-                              type="checkbox"
-                              aria-label={`${i.name} 선택`}
-                              checked={selected.includes(i.id)}
-                              onChange={() => toggle(i.id)}
-                              className="size-4 accent-woori-deep"
-                            />
-                          </td>
-                          <td className="py-3">
-                            <Link to={`/inventory/items/${i.id}`} className="text-body font-bold text-ink hover:text-woori-blue">
-                              {i.name}
+      <div className="overflow-hidden rounded-card border border-line">
+        <table className="w-full table-fixed text-left">
+          <colgroup>
+            <col className="w-12" />
+            <col className="w-[16%]" />
+            <col className="w-24" />
+            <col className="w-20" />
+            <col className="w-[18%]" />
+            <col />
+            <col className="w-56" />
+            <col className="w-14" />
+          </colgroup>
+          <thead className={`bg-surface-muted text-caption ${SUB}`}>
+            <tr>
+              <th className="px-4 py-2.5">
+                <span className="sr-only">선택</span>
+              </th>
+              <th className="py-2.5 font-medium">품목</th>
+              <th className="py-2.5 font-medium">상태</th>
+              <th className="py-2.5 pr-4 text-right font-medium">남은 양</th>
+              <th className="py-2.5 pr-6 font-medium">적정 대비</th>
+              <th className="py-2.5 font-medium">소진 · 도착</th>
+              <th className="py-2.5 font-medium">
+                <span className="sr-only">행동</span>
+              </th>
+              <th />
+            </tr>
+          </thead>
+          {groups.map((g) => {
+            const open = !closed.includes(g.name)
+            return (
+              <tbody key={g.name}>
+                <tr className="border-t border-line bg-white">
+                  <td colSpan={8} className="px-4 pt-2">
+                    <GroupHead group={g} open={open} onToggle={() => onToggle(g.name)} />
+                  </td>
+                </tr>
+                {open &&
+                  g.items.map((i) => {
+                    const action = primaryAction(i, i.info)
+                    return (
+                      <tr key={i.id} title={reasonText(i.info) || undefined} className="border-t border-line/60 hover:bg-surface-muted/60">
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`${i.name} 선택`}
+                            checked={selected.includes(i.id)}
+                            onChange={() => toggle(i.id)}
+                            className="size-4 accent-woori-deep"
+                          />
+                        </td>
+                        <td className="truncate py-3">
+                          <Link to={`/inventory/items/${i.id}`} className="text-body font-bold text-ink hover:text-woori-blue">
+                            {i.name}
+                          </Link>
+                        </td>
+                        <td className="py-3">
+                          <StateBadge state={i.info.state} />
+                        </td>
+                        <td className="num py-3 pr-4 text-right text-[18px] font-bold text-ink">{qtyText(i.info.left)}</td>
+                        <td className="py-3 pr-6">
+                          <StockBar item={i} info={i.info} />
+                        </td>
+                        <td className={`py-3 text-label ${SUB}`}>
+                          {i.info.state === 'incoming' ? (
+                            <span className="font-bold text-woori-deep">{incomingText(i.incoming)}</span>
+                          ) : (
+                            emptyText(i.info.daysLeft)
+                          )}
+                        </td>
+                        <td className="py-3 pr-2 text-right">
+                          {action && (
+                            <Link
+                              to={action.to}
+                              className={`inline-flex h-10 max-w-full items-center truncate rounded-lg px-3 text-caption font-bold ${
+                                i.info.state === 'low' ? 'bg-woori-deep text-white hover:bg-woori-blue' : 'border border-woori-deep text-woori-deep hover:bg-woori-tint'
+                              }`}
+                            >
+                              {action.label}
                             </Link>
-                          </td>
-                          <td className="py-3">
-                            <StateBadge state={i.info.state} />
-                          </td>
-                          <td className="num py-3 text-right text-[18px] font-bold text-ink">{qtyText(i.info.left)}</td>
-                          <td className="px-6 py-3">
-                            <StockBar item={i} info={i.info} />
-                          </td>
-                          <td className={`py-3 text-label ${SUB}`}>
-                            {i.info.state === 'incoming' ? (
-                              <span className="font-bold text-woori-deep">
-                                {dayText(i.incoming.arriveDays)} {qtyText(i.incoming.qty)} 도착
-                              </span>
-                            ) : (
-                              emptyText(i.info.daysLeft)
-                            )}
-                          </td>
-                          <td className="py-3 pr-2 text-right">
-                            {action && (
-                              <Link
-                                to={action.to}
-                                className={`inline-flex h-10 items-center rounded-lg px-3 text-caption font-bold whitespace-nowrap ${
-                                  i.info.state === 'low' ? 'bg-woori-deep text-white hover:bg-woori-blue' : 'border border-woori-deep text-woori-deep hover:bg-woori-tint'
-                                }`}
-                              >
-                                {action.label}
-                              </Link>
-                            )}
-                          </td>
-                          <td className="py-3 pr-3 text-right">
-                            <MoreMenu item={i} onDelete={() => onDelete(i)} />
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        )
-      })}
+                          )}
+                        </td>
+                        <td className="py-3 pr-3 text-right">
+                          <MoreMenu item={i} onDelete={() => onDelete(i)} />
+                        </td>
+                      </tr>
+                    )
+                  })}
+              </tbody>
+            )
+          })}
+        </table>
+      </div>
     </div>
   )
 }

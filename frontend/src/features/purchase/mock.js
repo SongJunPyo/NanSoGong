@@ -11,7 +11,7 @@ export const orderRecommendation = {
       unit: '개',
       supplier: '○○유통',
       channel: 'partner',
-      arrive: '11.20',
+      arrive: '11.27',
       price: 33600,
     },
     {
@@ -21,7 +21,7 @@ export const orderRecommendation = {
       unit: '개',
       supplier: '△△로스터리',
       channel: 'partner',
-      arrive: '11.21',
+      arrive: '11.28',
       price: 58000,
     },
     {
@@ -32,7 +32,7 @@ export const orderRecommendation = {
       supplier: '쿠팡',
       channel: 'coupang',
       searchQuery: '테이크아웃 컵 16oz 500개',
-      arrive: '11.22',
+      arrive: '11.27',
       price: 51200,
     },
   ],
@@ -105,7 +105,8 @@ export const priceCompare = {
 // 26-0 발주 목록
 //   group : 탭 분류 — progress(진행 중) | done(완료) | issue(실패·확인 필요: 사장님이 손써야 함)
 export const orders = [
-  { id: 'o1', title: '우유 1L × 10', sub: '11.19 · ○○유통', status: '배송 중', tone: 'blue', to: '/orders/o1', group: 'progress' },
+  // 진행 중 발주는 inventory/mock 의 incoming 과 맞춘다 (재고 카드가 '입고 예정'으로 보여 중복 주문을 막는다)
+  { id: 'o7', title: '뚜껑 × 300', sub: '11.25 · ○○유통 · 오늘 도착', status: '배송 중', tone: 'blue', to: '/orders/o1', group: 'progress' },
   {
     id: 'o2',
     title: '원두 1kg × 2',
@@ -124,7 +125,8 @@ export const orders = [
     to: '/orders/o1',
     group: 'issue',
   },
-  { id: 'o4', title: '휘낭시에 생지 × 40', sub: '11.17 · ○○유통', status: '부분 입고', tone: 'blue', to: '/orders/o1', group: 'progress' },
+  { id: 'o4', title: '휘낭시에 생지 × 40', sub: '11.24 · ○○유통 · 20개 오늘 도착', status: '부분 입고', tone: 'blue', to: '/orders/o1', group: 'progress' },
+  { id: 'o1', title: '우유 1L × 10', sub: '11.19 · ○○유통 · 11.20 입고', status: '입고 완료', tone: 'ok', to: '/orders/o1', group: 'done' },
   { id: 'o5', title: '원두 1kg × 2', sub: '11.12 · △△로스터리 · 11.14 입고', status: '입고 완료', tone: 'ok', to: '/orders/o1', group: 'done' },
   { id: 'o6', title: '우유 1L × 12', sub: '11.10 · ○○유통 · 11.11 입고', status: '입고 완료', tone: 'ok', to: '/orders/o1', group: 'done' },
 ]

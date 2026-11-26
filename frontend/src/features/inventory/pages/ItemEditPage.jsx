@@ -171,7 +171,8 @@ export default function ItemEditPage() {
 
   return (
     <Screen title={item ? '품목 수정' : '품목 추가'}>
-      <Eyebrow>연동으로 불러온 정보 · 확인 필요 1개</Eyebrow>
+      {/* 연동으로 불러온 품목을 고칠 때만 — 새 품목에는 연동 정보가 없다 */}
+      {item && <Eyebrow>연동으로 불러온 정보 · 확인 필요 1개</Eyebrow>}
       {/* 제목은 입력 중인 품목명을 그대로 따라간다 */}
       <H1>{itemName.trim() || '새 품목'}</H1>
 
@@ -217,7 +218,7 @@ export default function ItemEditPage() {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <NumberField label={`구매 단가 · 1${packLabel}`} value={packPrice} onChange={setPackPrice} suffix="원" placeholder="2800" />
+        <NumberField label={`구매 단가 · 1${packLabel}`} value={packPrice} onChange={setPackPrice} suffix="원" placeholder="예: 2800" />
         {unitCost != null && (
           <p className="text-caption text-ink-sub">
             {unitLabel === '개' ? '1개' : `1${unitLabel}`}당 {unitCost.toLocaleString('ko-KR', { maximumFractionDigits: 4 })}원으로 원가를 계산해요
@@ -225,11 +226,16 @@ export default function ItemEditPage() {
         )}
       </div>
 
-      <Card tone="amber">
+      {/* 새 품목은 연동 정보가 없으니 '확인 필요' 안내 없이 고르기만 */}
+      <Card tone={item ? 'amber' : 'tint'}>
         <HeadRow title="공급처" size="text-base">
-          <Pill tone="amberWhite">확인 필요</Pill>
+          {item && <Pill tone="amberWhite">확인 필요</Pill>}
         </HeadRow>
-        <P tone="ink">연동 정보에 공급처가 두 곳이에요. 주로 쓰는 곳을 골라주세요.</P>
+        {item ? (
+          <P tone="ink">연동 정보에 공급처가 두 곳이에요. 주로 쓰는 곳을 골라주세요.</P>
+        ) : (
+          <P>주로 사는 곳을 골라 주세요. 목록에 없으면 추가할 수 있어요.</P>
+        )}
         <Chips items={suppliers} />
         <div>
           <Button variant="text" onClick={() => setSheetOpen(true)}>
@@ -351,9 +357,6 @@ export default function ItemEditPage() {
       <ButtonLoading loading={save.isPending} loadingText="저장하고 있어요" onClick={saveItem}>
         저장
       </ButtonLoading>
-      <div>
-        <Button variant="text">품목 삭제</Button>
-      </div>
     </Screen>
   )
 }

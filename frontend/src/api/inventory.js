@@ -43,8 +43,10 @@ export async function saveInventoryItem(storeId, id, patch) {
 
 /** 입고 확정 — 정상 수량만 새 입고분으로 더한다 (AGENTS 5-4: 정상 입고 확인 수량만 재고 반영) */
 export async function receiveInventoryItem(storeId, id, { qty, receivedAt, expiresAt }) {
+  // 받았으니 '입고 예정' 표시는 끝낸다
   return replaceItem(storeId, id, (item) => ({
     ...item,
+    incoming: undefined,
     lots: [
       ...(item.lots ?? []),
       { id: `${id}-${Date.now()}`, receivedAt, qty, amount: qty * (item.packPrice ?? 0), expiresAt },
