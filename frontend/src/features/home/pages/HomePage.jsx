@@ -19,12 +19,15 @@ import { CoachMark } from '@/components/ui/coach-mark'
 
 // 첫 로그인 안내 — 이 기기에서 처음 홈을 열 때 한 번만 (localStorage 에 본 기록만 남긴다)
 const COACH_STEPS = [
+  { target: 'home-approvals', title: '할 일', body: '승인 · 입고 확인처럼 사장님이 할 일을 급한 것부터 모아 보여 드려요.' },
   { target: 'home-sales', title: '오늘 매출', body: 'POS 매출을 실시간으로 모아 보여 드려요.' },
-  { target: 'home-approvals', title: '할 일', body: '승인 · 입고 확인처럼 사장님이 할 일을 모아 보여 드려요.' },
   { target: 'home-calendar', title: '운영 캘린더', body: '입고 · 프로모션 · 휴무 일정을 한눈에 볼 수 있어요.' },
 ]
 
-/** 11 홈 — 매출·수요 요약, AI 운영 브리핑, 월별 운영 캘린더 (UF-05) */
+/**
+ * 11 홈 (UF-05) — HCI 배치: 할 일(행동) → 오늘 매출(정보) → 캘린더(계획)
+ *   휴대폰에서는 위에서부터 이 순서, PC에서는 왼쪽 할 일 · 오른쪽 매출 + 캘린더
+ */
 export default function HomePage() {
   const home = useHome()
   const { data } = home
@@ -51,8 +54,8 @@ export default function HomePage() {
     <Screen title="오늘의 매장 운영" eyebrow={<StoreSwitcher />} headerActions={<><HomeDate /><HeaderNotifications /></>} back={false} settings tab wide compact>
       <StoreLine />
       {/* AI 요약 — 숫자는 목업 aiSummary 와 브리핑 개수에서 계산 */}
-      <p className="-mt-2 text-label text-ink-sub">
-        판매·재고 데이터로 밤사이 {aiSummary.inventoryChecked}개 품목을 점검해 확인할 일 {todo.length}건을 골라 뒀어요.
+      <p className="-mt-2 text-label text-[#4B5563]">
+        밤사이 {aiSummary.inventoryChecked}개 품목을 점검해 할 일 {todo.length}건을 골라 뒀어요.
       </p>
       {/* 닫으면 같은 주에는 다시 띄우지 않는다 */}
       {data.orderFund && data.orderFund.planned > data.orderFund.balance && (
@@ -66,40 +69,42 @@ export default function HomePage() {
           발주 예정 {won(data.orderFund.planned)}원 · 통장 잔액 {won(data.orderFund.balance)}원
         </Banner>
       )}
-      <div data-coach="home-sales" className="flex min-w-0">
-        <Hero className="flex-1 justify-center">
-          <div className="flex items-center gap-2">
-            <HeroLabel>오늘 매출</HeroLabel>
-            <span className="num text-caption text-[#d9ebfa]">{updatedText}</span>
-            <button
-              type="button"
-              onClick={refreshSales}
-              disabled={refreshing}
-              aria-label={refreshing ? '오늘 매출을 불러오는 중이에요' : '오늘 매출 새로고침'}
-              className="-my-1 inline-flex size-8 items-center justify-center rounded-lg text-white/90 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white disabled:opacity-70"
-            >
-              <RefreshCw size={16} aria-hidden="true" className={refreshing ? 'animate-spin' : ''} />
-            </button>
-            <Link to="/sales" className="ml-auto text-caption font-bold text-white/90 hover:text-white">
-              더보기 ›
-            </Link>
-          </div>
-          <HeroValue size="text-[32px] leading-tight lg:text-[36px]">{won(data.sales.amount)}원</HeroValue>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-caption">
-            <span className="text-[#d9ebfa]">주문 {data.sales.orders}건</span>
-            <span className="ml-auto font-bold text-white">{data.sales.diff}</span>
-          </div>
-        </Hero>
-      </div>
-
       <div className="grid min-w-0 items-start gap-4 md:grid-cols-2">
-        {/* 날씨로 본 수요 예측을 브리핑 맨 위에 합쳤다 */}
+        {/* ① 지금 할 일 — 가장 먼저 (날씨 한 줄 포함) */}
         <HomeBriefing
-          items={todo} approvals={data.approvals} aiSummary={aiSummary}
-          forecast={data.forecast} onWeatherAnalyze={() => setWeatherOpen(true)}
+          items={todo} approvals={data.approvals}
+          onWeatherAnalyze={() => setWeatherOpen(true)}
           isPending={briefing.isPending} error={briefing.error}
         />
-        <HomeCalendar events={calendar.data ?? []} isPending={calendar.isPending} error={calendar.error} />
+        {/* ② 오늘 매출 ③ 캘린더 */}
+        <div className="flex min-w-0 flex-col gap-4">
+          <div data-coach="home-sales" className="flex min-w-0">
+            <Hero className="flex-1 justify-center">
+              <div className="flex items-center gap-2">
+                <HeroLabel>오늘 매출</HeroLabel>
+                <span className="num text-caption text-[#d9ebfa]">POS {updatedText}</span>
+                <button
+                  type="button"
+                  onClick={refreshSales}
+                  disabled={refreshing}
+                  aria-label={refreshing ? '오늘 매출을 불러오는 중이에요' : '오늘 매출 새로고침'}
+                  className="-my-2 inline-flex size-11 items-center justify-center rounded-lg text-white/90 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white disabled:opacity-70"
+                >
+                  <RefreshCw size={18} aria-hidden="true" className={refreshing ? 'animate-spin' : ''} />
+                </button>
+                <Link to="/sales" className="-my-2 -mr-2 ml-auto inline-flex min-h-11 items-center px-2 text-label font-bold text-white hover:underline">
+                  더보기 ›
+                </Link>
+              </div>
+              <HeroValue size="text-[32px] leading-tight lg:text-[36px]">{won(data.sales.amount)}원</HeroValue>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-caption">
+                <span className="text-[#d9ebfa]">주문 {data.sales.orders}건</span>
+                <span className="ml-auto font-bold text-white">{data.sales.diff}</span>
+              </div>
+            </Hero>
+          </div>
+          <HomeCalendar events={calendar.data ?? []} isPending={calendar.isPending} error={calendar.error} />
+        </div>
       </div>
       {/* 날씨 데이터 기반 수요 예측 — 화면 이동 없이 팝업에서 분석 과정 → 결과 */}
       <Sheet open={weatherOpen} onOpenChange={setWeatherOpen} title="날씨 데이터 기반 수요 예측" description="성수동 기준 · 기상청 예보">

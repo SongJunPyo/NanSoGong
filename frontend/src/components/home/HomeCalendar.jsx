@@ -58,13 +58,13 @@ export default function HomeCalendar({ events, isPending, error }) {
       </div>
 
       <div className="mb-2 grid grid-cols-[1fr_auto_1fr] items-center gap-1">
-        <button type="button" aria-label="이전 달" onClick={() => moveMonth(-1)} className="flex size-8 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted">
+        <button type="button" aria-label="이전 달" onClick={() => moveMonth(-1)} className="flex size-11 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted">
           <ChevronLeft size={18} aria-hidden="true" />
         </button>
         <h3 aria-live="polite" className="text-label font-bold text-ink">{formatCalendarMonth(month)}</h3>
         <div className="flex items-center justify-end gap-1">
           <button type="button" onClick={() => { const current = todayDateKey(); setMonth(`${current.slice(0, 7)}-01`); setSelected(current) }} className="rounded-md bg-woori-tint px-2 py-1 text-caption font-bold text-woori-deep">오늘</button>
-          <button type="button" aria-label="다음 달" onClick={() => moveMonth(1)} className="flex size-8 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted">
+          <button type="button" aria-label="다음 달" onClick={() => moveMonth(1)} className="flex size-11 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted">
             <ChevronRight size={18} aria-hidden="true" />
           </button>
         </div>
