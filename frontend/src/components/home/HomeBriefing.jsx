@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight, Sparkles } from 'lucide-react'
+import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react'
 import { WeatherIcon } from '@/components/common/ui'
 import { HOME_SEVERITIES, sortHomeNotifications } from '@/utils/home'
 import { Badge } from '@/components/ui/badge'
@@ -58,6 +58,8 @@ function BriefingWeather({ forecast, onAnalyze }) {
 export default function HomeBriefing({ items, approvals, aiSummary, forecast, onWeatherAnalyze, isPending, error }) {
   const notifications = items
   const [filter, setFilter] = useState('all')
+  const [open, setOpen] = useState([]) // 상세를 펼친 항목 id
+  const toggle = (id) => setOpen((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
   const sorted = sortHomeNotifications(notifications)
   const visible = sorted.filter((notification) => filter === 'all' || notification.severity === filter)
   const representedActions = new Set(visible.map((notification) => notification.to))
@@ -122,31 +124,48 @@ export default function HomeBriefing({ items, approvals, aiSummary, forecast, on
             const approval = approvals.find((item) => item.to === notification.to)
             return (
               <li key={notification.id}>
-                <Link
-                  to={notification.to}
-                  className={`relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-input border py-3 pr-3 pl-4 transition-colors focus-visible:outline-2 focus-visible:outline-woori-blue ${look.card}`}
-                >
+                {/* 접힌 상태에서는 중요도 + 제목만. [더보기] 로 설명 · 근거 · 승인 버튼을 펼친다 */}
+                <div className={`relative flex min-w-0 flex-col overflow-hidden rounded-input border py-2.5 pr-2 pl-4 transition-colors ${look.card}`}>
                   <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${look.bar}`} />
-                  <div className="flex items-start gap-2">
-                    <span className={`mt-px shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold ${look.chip}`}>{severity.label}</span>
-                    <p className="min-w-0 flex-1 text-label leading-snug font-bold text-ink">{notification.title}</p>
-                    {!approval && <ChevronRight size={16} aria-hidden="true" className="mt-0.5 shrink-0 text-ink-mute" />}
+                  <div className="flex items-center gap-2">
+                    <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold ${look.chip}`}>{severity.label}</span>
+                    <Link
+                      to={notification.to}
+                      className="min-w-0 flex-1 text-label leading-snug font-bold text-ink hover:text-woori-blue focus-visible:outline-2 focus-visible:outline-woori-blue"
+                    >
+                      {notification.title}
+                    </Link>
+                    <button
+                      type="button"
+                      aria-expanded={open.includes(notification.id)}
+                      aria-controls={`briefing-detail-${notification.id}`}
+                      onClick={() => toggle(notification.id)}
+                      className="inline-flex min-h-8 shrink-0 items-center gap-0.5 rounded-lg px-1.5 text-caption font-bold text-ink-sub hover:bg-white/70 hover:text-ink focus-visible:outline-2 focus-visible:outline-woori-blue"
+                    >
+                      {open.includes(notification.id) ? '접기' : '더보기'}
+                      <ChevronDown
+                        size={14}
+                        aria-hidden="true"
+                        className={`transition-transform ${open.includes(notification.id) ? 'rotate-180' : ''}`}
+                      />
+                    </button>
                   </div>
-                  <p className="line-clamp-2 text-caption leading-relaxed text-ink-sub">{notification.description}</p>
-                  {(notification.basis || approval) && (
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 pt-0.5">
+                  {open.includes(notification.id) && (
+                    <div id={`briefing-detail-${notification.id}`} className="flex flex-col gap-1.5 pt-1.5 pr-1.5">
+                      <p className="text-caption leading-relaxed text-ink-sub">{notification.description}</p>
                       {notification.basis && (
-                        <span className="min-w-0 flex-1 text-[11px] leading-snug text-ink-mute">근거 · {notification.basis}</span>
+                        <p className="text-[11px] leading-snug text-ink-mute">근거 · {notification.basis}</p>
                       )}
-                      {approval && (
-                        <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-woori-tint px-2.5 py-1 text-caption font-bold text-woori-deep">
-                          {approval.title} · {approval.value}
-                          <ChevronRight size={14} aria-hidden="true" />
-                        </span>
-                      )}
+                      <Link
+                        to={notification.to}
+                        className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-woori-tint px-2.5 py-1 text-caption font-bold text-woori-deep focus-visible:outline-2 focus-visible:outline-woori-blue"
+                      >
+                        {approval ? `${approval.title} · ${approval.value}` : '확인하러 가기'}
+                        <ChevronRight size={14} aria-hidden="true" />
+                      </Link>
                     </div>
                   )}
-                </Link>
+                </div>
               </li>
             )
           })}
