@@ -1,6 +1,6 @@
 # DB 규칙
 
-PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추측하지 말고 [전체 표 구조](../pjt_source/store-agent-db.sql)를 봅니다. 27개 표를 만드는 SQL이고, 마이그레이션 `V202611241000__create_store_agent_schema.sql` 과 내용이 같습니다. 설명은 [표 설계 설명](../pjt_source/store-agent-db-desc.md)에 있습니다.
+PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추측하지 말고 [전체 표 구조](../pjt_source/store-agent-db.sql)를 봅니다. 28개 표를 만드는 SQL이고, 마이그레이션 `V202611241000__create_store_agent_schema.sql`(27개 표)과 그 뒤에 추가한 마이그레이션(`ai_job`)을 합친 것과 내용이 같습니다. 설명은 [표 설계 설명](../pjt_source/store-agent-db-desc.md)에 있습니다.
 
 - 업무 규칙(차감 계산 · 결제 상태 전이 등)은 [도메인 규칙](domain.md)에 씁니다.
 - AI 작업 상태 저장 방식은 [AI 규칙](ai.md#상태-저장--재개)에 씁니다.
@@ -119,14 +119,27 @@ POS 원본 JSON은 `sales_order.raw_payload` (JSONB)에 **주문 단위로 통�
   | AI 추적 | `langsmith_trace_id` |
 
 - **미결제면 `paid_amount` · `paid_at` 이 둘 다 NULL이어야 한다.** 지금 DB `CHECK` 는 둘 중 하나만 채운 경우를 막지 못한다. 그래서 서비스에서 검증하고, 새 마이그레이션으로 제약을 보완해야 한다.
-- `suggestion.status` 에는 아직 "생성 중" · "생성 실패" 코드가 없다. `payload` · `evidence` 는 NOT NULL이다. 생성 상태 코드가 필요하면 새 마이그레이션으로 추가한다. 이때 `PENDING`(검토 대기)을 "생성 중"으로 같이 쓰지 않는다.
+- `suggestion.status` 에는 "생성 중" · "생성 실패" 코드가 없다. `payload` · `evidence` 는 NOT NULL이라 결과 전에는 행을 만들 수 없다. **생성 중 · 실패 상태는 `ai_job.status` 로 본다** ([AI 작업 기록](#ai-작업-기록-ai_job)). `PENDING`(검토 대기)을 "생성 중"으로 같이 쓰지 않는다.
 - `execution.approval_id` 는 필수다. 생성 작업을 넣으려고 가짜 승인을 만들지 않는다.
 - `lease_owner` · `lease_expires_at` 칸은 지금 없다. 여러 워커 처리 · 장애 후 자동 인계를 만들 때만 따로 검토한다. 없는 칸을 있다고 가정하지 않는다.
 - Java 코드에는 `EXPIRED` · `WAITING_AUTH` · `CHECKING` 이 아직 없다. 구현할 때 이 이름을 그대로 쓴다.
+
+## AI 작업 기록 (`ai_job`)
+
+AI 작업의 **기준 기록**은 Spring 업무 DB의 `ai_job` 표다. 칸은 [표 설계 설명](../pjt_source/store-agent-db-desc.md#ai_job)에 있다.
+
+- Spring이 작업을 시작할 때 행을 먼저 만들고, `ai_job_id` 를 Python에 `jobId` 로 넘긴다.
+- Python의 보고 · 내부 호출에서 매장 · 사용자는 **이 행으로 정한다.** 요청 본문 · 경로의 `storeId` 를 쓰지 않는다.
+- 보고 순번은 `last_report_seq` 와 비교한다. 같으면 중복이라 무시하고, 작으면 순서가 뒤바뀐 것이라 거절하고, 크면 반영한다.
+- `CANCELED` · `SUPERSEDED` 작업의 보고는 거절한다.
+- 작업에 이미 `suggestion_id` 가 있으면, 같은 작업의 제안 저장 요청은 새 버전을 만들지 않고 기존 제안을 돌려준다 (응답 유실 후 재시도로 제안이 두 번 생기는 것을 막는다).
+- `suggestion_id` · `execution_id` 를 연결할 때 그 행의 `store_id` 가 `ai_job.store_id` 와 같은지 서비스에서 확인한다. DB FK는 매장까지 확인하지 않는다.
+- 같은 `workflow_key` 로 진행 중(`PENDING` · `RUNNING` · `WAITING_AUTH`)인 작업은 하나만 있을 수 있다 (조건부 유일 인덱스).
+- 화면은 이 표만 본다. Python 작업 등록부 · 체크포인트를 화면이 직접 보지 않는다.
 
 ## AI 작업 저장소 (설계 예정)
 
 - Python 작업 등록부와 LangGraph 체크포인트는 업무 표와 **스키마 · DB 계정을 나눠** 둔다. 초기에는 같은 PostgreSQL 인스턴스를 쓴다.
 - Python 계정에는 업무 표 쓰기 권한을 주지 않는다. 업무 데이터는 Spring 내부 API로만 바꾼다.
 - 체크포인트 표의 생성 · 업그레이드는 버전을 고정한 뒤 배포 절차로 관리한다. 애플리케이션이 실행 중에 업무 스키마에 표를 만들지 않는다.
-- 작업 등록부 · 기기 등록 · 명령 기록 표는 아직 설계 전이다. 칸 이름을 추측해서 만들지 않는다.
+- Python 작업 등록부 · 기기 등록 · 명령 기록 표는 아직 설계 전이다. 칸 이름을 추측해서 만들지 않는다.

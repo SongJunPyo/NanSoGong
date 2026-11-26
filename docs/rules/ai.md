@@ -55,7 +55,7 @@ AI 작업(LangGraph 그래프 · 모델 호출 · 도구 · 프롬프트 · 수�
 
 ## 상태 저장 · 재개
 
-- 업무 상태와 승인 기록의 기준은 **Spring 업무 DB**다. 작업 진행은 Python 작업 등록부, 단계 · 중간 결과는 LangGraph 체크포인트에 둔다 ([아키텍처 상태 저장 위치](architecture.md#상태-저장-위치)).
+- 업무 상태와 승인 기록의 기준은 **Spring 업무 DB**다. AI 작업의 기준 기록은 Spring `ai_job`, 워커 내부 진행은 Python 작업 등록부, 단계 · 중간 결과는 LangGraph 체크포인트에 둔다 ([아키텍처 상태 저장 위치](architecture.md#상태-저장-위치)).
 - 승인 전 생성 정보는 `suggestion.generation_context`, 최종 제안 · 근거는 `payload` · `evidence`, 승인 후 외부 실행 진행은 `execution.runtime_context` 에 나눠 담는다 ([DB 규칙](db.md#발주--결제--제안--실행)).
 - context에는 **공통 필드 + 업무별 필드**를 검증된 모델로 정의한다. 대상은 작업 단계 · 작업 ID · 기준 시각 · 재시도 · 만료 · 재개 정보이고, 키는 camelCase다. 임의 구조나 인증 원문을 넣지 않는다.
 - 같은 업무 실행은 원자적으로 선점하고 중복 이벤트를 막는다. 내부 `idempotency_key` 만으로는 쇼핑몰 쪽 중복 주문까지 막을 수 없다.
