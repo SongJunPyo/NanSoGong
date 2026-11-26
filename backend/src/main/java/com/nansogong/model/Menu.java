@@ -86,4 +86,21 @@ public class Menu {
         option.parentMenuId = parentMenuId;
         return option;
     }
+
+    /** 이름 · 카테고리 · 가격 · 규격 수정 */
+    public void update(String name, String category, BigDecimal price, String spec) {
+        this.name = name;
+        this.category = category;
+        this.price = price;
+        this.spec = spec;
+    }
+
+    /** 판매중 / 품절 / 비활성. 메뉴는 지우지 않고 INACTIVE 로 둔다 (지난 매출이 이 메뉴를 가리키고 있어서) */
+    public void changeSaleStatus(MenuSaleStatus saleStatus) {
+        this.saleStatus = saleStatus;
+    }
+
+    public boolean isOption() {
+        return menuType == MenuType.OPTION;
+    }
 }
