@@ -107,6 +107,7 @@ public class InventoryItemNotFoundException extends BusinessException {
 | `GET /api/stores/{storeId}` | 내 매장 상세. 다른 계정은 `403` |
 | `PUT /api/stores/{storeId}` | `{ name, category, address, openTime, closeTime, closedDays }` → 저장한 매장. 다른 계정은 `403` |
 
+- 매장 목록의 기본 정렬은 `id`다. `sort`는 `id`, `name`, `bizName`, `bizRegNo`, `ownerName`, `businessOpenedOn`, `verifyStatus`, `verifiedAt`, `category`, `address`, `createdAt`, `updatedAt`만 허용한다. 알 수 없는 칸·중첩 경로·JSON 칸은 `400 INVALID_REQUEST`다. 정렬·페이지 지정 후에도 JWT 주인의 매장만 조회한다.
 - 휴대전화는 [SMS 수신 인증](#sms-수신-인증-sens)을 따른다. `MOCK`의 고정 코드는 개발용이며 `aws`·`prod` 프로필에서는 거절한다. `REAL`은 SENS 설정이 준비되어야 하며 실패 시 Mock으로 대체하지 않는다.
 - 인증 요청은 3분, 확인 증명은 10분이다. `expiresAt`은 epoch milliseconds다. 증명은 이름·번호에 묶이고 1회만 소비한다. Redis에는 개인정보 대신 HMAC 지문, 증명 원문 대신 해시 키를 저장한다. 코드 오류는 요청별 5회로 제한한다.
 - 가입에는 사업자 1~100개가 필요하다. 비밀번호는 영문·숫자·특수문자 포함 8~64자, 공백 제외, UTF-8 72바이트 이하다. BCrypt로 해시한다.
@@ -168,9 +169,11 @@ public class InventoryItemNotFoundException extends BusinessException {
 - Access 30분·Refresh 14일의 기존 설정을 사용한다. Access는 메모리의 Bearer 토큰, Refresh는 호스트 전용 `nansogong-refresh` HttpOnly 쿠키다. Path는 `/api/auth`다. `rememberMe=true`만 남은 세션 기간을 Max-Age로 설정하며 미선택은 브라우저가 관리하는 세션 쿠키다.
 - Redis에 세션 ID·회원 ID·자격 버전·Refresh HMAC·회전 이력·절대 만료 시각을 둔다. Refresh 원문은 저장하지 않는다. 회전해도 최초 14일 만료를 연장하지 않는다. Access는 Redis 세션 상태와 기존 `credentialVersion`을 모두 검증한다. 이전의 sid 없는 JWT는 재로그인이 필요하다.
 - Refresh는 원자적으로 회전한다. 이미 사용한 진짜 토큰의 재사용은 그 세션만 종료한다. 임의의 잘못된 토큰으로 다른 세션을 종료할 수 없다. 종료·만료·재사용된 세션은 아직 JWT 만료 전이어도 Access와 Refresh를 거절한다. 비밀번호 변경·LOCKED·WITHDRAWN 상태도 갱신 시 DB에서 재검사한다.
-- `GET /api/auth/csrf`가 현재 Refresh에 묶인 HMAC 토큰을 반환한다. 갱신·로그아웃에는 같은 쿠키와 `X-CSRF-Token`·`X-Nansogong-Auth: 1`을 요구한다. 로그인도 `X-Nansogong-Auth: 1`을 요구해 단순 폼 요청을 거절한다. Origin이 있으면 CORS의 정확한 허용 목록과 대조한다. 쿠키 인증 전용 필터에서 확인하며 Bearer 전용 업무 API에는 쿠키로 접근 권한을 주지 않는다.
+- `GET /api/auth/csrf`가 현재 Refresh에 묶인 HMAC 토큰을 반환한다. 갱신·로그아웃에는 같은 쿠키와 `X-CSRF-Token`·`X-Nansogong-Auth: 1`을 요구한다. 로그인도 `X-Nansogong-Auth: 1`을 요구해 단순 폼 요청을 거절한다. Origin이 있으면 서버가 확인한 요청의 scheme·host·port가 같은 출처이거나 CORS의 정확한 허용 목록에 있어야 한다. 임의의 `Forwarded`·`X-Forwarded-*`로 허용 출처를 결정하지 않는다. 쿠키 인증 전용 필터에서 확인하며 Bearer 전용 업무 API에는 쿠키로 접근 권한을 주지 않는다.
+- Swagger의 로그인·갱신·로그아웃에는 필수 헤더 입력을 표시한다. `X-Nansogong-Auth`의 기본값은 `1`이다. 갱신·로그아웃의 `X-CSRF-Token`에는 같은 브라우저 쿠키로 `/api/auth/csrf`에서 방금 조회한 값을 입력한다. 인증 Controller에는 전역 Bearer 요구를 붙이지 않는다. 로그인 응답의 Access를 Authorize에 입력하면 업무 API를 확인할 수 있다.
 - 쿠키·Access·CSRF 응답은 `Cache-Control: no-store`다. CORS는 기존 정확한 Origin·credentials 설정을 유지한다. 현재 로컬·dev HTTP는 Secure=false가 기본이며 HTTPS 환경은 true로 명시한다. SameSite 기본 Lax, 서로 다른 사이트가 필요한 환경만 None+Secure=true로 명시한다. 관련 변수는 [환경변수 목록](../../infra/secrets/README.md#키-목록)을 따른다.
 - 로그아웃은 현재 쿠키의 세션을 종료하고 동일 속성의 만료 쿠키를 반환한다. 해당 세션의 모든 Access도 차단한다. 다른 기기 세션을 일괄 종료하지 않는다. 저장소 오류는 인증을 허용하지 않으며 로그아웃 성공으로 표시하지 않는다.
+- JWT 검증에는 회원 자격 DB 조회와 Redis 세션 조회가 각각 필요하다. Redis 연결 장애 시 Bearer 보호 API는 `401`, 쿠키 조회·갱신·로그아웃은 저장소 접근 지점에서 `503`으로 실패한다. 세션이 삭제·만료된 경우의 `401`과 구분한다. 토큰 없는 공개 API는 Redis 장애만으로 일괄 `401` 처리하지 않는다.
 
 ### 회원탈퇴
 

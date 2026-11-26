@@ -9,6 +9,11 @@ import com.nansogong.service.AuthSessionService;
 import com.nansogong.service.AuthCookieService;
 import com.nansogong.service.AuthSmsDeliveryService;
 import com.nansogong.common.AppProperties;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.server.ResponseStatusException;
@@ -29,6 +34,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@SecurityRequirements
 public class AuthController {
 
     private final AuthService authService;
@@ -49,6 +55,9 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @Parameter(name = "X-Nansogong-Auth", in = ParameterIn.HEADER, required = true,
+            description = "로그인 CSRF 방어용 필수 헤더",
+            schema = @Schema(type = "string", allowableValues = {"1"}, defaultValue = "1"))
     public TokenResponse login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
         var session = authService.login(request);
         cookies.write(response, session);
@@ -63,6 +72,12 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
+    @Parameters({
+            @Parameter(name = "X-Nansogong-Auth", in = ParameterIn.HEADER, required = true,
+                    schema = @Schema(type = "string", allowableValues = {"1"}, defaultValue = "1")),
+            @Parameter(name = "X-CSRF-Token", in = ParameterIn.HEADER, required = true,
+                    description = "같은 Refresh 쿠키로 GET /api/auth/csrf에서 방금 조회한 csrfToken")
+    })
     public TokenResponse refresh(HttpServletRequest request, HttpServletResponse response) {
         try {
             var session = sessions.refresh(cookies.read(request));
@@ -72,6 +87,12 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @Parameters({
+            @Parameter(name = "X-Nansogong-Auth", in = ParameterIn.HEADER, required = true,
+                    schema = @Schema(type = "string", allowableValues = {"1"}, defaultValue = "1")),
+            @Parameter(name = "X-CSRF-Token", in = ParameterIn.HEADER, required = true,
+                    description = "같은 Refresh 쿠키로 GET /api/auth/csrf에서 방금 조회한 csrfToken")
+    })
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(HttpServletRequest request, HttpServletResponse response) {
         sessions.logout(cookies.read(request));

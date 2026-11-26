@@ -39,6 +39,18 @@ test('갱신 거절은 세션을 한 번만 지우고 원래 요청을 성공으
   assert.equal(h.calls.filter(c=>c.path==='/auth/refresh').length,0)
 })
 
+test('저장소 장애의 503은 로그인 상태를 유지하고 세션 종료의 401은 지운다', async () => {
+  for (const status of [503, 401]) {
+    const h = harness(path => path === '/auth/csrf'
+      ? response({ message: '인증 서버 응답 확인' }, status)
+      : response({ message: 'Access 확인 필요' }, 401))
+    await assert.rejects(h.request('/me'), error => error.status === status)
+    assert.equal(h.counters.expired, status === 401 ? 1 : 0)
+    assert.equal(h.state().accessToken, status === 401 ? null : 'old-access')
+    assert.deepEqual(h.calls.map(call => call.path), ['/me', '/auth/csrf'])
+  }
+})
+
 test('이전 계정의 늦은 401·성공 응답은 새 계정을 변경하거나 종료하지 않는다', async () => {
   for(const status of [200,401]) {
     const late=deferred(); const h=harness(()=>late.promise)

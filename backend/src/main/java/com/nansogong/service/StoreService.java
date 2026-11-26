@@ -20,11 +20,14 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class StoreService {
     private static final List<String> WEEK_DAYS = List.of("mon", "tue", "wed", "thu", "fri", "sat", "sun");
+    private static final Set<String> SORT_FIELDS = Set.of("id", "name", "bizName", "bizRegNo", "ownerName",
+            "businessOpenedOn", "verifyStatus", "verifiedAt", "category", "address", "createdAt", "updatedAt");
     private final StoreRepository storeRepository;
 
     @Transactional(readOnly = true)
@@ -36,6 +39,9 @@ public class StoreService {
 
     @Transactional(readOnly = true)
     public Page<StoreResponse> listMine(Long memberId, Pageable pageable) {
+        if (pageable.getSort().stream().anyMatch(order -> !SORT_FIELDS.contains(order.getProperty()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "정렬할 수 없는 매장 항목이 포함되어 있어요");
+        }
         return storeRepository.findByMemberId(memberId, pageable).map(StoreResponse::from);
     }
 

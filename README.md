@@ -138,6 +138,8 @@ npm run dev                       # 화면 5173
 
 SENS 실연동 준비 사항은 [인증 계약](docs/rules/backend.md#sms-수신-인증-sens)과 [환경변수 목록](infra/secrets/README.md#키-목록)을 따릅니다. `docker-compose.yml`과 `docker-compose.dev.yml`은 `VERIFICATION_MODE`·`SENS_*`·`AUTH_COOKIE_*`를 앱 환경으로 전달합니다. 기본은 MOCK이며 실제 발송은 명시적으로 REAL을 선택하고 SENS 설정을 준비해야 합니다. 현재 로컬·dev HTTP의 쿠키 기본은 `Secure=false`이며, HTTPS 환경에서는 `AUTH_COOKIE_SECURE=true`로 설정합니다. 환경변수 변경은 앱 컨테이너를 다시 생성해야 반영됩니다. 키를 출력하는 `docker compose config`나 환경변수 전체 출력으로 확인하지 않습니다.
 
+`CORS_ALLOWED_ORIGINS`도 앱 컨테이너에 전달합니다. dev의 Secrets에는 실제 화면 주소(`http://<dev 고정 IP>`, 끝의 `/` 제외)를 지정합니다. 로컬에서 nginx 화면을 8000 포트로 열면 `.env`의 예시처럼 해당 Origin도 추가합니다. Swagger 로그인은 `X-Nansogong-Auth` 입력의 기본값 `1`을 사용합니다. 갱신·로그아웃 방법은 [세션 계약](docs/rules/backend.md#로그인-유지--서버-로그아웃)을 따릅니다.
+
 ```bash
 cd frontend
 npm ci                            # 처음 한 번, 또는 package-lock.json 이 바뀐 날

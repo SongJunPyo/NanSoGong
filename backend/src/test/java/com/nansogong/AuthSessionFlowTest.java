@@ -122,6 +122,65 @@ class AuthSessionFlowTest {
                 .andExpect(status().isForbidden());
         me(a.access).andExpect(status().isOk()); me(b.access).andExpect(status().isOk());
     }
+    @ParameterizedTest @ValueSource(strings = {"http://localhost:8080", "http://localhost", "https://localhost:8443"})
+    void sameOriginSwaggerCanLoginRefreshAndLogoutWhileAllCsrfHeadersRemainRequired(String origin) throws Exception {
+        byte[] input = JSON.writeValueAsBytes(Map.of("loginId", "sessionowner", "password", PASSWORD));
+        mvc.perform(post(java.net.URI.create(origin + "/api/auth/login")).header("Origin", origin)
+                        .contentType(MediaType.APPLICATION_JSON).content(input))
+                .andExpect(status().isForbidden());
+        var loggedIn = mvc.perform(post(java.net.URI.create(origin + "/api/auth/login")).header("Origin", origin)
+                        .header("X-Nansogong-Auth", "1").contentType(MediaType.APPLICATION_JSON).content(input))
+                .andExpect(status().isOk()).andReturn();
+        Cookie first = loggedIn.getResponse().getCookie(AuthCookieService.NAME);
+        mvc.perform(post(java.net.URI.create(origin + "/api/auth/refresh")).header("Origin", origin)
+                        .cookie(first).header("X-Nansogong-Auth", "1"))
+                .andExpect(status().isForbidden());
+        var refreshed = mvc.perform(post(java.net.URI.create(origin + "/api/auth/refresh")).header("Origin", origin)
+                        .cookie(first).header("X-Nansogong-Auth", "1").header("X-CSRF-Token", csrf(first)))
+                .andExpect(status().isOk()).andReturn();
+        Cookie next = refreshed.getResponse().getCookie(AuthCookieService.NAME);
+        mvc.perform(post(java.net.URI.create(origin + "/api/auth/logout")).header("Origin", origin)
+                        .cookie(next).header("X-Nansogong-Auth", "1").header("X-CSRF-Token", csrf(next)))
+                .andExpect(status().isNoContent());
+        me(body(loggedIn, "accessToken")).andExpect(status().isUnauthorized());
+        me(body(refreshed, "accessToken")).andExpect(status().isUnauthorized());
+    }
+    @Test void allowedFrontendOriginWorksButForwardedHeadersCannotAuthorizeAForeignOrigin() throws Exception {
+        byte[] input = JSON.writeValueAsBytes(Map.of("loginId", "sessionowner", "password", PASSWORD));
+        mvc.perform(post("/api/auth/login").header("Origin", "http://localhost:5173").header("X-Nansogong-Auth", "1")
+                        .contentType(MediaType.APPLICATION_JSON).content(input))
+                .andExpect(status().isOk());
+        mvc.perform(post(java.net.URI.create("http://localhost:8080/api/auth/login"))
+                        .header("Origin", "https://attacker.invalid").header("X-Nansogong-Auth", "1")
+                        .header("Forwarded", "host=attacker.invalid;proto=https")
+                        .header("X-Forwarded-Host", "attacker.invalid").header("X-Forwarded-Proto", "https")
+                        .contentType(MediaType.APPLICATION_JSON).content(input))
+                .andExpect(status().isForbidden());
+    }
+    @Test void swaggerDocumentsRequiredAuthHeadersAndDoesNotAttachBearerToCookieAuthentication() throws Exception {
+        var document = JSON.readTree(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn()
+                .getResponse().getContentAsByteArray());
+        for (String path : List.of("/api/auth/login", "/api/auth/refresh", "/api/auth/logout")) {
+            var operation = document.path("paths").path(path).path("post");
+            assertThat(operation.has("security")).isTrue();
+            assertThat(operation.path("security").size()).isZero();
+            boolean authHeader = false, csrfHeader = false;
+            for (var parameter : operation.path("parameters")) {
+                if ("X-Nansogong-Auth".equals(parameter.path("name").asString())) {
+                    authHeader = true;
+                    assertThat(parameter.path("in").asString()).isEqualTo("header");
+                    assertThat(parameter.path("required").asBoolean()).isTrue();
+                    assertThat(parameter.path("schema").path("default").asString()).isEqualTo("1");
+                }
+                if ("X-CSRF-Token".equals(parameter.path("name").asString())) {
+                    csrfHeader = true;
+                    assertThat(parameter.path("required").asBoolean()).isTrue();
+                }
+            }
+            assertThat(authHeader).isTrue();
+            assertThat(csrfHeader).isEqualTo(!path.endsWith("/login"));
+        }
+    }
     @Test void logoutRevokesCurrentAccessAndRefreshAndClearsMatchingCookie() throws Exception {
         TestSession current = login("sessionowner", true), other = login("sessionowner", false);
         mvc.perform(post("/api/auth/logout").cookie(current.cookie).header("X-Nansogong-Auth", "1").header("X-CSRF-Token", csrf(current.cookie)))

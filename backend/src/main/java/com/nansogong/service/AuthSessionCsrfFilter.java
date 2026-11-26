@@ -9,6 +9,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpMethod;
+import org.springframework.web.cors.CorsUtils;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
@@ -29,9 +30,7 @@ public class AuthSessionCsrfFilter extends OncePerRequestFilter {
     }
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
         try {
-            String origin = request.getHeader("Origin");
-            if ((origin != null && !props.cors().allowedOrigins().contains(origin))
-                    || !"1".equals(request.getHeader("X-Nansogong-Auth"))) {
+            if (!originAllowed(request) || !"1".equals(request.getHeader("X-Nansogong-Auth"))) {
                 reject(response, 403); return;
             }
             if (!login.matches(request)) sessions.checkCsrf(cookies.read(request), request.getHeader("X-CSRF-Token"));
@@ -40,6 +39,16 @@ public class AuthSessionCsrfFilter extends OncePerRequestFilter {
             if (failure.getStatusCode().value() == 401) cookies.clear(response);
             reject(response, failure.getStatusCode().value());
         } catch (DataAccessException unavailable) { reject(response, 503); }
+    }
+    private boolean originAllowed(HttpServletRequest request) {
+        String origin = request.getHeader("Origin");
+        if (origin == null || props.cors().allowedOrigins().contains(origin)) return true;
+        try {
+            // Spring CORS와 같은 scheme·host·port 기준을 쓴다. 임의의 Forwarded 헤더는 신뢰하지 않는다.
+            return !CorsUtils.isCorsRequest(request);
+        } catch (IllegalArgumentException invalidOrigin) {
+            return false;
+        }
     }
     private void reject(HttpServletResponse response, int status) throws IOException {
         response.setStatus(status); response.setContentType("application/json;charset=UTF-8");

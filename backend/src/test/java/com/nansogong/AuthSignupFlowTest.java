@@ -311,6 +311,35 @@ class AuthSignupFlowTest {
         mvc.perform(get("/api/stores")).andExpect(status().isUnauthorized());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"missingProperty", "member.passwordHash", "memberId", "openHours"})
+    void invalidStoreSortReturnsBadRequestWithoutChangingMemberOrStores(String field) throws Exception {
+        signup(payload("sortowner", "1000000001")).andExpect(status().isCreated());
+        mvc.perform(get("/api/stores").param("sort", field + ",asc")
+                        .header("Authorization", "Bearer " + login("sortowner")))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        assertThat(memberCount()).isEqualTo(1);
+        assertThat(storeCount()).isEqualTo(1);
+    }
+
+    @Test
+    void storePaginationAndSortingKeepOtherMembersStoresOutOfTheResult() throws Exception {
+        signup(payload("sortowner", "1000000001", "1000000002")).andExpect(status().isCreated());
+        signup(payload("otherowner", "1000000003")).andExpect(status().isCreated());
+        String token = login("sortowner");
+        mvc.perform(get("/api/stores").param("sort", "bizRegNo,desc").param("size", "1").param("page", "0")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].bizRegNo").value("1000000002"));
+        mvc.perform(get("/api/stores").param("sort", "bizRegNo,desc").param("size", "1").param("page", "1")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].bizRegNo").value("1000000001"));
+        mvc.perform(get("/api/stores").param("sort", "id,desc").param("sort", "missingProperty,asc")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isBadRequest());
+    }
+
     private long memberCount() { return jdbc.queryForObject("SELECT count(*) FROM member", Long.class); }
     private long storeCount() { return jdbc.queryForObject("SELECT count(*) FROM store", Long.class); }
     private Map<String, String> business(String number) { return Map.of("bizRegNo", number, "ownerName", "테스트대표", "openingDate", "20000101", "bizName", "테스트 매장"); }
