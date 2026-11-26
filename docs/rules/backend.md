@@ -134,7 +134,7 @@ public class InventoryItemNotFoundException extends BusinessException {
 | `POST /api/auth/password-resets/completions` | `{ resetToken, password, passwordConfirm }` → `204` |
 
 - 실제 SMS 연동 전에는 고정 데모 계정 `demo-office` / `01000009001`, `demo-campus` / `01000009002`, `demo-home` / `01000009003`만 허용한다. DB의 현재 전화번호도 이 가짜 번호와 같아야 한다. 일반 가입 API는 이 데모 ID의 하이픈을 허용하지 않는다.
-- `MOCK` 모드에서만 기존 개발용 코드를 확인한다. `aws`·`prod` 프로필과 `REAL`의 일반 계정 흐름은 아래 계약을 따른다. 개발용 성공으로 대체하지 않는다.
+- 개발용 재설정은 `MOCK` 모드에서만 허용한다. `aws`·`prod` 프로필에서는 `503`으로 거절한다. `REAL`의 일반 계정 흐름은 아래 계약을 따르며 개발용 성공으로 대체하지 않는다.
 - 요청은 계정별 10분에 3회, 원격 주소별 10분에 20회다. 프록시 전달 헤더를 신뢰해 제한을 우회하게 하지 않는다. 초과는 `429 RATE_LIMITED`다.
 - 계정이 없거나 번호가 다르거나 대상이 아니어도 같은 요청 응답을 반환하며 인증 증명을 발급하지 않는다. Redis에는 개인정보 대신 목적별 HMAC 지문과 내부 ID·자격 버전을 저장한다.
 - 요청은 3분·오류 시도 5회, 재설정 권한은 5분·1회다. 가입용 휴대전화 증명과 서로 사용할 수 없다. 인증·재설정 권한 원문과 비밀번호를 로그에 남기지 않는다.
