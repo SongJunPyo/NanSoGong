@@ -3,7 +3,7 @@
 2026-11-24 · v1.1 설계 + 11/24 계약 반영 · 9개 도메인 · 28개 표 (27개 + `ai_job`) · PostgreSQL 17 기준
 
 > 📌 **기준은 SQL 입니다.** 이 문서는 [store-agent-db.sql](store-agent-db.sql) 을 사람이 읽기 쉽게 옮긴 것입니다.
-> 같은 SQL 이 Flyway 마이그레이션 [`V202611241000__create_store_agent_schema.sql`](../../backend/src/main/resources/db/migration/V202611241000__create_store_agent_schema.sql) 에 있습니다.
+> 같은 SQL 이 Flyway 마이그레이션 [`V202611241000__create_store_agent_schema.sql`](../../backend/src/main/resources/db/migration/V202611241000__create_store_agent_schema.sql)(27개 표)과 그 뒤 마이그레이션(`V202611262100__create_ai_job.sql`)에 나눠 있습니다.
 > 표를 바꿀 때는 **새 마이그레이션 → `store-agent-db.sql` → 이 문서** 순서로 같이 고칩니다 (머지된 마이그레이션은 고치지 않음).
 > v1.1 원본 설계(MySQL 8, 복수형 표 이름)는 git 기록에서 볼 수 있습니다.
 
@@ -274,9 +274,9 @@ erDiagram
   }
   ai_job {
     BIGINT ai_job_id PK
-    BIGINT store_id FK
+    BIGINT store_id FK, UK
     BIGINT requested_by_member_id FK
-    VARCHAR workflow_key UK
+    VARCHAR job_type UK
     BIGINT suggestion_id FK
     BIGINT execution_id FK
   }
@@ -922,27 +922,26 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `ai_job_id` | BIGINT | PK | N | 자동 증가 | AI 작업 ID. Python 에 jobId 로 넘긴다 |
-| `store_id` | BIGINT | FK→store | N |  | 매장. Python 보고 · 내부 호출의 매장 기준 |
+| `store_id` | BIGINT | FK→store, UQ† | N |  | 매장. Python 보고 · 내부 호출의 매장 기준 (job_type과 묶어 진행 중 작업은 하나) |
 | `requested_by_member_id` | BIGINT | FK→member | Y |  | 작업을 요청한 사용자. 정기 작업이면 NULL |
-| `job_type` | VARCHAR(30) |  | N |  | RECIPE_DRAFT 레시피초안 / NEW_MENU_SUGGEST 신메뉴추천 / PURCHASE_SUGGEST 발주제안 / PURCHASE_EXECUTE 발주실행 / COUPON_SUGGEST 쿠폰제안 / OPERATIONS_ANALYSIS 운영분석 |
-| `workflow_key` | VARCHAR(64) | UQ† | N |  | 동일 업무의 안정적인 키 (suggestion.workflow_key 와 같은 값). 진행 중 작업은 키마다 하나 |
+| `job_type` | VARCHAR(30) | UQ† | N |  | RECIPE_DRAFT 레시피초안 / NEW_MENU_SUGGEST 신메뉴추천 / PURCHASE_SUGGEST 발주제안 / PURCHASE_EXECUTE 발주실행 / COUPON_SUGGEST 쿠폰제안 / OPERATIONS_ANALYSIS 운영분석 |
+| `workflow_key` | VARCHAR(64) |  | N |  | 동일 업무의 안정적인 키 (suggestion.workflow_key 와 같은 값) |
 | `status` | VARCHAR(20) |  | N | `'PENDING'` | PENDING 접수 / RUNNING 진행중 / WAITING_AUTH 사용자 인증 대기 / SUCCEEDED 완료 / FAILED 실패 / CANCELED 취소 / SUPERSEDED 대체됨 |
 | `current_step` | VARCHAR(50) |  | Y |  | Python 이 마지막으로 보고한 단계 이름. 예: VALIDATE, SAVE |
 | `last_report_seq` | INTEGER |  | N | `0` | 마지막으로 반영한 보고 순번. 같으면 중복으로 무시, 작으면 순서 역전으로 거절 |
 | `request_params` | JSONB |  | N | `'{}'` | 작업 요청 조건 사본. 예: {"menuName":"딸기라떼"}. 키는 camelCase, 비밀값 · 개인정보는 넣지 않음 |
 | `suggestion_id` | BIGINT | FK→suggestion | Y |  | 작업 결과로 저장된 제안 버전. 제안을 만들지 않은 작업은 NULL |
 | `execution_id` | BIGINT | FK→execution | Y |  | 실행 작업(PURCHASE_EXECUTE)이 처리한 외부 실행. 다른 작업은 NULL |
-| `error_code` | VARCHAR(50) |  | Y |  | 실패 코드. 예: VALIDATION_FAILED, GENERATION_FAILED |
+| `error_code` | VARCHAR(50) |  | Y |  | 실패 코드. 예: VALIDATION_FAILED, GENERATION_FAILED, TIMED_OUT |
 | `error_msg` | VARCHAR(500) |  | Y |  | 사용자 안내 오류 |
 | `langsmith_trace_id` | VARCHAR(64) |  | Y |  | AI 추적 연결값. 서비스 원본이나 FK가 아님 |
 | `started_at` | TIMESTAMPTZ |  | Y |  | Python 이 처리를 시작한 시각 |
+| `expires_at` | TIMESTAMPTZ |  | N |  | 처리 기한. 지나면 Spring 스케줄러가 정리한다 |
 | `finished_at` | TIMESTAMPTZ |  | Y |  | 완료 · 실패 · 취소 · 대체로 끝난 시각 |
 
-제약: UQ†(workflow_key) WHERE status IN (PENDING, RUNNING, WAITING_AUTH) · CHECK(`last_report_seq >= 0`) · 인덱스(store_id, created_at DESC) · 공통 칸: created_at, updated_at
+제약: UQ†(store_id, job_type) WHERE status IN (PENDING, RUNNING, WAITING_AUTH) · CHECK(`last_report_seq >= 0`) · CHECK(진행 중 ⇔ `finished_at` NULL) · CHECK(FAILED 면 `error_code` 필수) · 인덱스(expires_at) WHERE 진행 중 · 인덱스(store_id, created_at DESC) · 공통 칸: created_at, updated_at
 
-- Spring 이 행을 먼저 만들고 `ai_job_id` 를 Python 에 jobId 로 넘긴다. Python 보고 · 내부 호출의 매장 · 사용자는 이 행 기준으로 정한다 (요청 본문 값을 쓰지 않음).
-- 취소(CANCELED) · 대체(SUPERSEDED)된 작업의 보고는 거절한다.
-- Python 작업 등록부 · LangGraph 체크포인트(`ai` 스키마)와 별개다. 업무 화면은 이 표만 본다.
+사용 규칙(작업 시작 순서 · 보고 순번 · 거절 · 만료 · 중복 방지)은 [DB 규칙 AI 작업 기록](../rules/db.md#ai-작업-기록-ai_job)에 있습니다.
 
 ## 쿠폰
 
