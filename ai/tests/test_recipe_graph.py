@@ -136,7 +136,7 @@ def test_running_finished_job_again_does_nothing():
 def test_prompt_lists_items_without_costs():
     prompt = build_prompt("딸기라떼", CONTEXT)
 
-    assert "1 | 딸기청 | g" in prompt
+    assert "1 | 딸기청 | G" in prompt
     assert "12.5" not in prompt                            # 단가는 LLM 에 보내지 않는다
     assert "이전 초안" not in prompt
 
@@ -145,7 +145,7 @@ def test_revise_prompt_contains_validation_problems():
     prompt = build_prompt("딸기라떼", CONTEXT, previous=BAD_DRAFT, validation=INVALID)
 
     assert "이전 초안" in prompt
-    assert "딸기청: 단위 '스푼' 을 관리 단위 g 으로 바꿀 수 없음" in prompt
+    assert "딸기청: 단위 ML 이 품목 관리 단위 G 와 다름" in prompt
     assert "우유:" not in prompt                            # 문제없는 재료는 문제 목록에 넣지 않는다
 
 

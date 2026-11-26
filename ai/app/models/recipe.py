@@ -6,10 +6,14 @@ Spring 쪽 API 가 아직 없으므로 칸 이름 · 모양은 #35 협의 결과
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import Field
 
 from app.models.base import CamelModel
+
+# 품목 관리 단위는 이 셋뿐이다 (docs/rules/db.md 품목 · 연동: item.unit)
+Unit = Literal["G", "ML", "EA"]
 
 # ---------- Spring → Python: 레시피를 만들 때 참고할 매장 정보 ----------
 
@@ -17,7 +21,7 @@ from app.models.base import CamelModel
 class ContextItem(CamelModel):
     item_id: int
     name: str
-    unit: str                                   # 관리 단위 (g, ml, 개 …)
+    unit: Unit                                  # 관리 단위
     unit_cost: Decimal | None = None            # 확인된 단가. 모르면 비어 있다 (LLM 에는 보내지 않는다)
 
 
@@ -41,15 +45,22 @@ class RecipeLineDraft(CamelModel):
     )
     item_name: str = Field(min_length=1, description="재료 이름")
     qty: Decimal = Field(gt=0, description="메뉴 1잔(1개) 기준 사용량")
-    unit: str = Field(min_length=1, description="사용량 단위. 매장 품목이면 그 품목의 단위를 그대로 쓴다")
+    unit: Unit = Field(
+        description="사용량 단위. G(그램) · ML(밀리리터) · EA(개) 중 하나. 매장 품목이면 그 품목의 단위를 그대로 쓴다"
+    )
 
 
 class RecipeDraft(CamelModel):
-    """레시피 초안. 단가 · 원가 칸은 일부러 없다 (계산은 Spring 이 한다)."""
+    """레시피 초안. 단가 · 원가 칸은 일부러 없다 (계산은 Spring 이 한다).
 
-    menu_name: str = Field(min_length=1, description="메뉴 이름")
+    길이 제한은 저장될 DB 칸에 맞춘다: menu.name VARCHAR(100), suggestion.summary VARCHAR(500).
+    """
+
+    menu_name: str = Field(min_length=1, max_length=100, description="메뉴 이름")
     lines: list[RecipeLineDraft] = Field(min_length=1, description="재료 목록")
-    description: str | None = Field(default=None, description="사장님께 보여줄 한두 문장 설명")
+    description: str | None = Field(
+        default=None, max_length=500, description="사장님께 보여줄 한두 문장 설명 (500자 이내)"
+    )
 
 
 # ---------- Spring → Python: 초안 검증 결과 ----------

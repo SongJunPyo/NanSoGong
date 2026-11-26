@@ -15,8 +15,8 @@ from app.models.suggestion import SavedSuggestion, SuggestionSave
 
 CONTEXT = RecipeContext(
     items=[
-        ContextItem(item_id=1, name="딸기청", unit="g", unit_cost=Decimal("12.5")),
-        ContextItem(item_id=2, name="우유", unit="ml", unit_cost=Decimal("2.1")),
+        ContextItem(item_id=1, name="딸기청", unit="G", unit_cost=Decimal("12.5")),
+        ContextItem(item_id=2, name="우유", unit="ML", unit_cost=Decimal("2.1")),
     ],
     menus=[ContextMenu(menu_id=10, name="카페라떼")],
 )
@@ -24,8 +24,8 @@ CONTEXT = RecipeContext(
 GOOD_DRAFT = RecipeDraft(
     menu_name="딸기라떼",
     lines=[
-        RecipeLineDraft(item_id=1, item_name="딸기청", qty=Decimal("40"), unit="g"),
-        RecipeLineDraft(item_id=2, item_name="우유", qty=Decimal("200"), unit="ml"),
+        RecipeLineDraft(item_id=1, item_name="딸기청", qty=Decimal("40"), unit="G"),
+        RecipeLineDraft(item_id=2, item_name="우유", qty=Decimal("200"), unit="ML"),
     ],
     description="딸기청과 우유로 만드는 기본 딸기라떼",
 )
@@ -33,8 +33,8 @@ GOOD_DRAFT = RecipeDraft(
 BAD_DRAFT = RecipeDraft(
     menu_name="딸기라떼",
     lines=[
-        RecipeLineDraft(item_id=1, item_name="딸기청", qty=Decimal("2"), unit="스푼"),
-        RecipeLineDraft(item_id=2, item_name="우유", qty=Decimal("200"), unit="ml"),
+        RecipeLineDraft(item_id=1, item_name="딸기청", qty=Decimal("40"), unit="ML"),
+        RecipeLineDraft(item_id=2, item_name="우유", qty=Decimal("200"), unit="ML"),
     ],
 )
 
@@ -46,7 +46,7 @@ VALID = RecipeValidation(
 
 INVALID = RecipeValidation(
     valid=False,
-    lines=[RecipeLineCheck(ok=False, reason="단위 '스푼' 을 관리 단위 g 으로 바꿀 수 없음"), RecipeLineCheck(ok=True)],
+    lines=[RecipeLineCheck(ok=False, reason="단위 ML 이 품목 관리 단위 G 와 다름"), RecipeLineCheck(ok=True)],
 )
 
 
