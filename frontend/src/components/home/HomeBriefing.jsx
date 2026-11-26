@@ -21,13 +21,14 @@ const SEVERITY = {
   normal: { label: '일반', mark: '○', badge: 'bg-surface-muted text-[#4B5563]', bar: 'bg-[#9CA3AF]' },
 }
 
-/** 날씨 한 줄 — 줄 전체가 버튼 (48px). 5일 예보 · 분석 과정은 눌러서 보는 팝업으로 */
+/** 날씨 한 줄 — 줄 전체가 버튼 (48px). 5일 예보 · 분석 과정은 눌러서 보는 팝업으로
+ *  앱에서는 할 일 아래(order-last), PC 에서는 제목 바로 아래 */
 function WeatherRow({ onAnalyze }) {
   return (
     <button
       type="button"
       onClick={onAnalyze}
-      className="flex min-h-12 w-full items-center gap-3 rounded-input bg-woori-tint px-3 py-2.5 text-left transition-transform duration-100 hover:bg-woori-tint/70 focus-visible:outline-2 focus-visible:outline-woori-blue active:scale-[0.99]"
+      className="order-last flex min-h-12 w-full items-center gap-3 rounded-input bg-woori-tint md:order-none px-3 py-2.5 text-left transition-transform duration-100 hover:bg-woori-tint/70 focus-visible:outline-2 focus-visible:outline-woori-blue active:scale-[0.99]"
     >
       <CloudRain size={22} aria-hidden="true" className="shrink-0 text-weather-rain" />
       <span className="min-w-0 flex-1">
