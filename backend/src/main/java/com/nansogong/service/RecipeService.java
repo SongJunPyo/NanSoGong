@@ -53,7 +53,9 @@ public class RecipeService {
     @Transactional
     public RecipeResponse saveRecipe(Long memberId, Long storeId, Long menuId, RecipeSaveRequest request) {
         storeService.checkOwner(memberId, storeId);
-        Menu menu = findMenu(storeId, menuId);
+        // 메뉴 행을 잠근다: 같은 메뉴를 동시에 저장해도 '닫기 → 새로 넣기'가 한 번에 하나씩만 돌아서 열린 레시피가 2벌이 되지 않는다
+        Menu menu = menuRepository.findByIdAndStoreIdForUpdate(menuId, storeId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "메뉴를 찾을 수 없습니다"));
 
         List<RecipeSaveRequest.Line> lines = request.items();
         Set<Long> itemIds = new HashSet<>();
@@ -74,7 +76,7 @@ public class RecipeService {
             }
         }
 
-        Instant now = Instant.now();
+        Instant now = Instant.now();   // 잠금을 얻은 뒤의 시각 → 뒤에 저장한 쪽이 항상 더 늦은 시각
         recipeItemRepository.findByMenuIdAndValidToIsNull(menuId).forEach(old -> old.close(now));   // 지금 레시피 닫기
         List<RecipeItem> created = lines.stream()
                 .map(line -> RecipeItem.create(storeId, menuId, line.itemId(), line.quantity(),
