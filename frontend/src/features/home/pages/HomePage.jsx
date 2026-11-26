@@ -10,7 +10,6 @@ import StoreSwitcher from '@/features/home/components/StoreSwitcher'
 import HomeDate from '@/features/home/components/HomeDate'
 import { HeaderNotifications } from '@/components/home/HomeNotifications'
 import { useAiSummary, useHome, useHomeBriefing, useHomeEvents } from '@/features/home/queries'
-import { AiLabel } from '@/components/ui/ai-label'
 import { Banner } from '@/components/ui/banner'
 import { Sheet } from '@/components/ui/sheet'
 import WeatherAnalysis from '@/features/weather/components/WeatherAnalysis'
@@ -31,8 +30,6 @@ export default function HomePage() {
   const calendar = useHomeEvents()
   const [weatherOpen, setWeatherOpen] = useState(false)
   const todo = briefing.data ?? []
-  // 긴급 할 일 중 AI가 안을 만들어 둔 것만 매출보다 위에 배너로 (승인은 사장님이 해당 화면에서)
-  const urgent = todo.find((item) => item.severity === 'urgent' && item.aiDraft)
 
   return (
     <Screen title="오늘의 매장 운영" eyebrow={<StoreSwitcher />} headerActions={<><HomeDate /><HeaderNotifications /></>} back={false} settings tab wide compact>
@@ -41,37 +38,6 @@ export default function HomePage() {
       <p className="-mt-2 text-label text-ink-sub">
         판매·재고 데이터로 밤사이 {aiSummary.inventoryChecked}개 품목을 점검해 확인할 일 {todo.length}건을 골라 뒀어요.
       </p>
-      {/* 닫으면 같은 날에는 다시 띄우지 않는다 */}
-      {urgent && (
-        <Banner
-          key={urgent.id}
-          tone="danger"
-          title={
-            <span className="inline-flex flex-wrap items-center gap-1.5">
-              <AiLabel />
-              {urgent.aiDraft.title}
-            </span>
-          }
-          dismissKey={`home-urgent-${urgent.id}`}
-          dismissFor="day"
-          action={
-            <div className="flex flex-wrap gap-2">
-              <Link
-                to={urgent.aiDraft.basisTo}
-                className="inline-flex h-9 items-center rounded-lg border border-danger/30 bg-white px-3 text-label font-bold text-danger"
-              >
-                근거 보기
-              </Link>
-              <Link to={urgent.to} className="inline-flex h-9 items-center rounded-lg bg-danger px-3 text-label font-bold text-white">
-                승인하기
-              </Link>
-            </div>
-          }
-        >
-          <p>{urgent.aiDraft.summary}</p>
-          <p className="num mt-1 font-bold text-ink">{urgent.aiDraft.amount}</p>
-        </Banner>
-      )}
       {/* 닫으면 같은 주에는 다시 띄우지 않는다 */}
       {data.orderFund && data.orderFund.planned > data.orderFund.balance && (
         <Banner
