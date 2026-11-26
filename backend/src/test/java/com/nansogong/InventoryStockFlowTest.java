@@ -54,7 +54,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 초기 재고 → 추정 재고 흐름 (구현-3-2, 3-5): 실제 DB(Testcontainers)로 기준 시각 경계까지 확인한다.
  * 장부 쓰기 API(판매 차감 · 폐기 · 입고)는 아직 없어서 장부 행은 Repository 로 직접 넣는다.
- * TODO(매장 분리): StoreService.checkOwner 가 들어오면 "남의 매장 → 403" 경우를 추가한다.
  */
 @SpringBootTest
 @Import(TestcontainersConfig.class)
@@ -224,5 +223,19 @@ class InventoryStockFlowTest {
 
         // 토큰 없음 → 401
         mockMvc.perform(get(itemUrl + "/stock")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 남의_매장이면_403이고_초기재고가_남지_않는다() throws Exception {
+        Member stranger = memberRepository.save(
+                Member.create("s" + UUID.randomUUID().toString().substring(0, 20), "hash", "남", "010-1111-1111"));
+        Store theirStore = storeRepository.save(Store.create(stranger.getId(), "1111111111", "남의카페", "남", LocalDate.of(2026, 1, 1)));
+        Long theirItemId = newItem(theirStore.getId(), "남의 우유").getId();
+        String theirItemUrl = "/api/stores/" + theirStore.getId() + "/inventory-items/" + theirItemId;
+
+        postInitial(theirItemUrl, "100", kst(baseAt)).andExpect(status().isForbidden());
+        call(get(theirItemUrl + "/stock")).andExpect(status().isForbidden());
+
+        assertThat(inventoryStockCountRepository.findAll().stream().filter(c -> c.getItemId().equals(theirItemId))).isEmpty();
     }
 }

@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, Long> {
@@ -23,6 +25,9 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select i from InventoryItem i where i.id = :itemId and i.storeId = :storeId")
     Optional<InventoryItem> findByIdAndStoreIdForUpdate(@Param("itemId") Long itemId, @Param("storeId") Long storeId);
+
+    /** 매장의 품목 중 ids 에 든 것만. 없거나 다른 매장 품목은 결과에서 빠진다 */
+    List<InventoryItem> findByStoreIdAndIdIn(Long storeId, Collection<Long> ids);
 
     /** 매장의 품목 목록 (이름 검색). name 이 "" 이면 전체 */
     Page<InventoryItem> findByStoreIdAndNameContainingIgnoreCase(Long storeId, String name, Pageable pageable);
