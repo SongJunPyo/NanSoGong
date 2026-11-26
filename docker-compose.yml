@@ -79,7 +79,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-dev}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      NTS_BASE_URL: http://mock:8080/nts/v1
+      NTS_BASE_URL: ${NTS_BASE_URL:-http://mock:8080/nts/v1}
+      DATA_GO_KR_SERVICE_KEY: ${DATA_GO_KR_SERVICE_KEY}
       KMA_BASE_URL: http://mock:8080/kma
       HOLIDAY_BASE_URL: http://mock:8080/holiday
       NAVER_DATALAB_BASE_URL: http://mock:8080/naver/v1/datalab
