@@ -49,3 +49,19 @@ test('서버 실패를 가짜 가입·로그인 성공으로 대체하지 않는
   await assert.rejects(api.signup({ stores: [] }), (error) => error === failure)
   await assert.rejects(api.login({ loginId: 'testowner', password: 'Owner123!' }), (error) => error === failure)
 })
+
+
+test('비밀번호 재설정은 익명 API에 필요한 필드만 보내고 서버 오류를 그대로 전달한다', async () => {
+  const calls = []
+  const api = createAuthApi(async (path, options) => { calls.push({ path, options, body: JSON.parse(options.body) }); return {} }, () => 'expired-token')
+  await api.requestPasswordReset({ loginId: 'demo-office', phone: '01000009001', memberId: 999 })
+  await api.verifyPasswordReset({ challengeId: 'test-id', loginId: 'demo-office', phone: '01000009001', code: '000000', verified: true })
+  await api.resetPassword({ resetToken: 'reset-only-proof', password: 'NewTest456!', passwordConfirm: 'NewTest456!', memberId: 999 })
+  assert.deepEqual(calls.map((call) => call.path), ['/auth/password-resets', '/auth/password-resets/test-id/confirmations', '/auth/password-resets/completions'])
+  assert.deepEqual(calls[0].body, { loginId: 'demo-office', phone: '01000009001' })
+  assert.deepEqual(calls[1].body, { loginId: 'demo-office', phone: '01000009001', code: '000000' })
+  assert.deepEqual(calls[2].body, { resetToken: 'reset-only-proof', password: 'NewTest456!', passwordConfirm: 'NewTest456!' })
+  for (const call of calls) assert.equal(call.options.headers.Authorization, '')
+  const fail = createAuthApi(async () => { throw new Error('인증 시간이 만료됐어요') })
+  await assert.rejects(fail.resetPassword({}), /인증 시간이 만료/)
+})

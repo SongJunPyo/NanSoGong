@@ -108,6 +108,22 @@ public class InventoryItemNotFoundException extends BusinessException {
 - 매장 기본정보의 시간은 둘 다 비우거나 서로 다른 `HH:mm`으로 입력한다. 마감이 더 이르면 다음 날이다. 휴무는 `mon`~`sun` 중 중복 없이 입력한다. 저장하면 `onboardingStatus.storeBasics=true`다.
 - 새로고침 후 재로그인하면 DB 정보를 다시 조회한다. Refresh·자동 로그인·서버 로그아웃 무효화는 이 계약에 포함하지 않는다.
 
+### 비밀번호 재설정 (개발용)
+
+| 요청 | 입력 · 결과 |
+|---|---|
+| `POST /api/auth/password-resets` | `{ loginId, phone }` → `{ challengeId, expiresAt }` |
+| `POST /api/auth/password-resets/{challengeId}/confirmations` | `{ loginId, phone, code }` → `{ resetToken, expiresAt }` |
+| `POST /api/auth/password-resets/completions` | `{ resetToken, password, passwordConfirm }` → `204` |
+
+- 실제 SMS 연동 전에는 고정 데모 계정 `demo-office` / `01000009001`, `demo-campus` / `01000009002`, `demo-home` / `01000009003`만 허용한다. DB의 현재 전화번호도 이 가짜 번호와 같아야 한다. 일반 가입 API는 이 데모 ID의 하이픈을 허용하지 않는다.
+- `MOCK` 모드에서만 기존 개발용 코드를 확인한다. `aws`·`prod` 프로필과 `REAL` 모드는 `503`이며 개발용으로 대체하지 않는다. 일반 가입 계정의 재설정은 실제 문자 인증 연결 후 별도 구현한다.
+- 요청은 계정별 10분에 3회, 원격 주소별 10분에 20회다. 프록시 전달 헤더를 신뢰해 제한을 우회하게 하지 않는다. 초과는 `429 RATE_LIMITED`다.
+- 계정이 없거나 번호가 다르거나 대상이 아니어도 같은 요청 응답을 반환하며 인증 증명을 발급하지 않는다. Redis에는 개인정보 대신 목적별 HMAC 지문과 내부 ID·자격 버전을 저장한다.
+- 요청은 3분·오류 시도 5회, 재설정 권한은 5분·1회다. 가입용 휴대전화 증명과 서로 사용할 수 없다. 인증·재설정 권한 원문과 비밀번호를 로그에 남기지 않는다.
+- 새 비밀번호는 가입과 같은 정책·확인 입력을 검증하고 BCrypt로 저장한다. DB 행 잠금과 Redis 증명 소비로 같은 계정에 대한 동시 변경을 한 번만 허용한다. DB 변경 실패 시 비밀번호는 롤백하고 재인증을 요구한다.
+- JWT의 `credentialVersion`은 내부 회원 ID·현재 비밀번호 해시의 HMAC이다. 비밀번호를 바꾸면 이전 버전의 JWT는 거절한다. 이전 형식 JWT도 재로그인이 필요하다. 서명·만료 검증도 함께 유지한다. 회원 표에 새 칸은 추가하지 않는다.
+
 ## 테스트
 
 - 기능마다 **흐름 테스트를 최소 1개** 만든다 (07_cicd `TransferFlowTest` 처럼). Testcontainers를 쓰므로 Docker가 필요하다.

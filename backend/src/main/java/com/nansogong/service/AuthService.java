@@ -47,6 +47,7 @@ public class AuthService {
     private final AuthBusinessVerificationService businessVerificationService;
     private final AuthSignupPersistenceService signupPersistenceService;
     private final StoreService storeService;
+    private final AuthCredentialService credentialService;
 
     /** 아이디 중복 확인: 이미 있으면 true */
     @Transactional(readOnly = true)
@@ -93,7 +94,7 @@ public class AuthService {
     public TokenResponse login(LoginRequest request) {
         // 아이디가 없을 때와 비밀번호가 틀릴 때 같은 메시지: 어느 쪽이 틀렸는지 알려 주면 아이디를 알아내는 데 쓰일 수 있다
         Member member = memberRepository.findByLoginId(request.loginId())
-                .filter(m -> passwordEncoder.matches(request.password(), m.getPasswordHash()))
+                .filter(m -> request.password().getBytes(StandardCharsets.UTF_8).length <= 72 && passwordEncoder.matches(request.password(), m.getPasswordHash()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다"));
 
         if (member.getStatus() != MemberStatus.ACTIVE) {
@@ -106,6 +107,7 @@ public class AuthService {
                 .subject(String.valueOf(member.getId()))   // 토큰 주인 = 회원 번호. 컨트롤러에서 jwt.getSubject() 로 꺼낸다
                 .issuedAt(now)
                 .expiresAt(now.plus(ttl))
+                .claim("credentialVersion", credentialService.version(member))
                 .build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();   // SecurityConfig 의 검증 방식(HS256)과 같아야 한다
         String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();

@@ -18,9 +18,7 @@ export function validateLoginId(value) {
 export function validateMember(member) {
   const errors = {}
   if (validateLoginId(member.loginId)) errors.loginId = validateLoginId(member.loginId)
-  if (member.password.length < 8 || member.password.length > 64 || !/[A-Za-z]/.test(member.password) || !/\d/.test(member.password) || !/[^A-Za-z0-9\s]/.test(member.password) || /\s/.test(member.password)) errors.password = PASSWORD_HINT
-  else if (new TextEncoder().encode(member.password).length > 72) errors.password = '비밀번호가 너무 길어요. 영문·숫자·기호로 줄여 주세요'
-  if (!member.passwordConfirm || member.password !== member.passwordConfirm) errors.passwordConfirm = '비밀번호가 일치하지 않아요.'
+  Object.assign(errors, validatePasswordFields(member.password, member.passwordConfirm))
   if (!member.name.trim() || member.name.trim().length > 50) errors.name = '이름을 입력해 주세요. 최대 50자예요.'
   if (!/^01[016789]\d{7,8}$/.test(normalizePhone(member.phone))) errors.phone = '올바른 휴대전화 번호를 입력해 주세요.'
   return errors
@@ -28,6 +26,14 @@ export function validateMember(member) {
 
 export function normalizeBusiness(business) {
   return { bizRegNo: normalizeBusinessNumber(business.bizRegNo), ownerName: business.ownerName.trim(), openingDate: business.openingDate, bizName: business.bizName.trim() }
+}
+
+export function validatePasswordFields(password, passwordConfirm) {
+  const errors = {}
+  if (password.length < 8 || password.length > 64 || !/[A-Za-z]/.test(password) || !/\d/.test(password) || !/[^A-Za-z0-9\s]/.test(password) || /\s/.test(password)) errors.password = PASSWORD_HINT
+  else if (new TextEncoder().encode(password).length > 72) errors.password = '비밀번호가 너무 길어요. 영문·숫자·기호로 줄여 주세요'
+  if (!passwordConfirm || password !== passwordConfirm) errors.passwordConfirm = '비밀번호가 일치하지 않아요.'
+  return errors
 }
 
 export function validateBusiness(business) {

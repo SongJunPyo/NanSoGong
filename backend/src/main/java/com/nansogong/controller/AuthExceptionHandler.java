@@ -12,7 +12,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.server.ResponseStatusException;
 
 /** 공용 핸들러 구현 전, 이번 회원·매장 API에만 오류 변환을 적용한다. 원본 예외는 노출하지 않는다. */
-@RestControllerAdvice(assignableTypes = {AuthController.class, AuthPhoneVerificationController.class, MemberController.class, StoreController.class})
+@RestControllerAdvice(assignableTypes = {AuthController.class, AuthPhoneVerificationController.class, AuthPasswordResetController.class, MemberController.class, StoreController.class})
 public class AuthExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<AuthErrorResponse> businessFailure(ResponseStatusException exception) {
@@ -22,6 +22,7 @@ public class AuthExceptionHandler {
             case 403 -> "FORBIDDEN";
             case 404 -> "NOT_FOUND";
             case 409 -> "CONFLICT";
+            case 429 -> "RATE_LIMITED";
             case 502 -> "NTS_INVALID_RESPONSE";
             default -> "UNAVAILABLE";
         };

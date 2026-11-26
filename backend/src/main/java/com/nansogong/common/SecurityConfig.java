@@ -1,6 +1,7 @@
 package com.nansogong.common;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.nansogong.service.AuthCredentialService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -12,6 +13,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -37,8 +40,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    JwtDecoder jwtDecoder() {       // 토큰 검증하기 (모든 요청에서 자동 사용)
-        return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+    JwtDecoder jwtDecoder(AuthCredentialService credentials) { // 비밀번호 변경 전 토큰도 차단한다
+        var decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefault(), credentials));
+        return decoder;
     }
 
     @Bean

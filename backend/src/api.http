@@ -37,6 +37,19 @@ Content-Type: application/json
 # Body: {"loginId":"example_user","password":"<직접 입력>","name":"테스트회원","phone":"01000000000","phoneVerificationToken":"<위 응답>","stores":[{"bizRegNo":"0000000000","ownerName":"테스트대표","openingDate":"20000101","bizName":"예시상호"}]}
 # 성공 시 201. 회원·매장은 함께 저장한다. 실제 성공 테스트에는 사용 권한이 있는 사업자 정보가 필요하다.
 
+### 개발용 비밀번호 재설정 시작 (데모 데이터가 있는 환경만, 실제 문자 미발송)
+POST http://localhost:8080/api/auth/password-resets
+Content-Type: application/json
+
+{"loginId":"demo-office","phone":"01000009001"}
+
+### 위 요청의 challengeId로 인증 확인 (토큰·비밀번호 원문은 파일에 저장하지 않는다)
+# POST /api/auth/password-resets/{challengeId}/confirmations
+# Body: {"loginId":"demo-office","phone":"01000009001","code":"000000"}
+# POST /api/auth/password-resets/completions
+# Body: {"resetToken":"<확인 응답>","password":"<직접 입력>","passwordConfirm":"<직접 입력>"}
+# 성공 시 204. 이전 비밀번호와 JWT는 사용할 수 없고 새 비밀번호로 로그인한다.
+
 ### ─── 외부 연동 목업 (docker compose 의 mock, 8089) ───
 
 ### 국세청 복수 진위확인 목업 (각 사업자별로 결과를 돌려준다)

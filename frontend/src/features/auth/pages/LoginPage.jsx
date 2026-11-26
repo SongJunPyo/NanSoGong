@@ -22,6 +22,7 @@ export default function LoginPage() {
   }
   return (
     <AuthLayout title="로그인" description="사장님의 매장 운영을 이어서 확인하세요.">
+      {location.state?.passwordReset && <p role="status" className="text-label text-success">비밀번호를 변경했어요. 새 비밀번호로 로그인해 주세요.</p>}
       <form noValidate onSubmit={submit} className="space-y-4">
         <AuthField label="아이디" name="loginId" autoComplete="username" value={loginId} disabled={login.pending} onChange={(event) => { setLoginId(event.target.value); setErrors({}); login.clearError() }} error={errors.loginId} placeholder="아이디를 입력하세요" />
         <AuthField label="비밀번호" name="password" type="password" autoComplete="current-password" value={password} disabled={login.pending} onChange={(event) => { setPassword(event.target.value); setErrors({}); login.clearError() }} error={errors.password} placeholder="비밀번호를 입력하세요" />
