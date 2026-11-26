@@ -65,8 +65,10 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # 컨테이너끼리는 서비스 이름으로 부른다 (localhost 가 아니다)
-      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-nansogong}
+      # .env 에 DB_URL 이 있으면 그 DB(팀 공용 온프레미스 DB 등)에 붙는다. bootRun 과 같은 DB 를 쓴다
+      # 없으면 같은 compose 의 postgres 컨테이너에 붙는다 (AWS dev EC2 는 .env 에 DB_URL 을 넣지 않으므로 항상 이쪽)
+      # 컨테이너끼리는 서비스 이름으로 부른다 (localhost 가 아니다). 🚨 .env 의 DB_URL 에 localhost 를 쓰면 컨테이너 안에서는 연결되지 않는다
+      DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/${DB_NAME:-nansogong}}
       DB_USER: ${DB_USER:-dev}
       DB_PASSWORD: ${DB_PASSWORD:-dev}
       REDIS_HOST: redis
