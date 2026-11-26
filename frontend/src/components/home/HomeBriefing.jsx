@@ -48,7 +48,7 @@ function BriefingWeather({ forecast, onAnalyze }) {
 }
 
 /**
- * 날씨 · 매장 데이터 기반 운영 브리핑 = 날씨로 본 수요 예측 + 지금 해야 할 일 (중요도순: 긴급 → 주의 → 일반)
+ * 매장 데이터 기반 운영 브리핑 = 날씨로 본 수요 예측 + 지금 해야 할 일 (중요도순: 긴급 → 주의 → 일반)
  * 이미 일어난 일의 기록은 헤더 알림 패널에서 보여 준다 (같은 내용이 겹치지 않게)
  * @param items     브리핑 항목 (features/home/mock.js 의 homeBriefing)
  * @param aiSummary 오늘 AI가 한 일 (맨 위 회색 요약 줄)
@@ -70,7 +70,7 @@ export default function HomeBriefing({ items, approvals, aiSummary, forecast, on
     <section aria-labelledby="home-briefing-title" className="min-w-0 rounded-card border border-line bg-white p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 id="home-briefing-title" className="flex items-center gap-1.5 text-h2 font-bold text-ink">
-          날씨 · 매장 데이터 기반 운영 브리핑 <AiLabel />
+          매장 데이터 기반 운영 브리핑 <AiLabel />
         </h2>
         <span data-coach="home-approvals">
           <Badge status={approvals.length ? 'pending' : 'neutral'}>할 일 {approvals.length}건</Badge>
@@ -151,8 +151,23 @@ export default function HomeBriefing({ items, approvals, aiSummary, forecast, on
                     </button>
                   </div>
                   {open.includes(notification.id) && (
-                    <div id={`briefing-detail-${notification.id}`} className="flex flex-col gap-1.5 pt-1.5 pr-1.5">
-                      <p className="text-caption leading-relaxed text-ink-sub">{notification.description}</p>
+                    <div id={`briefing-detail-${notification.id}`} className="flex flex-col gap-1.5 pt-2 pr-1.5">
+                      {/* 우리 매장 현황 — 숫자로 */}
+                      {notification.status?.length ? (
+                        <dl aria-label="우리 매장 현황" className="flex flex-col gap-1 rounded-lg bg-white/80 px-3 py-2">
+                          {notification.status.map(({ label, value, warn }) => (
+                            <div key={label} className="flex items-baseline justify-between gap-3 text-caption">
+                              <dt className="text-ink-sub">{label}</dt>
+                              <dd className={`num text-right font-bold ${warn ? 'text-danger' : 'text-ink'}`}>{value}</dd>
+                            </div>
+                          ))}
+                          {notification.calc && (
+                            <p className="mt-0.5 border-t border-line pt-1.5 text-caption font-bold text-woori-deep">{notification.calc}</p>
+                          )}
+                        </dl>
+                      ) : (
+                        <p className="text-caption leading-relaxed text-ink-sub">{notification.description}</p>
+                      )}
                       {notification.basis && (
                         <p className="text-[11px] leading-snug text-ink-mute">근거 · {notification.basis}</p>
                       )}

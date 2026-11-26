@@ -40,6 +40,14 @@ export const homeBriefing = [
     title: '우유가 내일 오전에 부족해요',
     description: '예상 소진까지 1.2일. 우유 12개 발주가 필요해요.',
     basis: '최근 7일 사용량 · 기상청 예보',
+    // 펼쳤을 때 보이는 우리 매장 현황 (warn: 빨강으로 강조)
+    status: [
+      { label: '지금 남은 양', value: '4개 (1L)', warn: true },
+      { label: '하루 평균 사용', value: '3.4개' },
+      { label: '앞으로 3일 사용 예상', value: '14개 (비 오는 날 +1.4개)' },
+      { label: '다 떨어지는 때', value: '내일 오전 11시쯤', warn: true },
+    ],
+    calc: '주문 12개 = 3일 예상 14개 + 안전 재고 2개 − 남은 4개',
     createdAt: '2026-11-24T09:20:00+09:00', to: '/orders/recommendation',
     aiDraft: {
       title: 'AI가 우유 발주안을 만들어 뒀어요',
@@ -53,6 +61,12 @@ export const homeBriefing = [
     title: '바닐라 시럽 소비기한이 3일 남았어요',
     description: '먼저 입고된 시럽부터 사용하고 남은 수량을 확인해 주세요.',
     basis: '입고일 · 소비기한 기록',
+    status: [
+      { label: '지금 남은 양', value: '2병' },
+      { label: '기한 임박', value: '1병 · 11.29까지', warn: true },
+      { label: '하루 평균 사용', value: '0.4병' },
+      { label: '기한 전 사용 예상', value: '1.2병 → 다 쓸 수 있어요' },
+    ],
     createdAt: '2026-11-24T09:10:00+09:00', to: '/inventory/items/vanilla',
   },
   {
@@ -60,6 +74,12 @@ export const homeBriefing = [
     title: '비 오는 오후, 라떼 세트 프로모션을 추천해요',
     description: '오후 방문을 늘릴 수 있는 프로모션 조건을 확인해 보세요.',
     basis: '최근 2주 오후 주문 25% 감소 · 비 예보',
+    status: [
+      { label: '오후 주문 (최근 2주)', value: '하루 32건', warn: true },
+      { label: '오후 주문 (그전 2주)', value: '하루 43건' },
+      { label: '오후 라떼 판매', value: '하루 18잔' },
+      { label: '내일 날씨', value: '비 · 강수확률 90%' },
+    ],
     createdAt: '2026-11-24T09:30:00+09:00', to: '/promotions/latte-set',
   },
 ]
