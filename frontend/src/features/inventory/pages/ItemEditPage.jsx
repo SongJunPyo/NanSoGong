@@ -11,7 +11,6 @@ import { won } from '@/lib/format'
 import { todayDateKey } from '@/utils/format'
 import { useInventory, useSaveInventoryItem } from '@/features/inventory/queries'
 import { ITEM_CATEGORIES, ITEM_UNITS } from '@/features/inventory/mock'
-import StockGauge from '@/features/inventory/components/StockGauge'
 
 const SUPPLIER_ERROR_ID = 'supplier-name-error'
 const ITEM_NAME_ERROR_ID = 'item-name-error'
@@ -176,8 +175,6 @@ export default function ItemEditPage() {
       {/* 제목은 입력 중인 품목명을 그대로 따라간다 */}
       <H1>{itemName.trim() || '새 품목'}</H1>
 
-      {/* 남은 재고 — 관리 단위 기준 그래프 */}
-      <StockGauge lots={lots} packSize={size} unitLabel={unitLabel} packLabel={packLabel} safeStock={item?.safeStock ?? 0} />
 
       <div className="flex flex-col">
         <Field

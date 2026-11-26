@@ -4,6 +4,7 @@ import { DropdownMenu } from 'radix-ui'
 import { EllipsisVertical } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
 import { Button, Card, Field, ListRow } from '@/components/common/ui'
+import StockBar from '@/features/inventory/components/StockBar'
 import { useIsDesktop } from '@/hooks/useViewport'
 import { useInventory } from '@/features/inventory/queries'
 import PullToRefresh from '@/features/inventory/components/PullToRefresh'
@@ -114,19 +115,22 @@ export default function InventoryPage() {
         ) : (
           <Card tone="line" gap="gap-0" pad="px-4 py-1">
             {shown.map((i) => (
-              <ListRow
-                key={i.id}
-                title={
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    {i.name}
-                    {i.tags?.map((tag) => (
-                      <Badge key={tag}>{TAG_LABEL[tag]}</Badge>
-                    ))}
-                  </span>
-                }
-                value={i.value}
-                to={`/inventory/items/${i.id}`}
-              />
+              <div key={i.id}>
+                <ListRow
+                  title={
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      {i.name}
+                      {i.tags?.map((tag) => (
+                        <Badge key={tag}>{TAG_LABEL[tag]}</Badge>
+                      ))}
+                    </span>
+                  }
+                  value={i.value}
+                  to={`/inventory/items/${i.id}`}
+                />
+                {/* 남은 양 — 관리 단위 기준 막대 (적정 재고 선) */}
+                <StockBar item={i} className="-mt-1.5 pb-3" />
+              </div>
             ))}
           </Card>
         )}
@@ -189,6 +193,7 @@ function InventoryTable({ items, onDelete }) {
               </th>
               <th className="py-3 font-medium">품목</th>
               <th className="py-3 font-medium">상태</th>
+              <th className="py-3 font-medium">남은 양 / 적정</th>
               <th className="py-3 text-right font-medium">추정 재고</th>
               <th className="w-14 py-3">
                 <span className="sr-only">메뉴</span>
@@ -216,6 +221,9 @@ function InventoryTable({ items, onDelete }) {
                   <span className="flex gap-1">
                     {i.tags?.length ? i.tags.map((tag) => <Badge key={tag}>{TAG_LABEL[tag]}</Badge>) : <Badge status="neutral">정상</Badge>}
                   </span>
+                </td>
+                <td className="py-3">
+                  <StockBar item={i} className="max-w-64" />
                 </td>
                 <td className="num py-3 text-right text-body font-bold text-woori-blue">{i.value}</td>
                 <td className="py-3 pr-3 text-right">
