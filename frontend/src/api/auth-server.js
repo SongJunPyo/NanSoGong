@@ -26,6 +26,13 @@ export function createAuthApi(request, getToken = () => null) {
       const member = await request('/me', authorization(token))
       return { ...member, memberId: member.id }
     },
+    async updateCurrentUser({ name, currentPassword, password, passwordConfirm }, token = getToken()) {
+      const member = await request('/me', {
+        method: 'PATCH', ...authorization(token),
+        body: JSON.stringify({ name, currentPassword, password, passwordConfirm }),
+      })
+      return { ...member, memberId: member.id }
+    },
     async getMyStores(token = getToken()) {
       const stores = []
       for (let page = 0; ; page += 1) {

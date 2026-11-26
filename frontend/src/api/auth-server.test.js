@@ -43,6 +43,30 @@ test('로그인 직후 받은 토큰으로 내 정보·매장을 조회하고 �
   for (const call of calls) assert.equal(call.options.headers.Authorization, 'Bearer new-token')
 })
 
+test('회원정보 수정은 허용된 필드와 현재 세션 토큰만 보내고 저장 결과를 반환한다', async () => {
+  const calls = []
+  const api = createAuthApi(async (path, options) => {
+    calls.push({ path, options, body: JSON.parse(options.body) })
+    return { id: 7, loginId: 'testowner', name: '수정한 이름', phone: '01000000000' }
+  }, () => 'session-token')
+  const member = await api.updateCurrentUser({ name: '수정한 이름', memberId: 999, loginId: 'other', phone: '01000000001', status: 'WITHDRAWN' })
+  assert.equal(calls[0].path, '/me')
+  assert.equal(calls[0].options.method, 'PATCH')
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer session-token')
+  assert.deepEqual(calls[0].body, { name: '수정한 이름' })
+  assert.equal(member.memberId, 7)
+  assert.equal(member.name, '수정한 이름')
+  await api.updateCurrentUser({ name: '수정한 이름', currentPassword: 'OldTest123!', password: 'NewTest456!', passwordConfirm: 'NewTest456!' }, 'captured-session-token')
+  assert.deepEqual(calls[1].body, { name: '수정한 이름', currentPassword: 'OldTest123!', password: 'NewTest456!', passwordConfirm: 'NewTest456!' })
+  assert.equal(calls[1].options.headers.Authorization, 'Bearer captured-session-token')
+})
+
+test('회원정보 수정 실패를 성공으로 대체하지 않는다', async () => {
+  const error = new Error('현재 비밀번호가 올바르지 않아요')
+  const api = createAuthApi(async () => { throw error })
+  await assert.rejects(api.updateCurrentUser({ name: '입력 유지' }), (received) => received === error)
+})
+
 test('서버 실패를 가짜 가입·로그인 성공으로 대체하지 않는다', async () => {
   const failure = new Error('사업자정보를 다시 확인해 주세요')
   const api = createAuthApi(async () => { throw failure })

@@ -95,6 +95,7 @@ public class InventoryItemNotFoundException extends BusinessException {
 | `POST /api/auth/signup` | `{ loginId, password, name, phone, phoneVerificationToken, stores: [{ bizRegNo, ownerName, openingDate, bizName }] }` → `201 { memberId, loginId, businessCount }` |
 | `POST /api/auth/login` | `{ loginId, password }` → JWT Access 토큰 |
 | `GET /api/me` | JWT 주인의 회원정보 |
+| `PATCH /api/me` | `{ name, currentPassword?, password?, passwordConfirm? }` → 저장한 `MemberResponse` |
 | `GET /api/stores` | JWT 주인의 매장 목록 `Page<StoreResponse>` |
 | `GET /api/stores/{storeId}` | 내 매장 상세. 다른 계정은 `403` |
 | `PUT /api/stores/{storeId}` | `{ name, category, address, openTime, closeTime, closedDays }` → 저장한 매장. 다른 계정은 `403` |
@@ -107,6 +108,15 @@ public class InventoryItemNotFoundException extends BusinessException {
 - 가입의 입력 오류는 `400`, 중복은 `409`다. 인증·매장 Controller 범위의 `AuthExceptionHandler`가 `{ code, message }`를 반환한다. 공용 예외 구현이 생기면 그 계약으로 합친다.
 - 매장 기본정보의 시간은 둘 다 비우거나 서로 다른 `HH:mm`으로 입력한다. 마감이 더 이르면 다음 날이다. 휴무는 `mon`~`sun` 중 중복 없이 입력한다. 저장하면 `onboardingStatus.storeBasics=true`다.
 - 새로고침 후 재로그인하면 DB 정보를 다시 조회한다. Refresh·자동 로그인·서버 로그아웃 무효화는 이 계약에 포함하지 않는다.
+
+### 회원정보 조회 · 수정
+
+- `GET /api/me`와 `PATCH /api/me`는 인증된 JWT의 회원 번호만 사용한다. 수정 입력에서 아이디·전화번호·회원 번호·계정 상태·비밀번호 해시는 쓰기 대상이 아니며 추가 필드는 무시한다.
+- 이름은 공백을 제거한 뒤 1~50자로 검증한다. 이름 변경은 사업자 대표자 정보나 전화번호 인증 시각을 변경하지 않는다. 아이디는 변경할 수 없다. 전화번호 변경은 본인확인과 새 번호 인증 흐름을 연결한 뒤 별도로 제공한다.
+- 비밀번호를 바꿀 때만 `currentPassword`·`password`·`passwordConfirm`을 모두 보낸다. 현재 비밀번호를 BCrypt로 확인하고 새 비밀번호의 기존 가입 규칙·UTF-8 72바이트 제한·확인 일치를 검증한다. 비밀번호 원문과 해시는 응답에 넣지 않는다.
+- 이름과 비밀번호는 한 트랜잭션으로 저장한다. 비밀번호 재설정과 같은 회원 행 잠금을 사용하며, 잠금을 얻은 뒤에도 현재 계정 상태와 JWT의 자격 버전을 다시 확인한다. 잘못된 현재 비밀번호나 저장 실패 시 이름도 바뀌지 않는다.
+- 이름만 수정하면 기존 JWT는 유지된다. 비밀번호를 바꾸면 기존 자격 버전 검증으로 해당 회원의 모든 이전 JWT를 거절한다. 다른 계정의 JWT에는 영향을 주지 않는다.
+- 성공은 `200 MemberResponse`, 입력·현재 비밀번호 오류는 `400`, 만료된 자격은 `401`, 저장소 오류는 기존 인증 오류 계약의 `503`이다. DB 저장 성공 후에만 화면에서 성공을 안내한다.
 
 ### 비밀번호 재설정 (개발용)
 

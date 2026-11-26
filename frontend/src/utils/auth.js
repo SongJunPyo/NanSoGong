@@ -24,6 +24,16 @@ export function validateMember(member) {
   return errors
 }
 
+export function validateMemberUpdate(member, changePassword = false) {
+  const errors = {}
+  if (!member.name.trim() || member.name.trim().length > 50) errors.name = '이름을 입력해 주세요. 최대 50자예요.'
+  if (changePassword) {
+    if (!member.currentPassword || member.currentPassword.length > 64 || new TextEncoder().encode(member.currentPassword).length > 72) errors.currentPassword = '현재 비밀번호를 확인해 주세요.'
+    Object.assign(errors, validatePasswordFields(member.password, member.passwordConfirm))
+  }
+  return errors
+}
+
 export function normalizeBusiness(business) {
   return { bizRegNo: normalizeBusinessNumber(business.bizRegNo), ownerName: business.ownerName.trim(), openingDate: business.openingDate, bizName: business.bizName.trim() }
 }
