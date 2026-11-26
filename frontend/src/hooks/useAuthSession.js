@@ -1,11 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import * as auth from '@/api/auth'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useStoreSelection } from '@/store/useStoreSelection'
 import { useSignupStore } from '@/store/useSignupStore'
 import { firstIncompleteStore, loginDestination } from '@/utils/auth'
-import { useAsyncAction } from './useAsyncAction'
 
 export const myStoresKey = (memberId) => ['auth', 'stores', memberId]
 
@@ -15,12 +14,10 @@ export function useMyStores() {
 }
 
 export function useLogin() {
-  const task = useAsyncAction()
   const cache = useQueryClient()
   const navigate = useNavigate()
-  return {
-    ...task,
-    submit: (input) => task.run(async () => {
+  const task = useMutation({ mutationKey: ['auth', 'login'], retry: false, gcTime: 0,
+    mutationFn: async (input) => {
       const session = await auth.login(input)
       let stores, user
       try { [user, stores] = await Promise.all([auth.getCurrentUser(session.accessToken), auth.getMyStores(session.accessToken)]) }
@@ -33,17 +30,16 @@ export function useLogin() {
       const selected = firstIncompleteStore(stores) ?? stores[0]
       if (selected) useStoreSelection.getState().selectStore(selected.storeId)
       navigate(loginDestination(stores), { replace: true })
-    }),
-  }
+    },
+  })
+  return { pending: task.isPending, error: task.error, clearError: task.reset, submit: (input) => task.mutate(input) }
 }
 
 export function useLogout() {
-  const task = useAsyncAction()
   const cache = useQueryClient()
   const navigate = useNavigate()
-  return {
-    ...task,
-    submit: () => task.run(async () => {
+  const task = useMutation({ mutationKey: ['auth', 'logout'], retry: false, gcTime: 0,
+    mutationFn: async () => {
       try { await auth.logout() }
       finally {
         useAuthStore.getState().logout()
@@ -52,6 +48,7 @@ export function useLogout() {
         cache.clear()
         navigate('/login', { replace: true })
       }
-    }),
-  }
+    },
+  })
+  return { pending: task.isPending, error: task.error, submit: () => task.mutate() }
 }

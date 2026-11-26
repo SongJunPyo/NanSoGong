@@ -1,6 +1,6 @@
 # DB 규칙
 
-PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추측하지 말고 [전체 표 구조](../pjt_source/store-agent-db.sql)를 봅니다. 27개 표를 만드는 SQL이고, 마이그레이션 `V202611241000__create_store_agent_schema.sql` 과 내용이 같습니다. 설명은 [표 설계 설명](../pjt_source/store-agent-db-desc.md)에 있습니다.
+PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추측하지 말고 [전체 표 구조](../pjt_source/store-agent-db.sql)를 봅니다. 27개 표를 만드는 SQL에 이후 마이그레이션까지 반영한 현재 스키마입니다. 설명은 [표 설계 설명](../pjt_source/store-agent-db-desc.md)에 있습니다.
 
 - 업무 규칙(차감 계산 · 결제 상태 전이 등)은 [도메인 규칙](domain.md)에 씁니다.
 - AI 작업 상태 저장 방식은 [AI 규칙](ai.md#상태-저장--재개)에 씁니다.
@@ -41,6 +41,13 @@ PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추�
 ## 칸 계약 (공용 표)
 
 업무에서 이 칸들을 어떻게 쓰는지는 [도메인 규칙](domain.md)에 있습니다. 여기서는 칸과 값의 모양만 정합니다.
+
+### 회원 · 매장
+
+- `store.biz_reg_no`는 모든 계정에서 유일하다. 기존 복합 UQ도 유지한다. 기존 중복이 있으면 마이그레이션이 중단되며 자동 삭제·병합하지 않는다.
+- 가입에서 서버가 진위 일치·계속사업자를 재확인한 매장만 `VERIFIED`와 `verified_at`을 저장한다.
+- `member.phone_verified_at`은 서버 휴대전화 인증 증명의 확인 시각이다. 현재 개발용 인증 여부는 [가입 계약](backend.md#회원가입--로그인--매장-저장)을 따른다.
+- `store.onboarding_status.storeBasics`는 매장 기본정보 저장 여부다. 다른 초기 설정 키는 보존한다.
 
 ### 품목 · 연동
 

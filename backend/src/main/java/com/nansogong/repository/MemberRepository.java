@@ -2,6 +2,8 @@ package com.nansogong.repository;
 
 import com.nansogong.model.Member;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
@@ -12,4 +14,8 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     /** 가입할 때 아이디 중복 확인 */
     boolean existsByLoginId(String loginId);
+
+    /** 가입 트랜잭션 안에서 같은 아이디의 동시 생성을 순서대로 처리한다. */
+    @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(1, hashtext(:loginId))", nativeQuery = true)
+    Integer lockRegistration(@Param("loginId") String loginId);
 }

@@ -45,3 +45,10 @@ test('매장 상태별 로그인 경로를 고른다', () => {
   assert.equal(loginDestination([complete, { name: '새 매장' }]), '/onboarding/store')
   assert.equal(loginDestination([complete]), '/')
 })
+
+test('서버의 비밀번호 해시 길이 제한을 넘는 입력을 미리 안내한다', () => {
+  const password = '가'.repeat(24) + 'A1!'
+  assert.ok(validateMember({ ...member, password, passwordConfirm: password }).password)
+  const allowed = 'A1!' + 'a'.repeat(61)
+  assert.deepEqual(validateMember({ ...member, password: allowed, passwordConfirm: allowed }), {})
+})

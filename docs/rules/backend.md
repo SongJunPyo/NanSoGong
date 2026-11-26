@@ -85,6 +85,29 @@ public class InventoryItemNotFoundException extends BusinessException {
 - 이 API는 회원·매장을 저장하거나 가입 권한·서버 검증 토큰을 발급하지 않는다. 실제 가입 처리의 검증·DB 중복 검사와 별개의 조회 API다.
 - 목업 진위확인 번호는 `0000000000`·`8888888888`(확인 불가), `7777777777`(휴업), `9999999999`(폐업), 그 외(정보 일치·영업 중)다. 실제 국세청의 번호 판정과 구분한다.
 
+### 회원가입 · 로그인 · 매장 저장
+
+| 요청 | 입력 · 결과 |
+|---|---|
+| `GET /api/auth/login-id/exists?loginId=...` | `{ exists }` |
+| `POST /api/auth/phone-verifications` | `{ name, phone }` → `{ challengeId, expiresAt }` |
+| `POST /api/auth/phone-verifications/{challengeId}/confirmations` | `{ name, phone, code }` → `{ verificationToken, expiresAt, name, phone }` |
+| `POST /api/auth/signup` | `{ loginId, password, name, phone, phoneVerificationToken, stores: [{ bizRegNo, ownerName, openingDate, bizName }] }` → `201 { memberId, loginId, businessCount }` |
+| `POST /api/auth/login` | `{ loginId, password }` → JWT Access 토큰 |
+| `GET /api/me` | JWT 주인의 회원정보 |
+| `GET /api/stores` | JWT 주인의 매장 목록 `Page<StoreResponse>` |
+| `GET /api/stores/{storeId}` | 내 매장 상세. 다른 계정은 `403` |
+| `PUT /api/stores/{storeId}` | `{ name, category, address, openTime, closeTime, closedDays }` → 저장한 매장. 다른 계정은 `403` |
+
+- 휴대전화는 기존 `app.verification.mode=MOCK`·개발용 코드만 지원한다. 실제 SMS 발송·통신사 본인확인은 구현하지 않는다. `REAL` 모드는 `503`이며 Mock으로 대체하지 않는다.
+- 인증 요청은 3분, 확인 증명은 10분이다. `expiresAt`은 epoch milliseconds다. 증명은 이름·번호에 묶이고 1회만 소비한다. Redis에는 개인정보 대신 HMAC 지문, 증명 원문 대신 해시 키를 저장한다. 코드 오류는 요청별 5회로 제한한다.
+- 가입에는 사업자 1~100개가 필요하다. 비밀번호는 영문·숫자·특수문자 포함 8~64자, 공백 제외, UTF-8 72바이트 이하다. BCrypt로 해시한다.
+- 가입 서버가 국세청 `/validate`에 전체 목록을 한 번에 보내고 모든 결과의 개수·번호·요청 정보·영업 상태를 확인한다. 화면의 확인 결과는 신뢰하지 않는다. 외부 확인 중 DB 트랜잭션을 유지하지 않는다.
+- 확인 후 `AuthSignupPersistenceService` 트랜잭션에서 회원과 `StoreService`의 검증된 매장을 함께 저장한다. 회원 ID는 서버가 생성한다. 동시 가입은 정렬된 PostgreSQL 트랜잭션 잠금과 DB 유일 제약으로 중복을 막는다. 저장 실패 시 전체를 취소하고 휴대전화 증명은 원래 만료 시각 안에서 복원한다.
+- 가입의 입력 오류는 `400`, 중복은 `409`다. 인증·매장 Controller 범위의 `AuthExceptionHandler`가 `{ code, message }`를 반환한다. 공용 예외 구현이 생기면 그 계약으로 합친다.
+- 매장 기본정보의 시간은 둘 다 비우거나 서로 다른 `HH:mm`으로 입력한다. 마감이 더 이르면 다음 날이다. 휴무는 `mon`~`sun` 중 중복 없이 입력한다. 저장하면 `onboardingStatus.storeBasics=true`다.
+- 새로고침 후 재로그인하면 DB 정보를 다시 조회한다. Refresh·자동 로그인·서버 로그아웃 무효화는 이 계약에 포함하지 않는다.
+
 ## 테스트
 
 - 기능마다 **흐름 테스트를 최소 1개** 만든다 (07_cicd `TransferFlowTest` 처럼). Testcontainers를 쓰므로 Docker가 필요하다.

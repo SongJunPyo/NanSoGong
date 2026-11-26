@@ -1,5 +1,4 @@
-// 백엔드 규칙 미확정: 아래 길이·조합은 개발용 Mock 정책이며 서버 계약이 아니다.
-export const MOCK_PASSWORD_HINT = '개발용 임시 규칙: 8~64자, 영문·숫자·특수문자 포함, 공백 제외'
+export const PASSWORD_HINT = '8~64자, 영문·숫자·특수문자 포함, 공백 제외'
 export const WEEK_DAYS = [['mon', '월'], ['tue', '화'], ['wed', '수'], ['thu', '목'], ['fri', '금'], ['sat', '토'], ['sun', '일']]
 export const emptyMember = () => ({ loginId: '', password: '', passwordConfirm: '', name: '', phone: '' })
 export const emptyBusiness = () => ({ bizRegNo: '', ownerName: '', openingDate: '', bizName: '' })
@@ -13,13 +12,14 @@ export function formatBusinessNumber(value) {
 }
 
 export function validateLoginId(value) {
-  return /^[A-Za-z][A-Za-z0-9_]{5,49}$/.test(value) ? '' : '개발용 아이디는 영문으로 시작하는 영문·숫자·밑줄 6~50자예요.'
+  return /^[A-Za-z][A-Za-z0-9_]{5,49}$/.test(value) ? '' : '아이디는 영문으로 시작하는 영문·숫자·밑줄 6~50자예요.'
 }
 
 export function validateMember(member) {
   const errors = {}
   if (validateLoginId(member.loginId)) errors.loginId = validateLoginId(member.loginId)
-  if (member.password.length < 8 || member.password.length > 64 || !/[A-Za-z]/.test(member.password) || !/\d/.test(member.password) || !/[^A-Za-z0-9\s]/.test(member.password) || /\s/.test(member.password)) errors.password = MOCK_PASSWORD_HINT
+  if (member.password.length < 8 || member.password.length > 64 || !/[A-Za-z]/.test(member.password) || !/\d/.test(member.password) || !/[^A-Za-z0-9\s]/.test(member.password) || /\s/.test(member.password)) errors.password = PASSWORD_HINT
+  else if (new TextEncoder().encode(member.password).length > 72) errors.password = '비밀번호가 너무 길어요. 영문·숫자·기호로 줄여 주세요'
   if (!member.passwordConfirm || member.password !== member.passwordConfirm) errors.passwordConfirm = '비밀번호가 일치하지 않아요.'
   if (!member.name.trim() || member.name.trim().length > 50) errors.name = '이름을 입력해 주세요. 최대 50자예요.'
   if (!/^01[016789]\d{7,8}$/.test(normalizePhone(member.phone))) errors.phone = '올바른 휴대전화 번호를 입력해 주세요.'

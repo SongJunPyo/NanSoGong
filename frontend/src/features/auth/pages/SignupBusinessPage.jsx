@@ -5,7 +5,6 @@ import AuthLayout from '@/components/auth/AuthLayout'
 import AuthField from '@/components/auth/AuthField'
 import AuthButton from '@/components/auth/AuthButton'
 import { useSignupStore } from '@/store/useSignupStore'
-import { useAsyncAction } from '@/hooks/useAsyncAction'
 import { signup, verifyBusiness } from '@/api/auth'
 import { emptyBusiness, formatBusinessNumber, normalizeBusiness, normalizePhone, validateBusiness } from '@/utils/auth'
 
@@ -26,9 +25,9 @@ export default function SignupBusinessPage() {
   const [notice, setNotice] = useState('')
   // 가입 전 조회라 storeId가 없다. 조회 결과는 화면을 벗어나면 캐시에 남기지 않는다.
   const verifyTask = useMutation({ mutationKey: ['auth', 'business-verification'], mutationFn: verifyBusiness, retry: false, gcTime: 0 })
-  const signupTask = useAsyncAction()
+  const signupTask = useMutation({ mutationKey: ['auth', 'signup'], mutationFn: signup, retry: false, gcTime: 0 })
   const result = verifyTask.data
-  const busy = verifyTask.isPending || signupTask.pending
+  const busy = verifyTask.isPending || signupTask.isPending
   const hasDraft = Object.values(form).some(Boolean)
   if (draft.completed) return <Navigate to="/signup/complete" replace />
   if (!draft.member.loginId || !draft.phoneProof || draft.checkedLoginId !== draft.member.loginId) return <Navigate to="/signup" replace />
@@ -51,8 +50,8 @@ export default function SignupBusinessPage() {
     verifyTask.mutate(normalizeBusiness(form))
   }
   function addBusiness() {
-    if (result?.status !== 'ACTIVE' || !result.verificationToken) return
-    const value = { ...normalizeBusiness(form), verificationToken: result.verificationToken }
+    if (result?.status !== 'ACTIVE') return
+    const value = normalizeBusiness(form)
     if (draft.businesses.some((item, index) => index !== editing && item.bizRegNo === value.bizRegNo)) { setErrors({ bizRegNo: '이미 등록한 사업자예요.' }); return }
     const entries = [...draft.businesses]
     if (editing === null) entries.push(value)
@@ -73,23 +72,24 @@ export default function SignupBusinessPage() {
     else if (editing !== null && index < editing) setEditing(editing - 1)
     setNotice('사업자정보를 목록에서 삭제했어요.')
   }
-  async function finish(event) {
+  function finish(event) {
     event.preventDefault()
     if (!draft.businesses.length || hasDraft || editing !== null || busy) return
     const member = draft.member
-    const completed = await signupTask.run(() => signup({ loginId: member.loginId, password: member.password, name: member.name, phone: normalizePhone(member.phone), phoneVerificationToken: draft.phoneProof.verificationToken, stores: draft.businesses }))
-    if (completed) { draft.finish(completed); navigate('/signup/complete', { replace: true }) }
+    signupTask.mutate({ loginId: member.loginId, password: member.password, name: member.name, phone: normalizePhone(member.phone), phoneVerificationToken: draft.phoneProof.verificationToken, stores: draft.businesses }, {
+      onSuccess: (completed) => { draft.finish(completed); navigate('/signup/complete', { replace: true }) },
+    })
   }
 
   return (
-    <AuthLayout title="사업자정보를 등록해 주세요" description="영업 중인 사업자정보를 최소 1개 등록해야 개발용 회원가입을 완료할 수 있어요." step={2}>
+    <AuthLayout title="사업자정보를 등록해 주세요" description="영업 중인 사업자정보를 최소 1개 등록해야 회원가입을 완료할 수 있어요." step={2}>
       <form noValidate onSubmit={(event) => { event.preventDefault(); verify() }} className="space-y-4">
         <p className="text-caption leading-relaxed text-ink-sub">사업자등록번호·대표자명·개업일자의 일치 여부와 영업 상태를 함께 확인해요.</p>
         <AuthField label="사업자등록번호" name="bizRegNo" inputMode="numeric" placeholder="123-45-67890" maxLength={12} value={form.bizRegNo} disabled={busy} onChange={(event) => change('bizRegNo', formatBusinessNumber(event.target.value))} error={errors.bizRegNo} />
         <AuthField label="대표자명" name="ownerName" autoComplete="name" maxLength={50} value={form.ownerName} disabled={busy} onChange={(event) => change('ownerName', event.target.value)} error={errors.ownerName} />
         <AuthField label="개업일자" name="openingDate" inputMode="numeric" placeholder="YYYYMMDD · 예: 20260101" maxLength={8} value={form.openingDate} disabled={busy} onChange={(event) => change('openingDate', event.target.value)} error={errors.openingDate} hint="사업자등록증에 적힌 개업일자를 입력해 주세요." />
         <AuthField label="상호 (선택)" name="bizName" autoComplete="organization" maxLength={100} value={form.bizName} disabled={busy} onChange={(event) => change('bizName', event.target.value)} error={errors.bizName} hint="입력한 상호는 첫 매장 설정의 매장명 기본값으로 사용해요." />
-        <AuthButton type="submit" variant="outline" busy={verifyTask.isPending} disabled={signupTask.pending}>{verifyTask.isPending ? '사업자 진위확인 중…' : verifyTask.error ? '사업자 확인 재시도' : '사업자 확인'}</AuthButton>
+        <AuthButton type="submit" variant="outline" busy={verifyTask.isPending} disabled={signupTask.isPending}>{verifyTask.isPending ? '사업자 진위확인 중…' : verifyTask.error ? '사업자 확인 재시도' : '사업자 확인'}</AuthButton>
         {verifyTask.error && <p role="alert" className="text-label text-danger">{verifyTask.error.message}</p>}
         {result && <p role="status" className={`rounded-input p-3 text-label ${result.status === 'ACTIVE' ? 'bg-success-bg text-success' : 'bg-warning-bg text-amber-800'}`}>{RESULTS[result.status] ?? '확인 결과를 해석하지 못했어요. 다시 확인해 주세요.'}</p>}
         {result?.status === 'ACTIVE' && <AuthButton type="button" onClick={addBusiness} disabled={busy}>{editing === null ? '등록 목록에 추가' : '확인한 정보 저장'}</AuthButton>}
@@ -112,7 +112,7 @@ export default function SignupBusinessPage() {
       <form onSubmit={finish} className="space-y-3">
         {signupTask.error && <p role="alert" className="text-label text-danger">{signupTask.error.message}</p>}
         {hasDraft && draft.businesses.length > 0 && <p className="text-caption text-ink-sub">입력 중인 사업자를 목록에 추가하거나 입력을 취소해 주세요.</p>}
-        <AuthButton type="submit" busy={signupTask.pending} disabled={!draft.businesses.length || hasDraft || editing !== null || verifyTask.isPending}>{signupTask.pending ? '가입 처리 중…' : '회원가입 완료'}</AuthButton>
+        <AuthButton type="submit" busy={signupTask.isPending} disabled={!draft.businesses.length || hasDraft || editing !== null || verifyTask.isPending}>{signupTask.isPending ? '가입 처리 중…' : '회원가입 완료'}</AuthButton>
         <Link to="/signup" className="block text-center text-caption font-bold text-woori-blue">회원정보로 돌아가기</Link>
       </form>
     </AuthLayout>

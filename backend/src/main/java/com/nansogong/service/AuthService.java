@@ -2,15 +2,18 @@ package com.nansogong.service;
 
 import com.nansogong.common.AppProperties;
 import com.nansogong.dto.LoginRequest;
-import com.nansogong.dto.MemberResponse;
+import com.nansogong.dto.AuthSignupResponse;
+import com.nansogong.dto.AuthBusinessVerificationRequest;
+import com.nansogong.dto.AuthBusinessVerificationResponse;
 import com.nansogong.dto.SignupRequest;
 import com.nansogong.dto.TokenResponse;
-import com.nansogong.model.Member;
 import com.nansogong.model.MemberStatus;
+import com.nansogong.model.Member;
 import com.nansogong.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
@@ -24,6 +27,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 
 /**
  * 가입 · 로그인.
@@ -38,6 +43,10 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;   // common/SecurityConfig 의 BCrypt
     private final JwtEncoder jwtEncoder;             // common/SecurityConfig 의 HS256 토큰 생성기
     private final AppProperties props;
+    private final AuthPhoneVerificationService phoneService;
+    private final AuthBusinessVerificationService businessVerificationService;
+    private final AuthSignupPersistenceService signupPersistenceService;
+    private final StoreService storeService;
 
     /** 아이디 중복 확인: 이미 있으면 true */
     @Transactional(readOnly = true)
@@ -45,21 +54,38 @@ public class AuthService {
         return memberRepository.existsByLoginId(loginId);
     }
 
-    /** 가입: 중복 확인 → 비밀번호 해시 → 저장 */
-    @Transactional
-    public MemberResponse signup(SignupRequest request) {
+    /** 외부 확인 중에는 DB 트랜잭션을 열지 않는다. 프론트 확인 결과·토큰은 사업자 검증에 사용하지 않는다. */
+    public AuthSignupResponse signup(SignupRequest request) {
+        var proof = phoneService.requireProof(request.phoneVerificationToken(), request.name(), request.phone());
         if (memberRepository.existsByLoginId(request.loginId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다");
         }
-        String passwordHash = passwordEncoder.encode(request.password());
-        Member member = Member.create(request.loginId(), passwordHash, request.name(), request.phone());
-        try {
-            memberRepository.saveAndFlush(member);
-        } catch (DataIntegrityViolationException e) {   // 거의 동시에 같은 아이디로 가입한 경우 (DB 의 UNIQUE 가 막아 준다)
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다");
+        if (request.password().getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호가 너무 길어요. 영문·숫자·기호로 줄여 주세요");
         }
-        log.info("회원 가입 memberId={}", member.getId());
-        return MemberResponse.from(member);
+        if (new HashSet<>(request.stores().stream().map(store -> store.bizRegNo()).toList()).size() != request.stores().size()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "같은 사업자등록번호를 두 번 등록할 수 없어요");
+        }
+        storeService.checkRegistrationNumbers(request.stores());
+        var results = businessVerificationService.verifyAll(request.stores().stream()
+                .map(store -> new AuthBusinessVerificationRequest(store.bizRegNo(), store.ownerName(), store.openingDate())).toList());
+        if (results.stream().anyMatch(result -> result.status() != AuthBusinessVerificationResponse.Status.ACTIVE)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사업자정보가 일치하고 영업 중인 사업자만 등록할 수 있어요. 등록 목록을 다시 확인해 주세요");
+        }
+        String passwordHash = passwordEncoder.encode(request.password());
+        var claim = phoneService.claim(proof);
+        try {
+            AuthSignupResponse created = signupPersistenceService.create(request, passwordHash, proof.verifiedAt());
+            log.info("회원 가입 memberId={}", created.memberId());
+            return created;
+        } catch (RuntimeException e) {
+            try { phoneService.restore(claim); }
+            catch (DataAccessException restoreFailure) { log.warn("회원가입 실패 후 휴대전화 인증 증명 복구 실패"); }
+            if (e instanceof DataIntegrityViolationException) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 가입 정보가 있어요. 아이디와 사업자번호를 확인해 주세요");
+            }
+            throw e;
+        }
     }
 
     /** 로그인: 아이디 찾기 → 비밀번호 비교 → 토큰 발급 */

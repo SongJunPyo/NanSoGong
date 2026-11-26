@@ -1,7 +1,7 @@
 package com.nansogong.controller;
 
 import com.nansogong.dto.LoginRequest;
-import com.nansogong.dto.MemberResponse;
+import com.nansogong.dto.AuthSignupResponse;
 import com.nansogong.dto.SignupRequest;
 import com.nansogong.dto.TokenResponse;
 import com.nansogong.service.AuthService;
@@ -28,7 +28,7 @@ public class AuthController {
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
-    public MemberResponse signup(@Valid @RequestBody SignupRequest request) {
+    public AuthSignupResponse signup(@Valid @RequestBody SignupRequest request) {
         return authService.signup(request);
     }
 

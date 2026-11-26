@@ -21,7 +21,29 @@ Content-Type: application/json
 
 {"bizRegNo": "0000000000"}
 
+### 개발용 휴대전화 인증 요청 (실제 문자 미발송, 개인정보 아닌 예시)
+POST http://localhost:8080/api/auth/phone-verifications
+Content-Type: application/json
+
+{"name": "테스트회원", "phone": "01000000000"}
+
+### 휴대전화 인증 확인 (응답의 challengeId를 직접 넣는다)
+# POST /api/auth/phone-verifications/{challengeId}/confirmations
+# Body: {"name":"테스트회원","phone":"01000000000","code":"000000"}
+# 발급한 verificationToken은 소스에 저장하지 말고 다음 가입 요청에서 사용한다.
+
+### 회원·매장 가입 계약 (테스트용 번호는 실제 국세청에서 가입 거절)
+# POST /api/auth/signup
+# Body: {"loginId":"example_user","password":"<직접 입력>","name":"테스트회원","phone":"01000000000","phoneVerificationToken":"<위 응답>","stores":[{"bizRegNo":"0000000000","ownerName":"테스트대표","openingDate":"20000101","bizName":"예시상호"}]}
+# 성공 시 201. 회원·매장은 함께 저장한다. 실제 성공 테스트에는 사용 권한이 있는 사업자 정보가 필요하다.
+
 ### ─── 외부 연동 목업 (docker compose 의 mock, 8089) ───
+
+### 국세청 복수 진위확인 목업 (각 사업자별로 결과를 돌려준다)
+POST http://localhost:8089/nts/v1/validate?serviceKey=mock-key
+Content-Type: application/json
+
+{"businesses":[{"b_no":"1234567890","start_dt":"20000101","p_nm":"테스트대표"},{"b_no":"8888888888","start_dt":"20000101","p_nm":"테스트대표"}]}
 
 ### 국세청 상태조회 (9999999999 = 폐업, 7777777777 = 휴업)
 POST http://localhost:8089/nts/v1/status?serviceKey=mock-key

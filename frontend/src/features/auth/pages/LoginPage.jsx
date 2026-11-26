@@ -5,7 +5,6 @@ import AuthField from '@/components/auth/AuthField'
 import AuthButton from '@/components/auth/AuthButton'
 import { useLogin } from '@/hooks/useAuthSession'
 import { useSignupStore } from '@/store/useSignupStore'
-import { MOCK_AUTH } from '@/api/auth-mock'
 
 export default function LoginPage() {
   const location = useLocation()
@@ -34,11 +33,6 @@ export default function LoginPage() {
         <Link to="/signup" onClick={() => useSignupStore.getState().reset()}>회원가입</Link>
         <Link to="/find-password">비밀번호 찾기</Link>
       </div>
-      <details className="rounded-input bg-surface-muted p-3 text-caption text-ink-sub">
-        <summary className="cursor-pointer font-bold">개발용 테스트 계정</summary>
-        <ul className="mt-2 space-y-1">{MOCK_AUTH.users.map((user) => <li key={user.loginId}>{user.loginId} · {user.label}</li>)}</ul>
-        <p className="mt-2">공통 비밀번호: {MOCK_AUTH.password}</p>
-      </details>
     </AuthLayout>
   )
 }
