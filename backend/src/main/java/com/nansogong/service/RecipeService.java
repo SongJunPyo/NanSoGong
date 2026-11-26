@@ -1,12 +1,20 @@
 package com.nansogong.service;
 
+import com.nansogong.dto.InventoryItemResponse;
 import com.nansogong.dto.OptionQty;
+import com.nansogong.dto.RecipeResponse;
+import com.nansogong.dto.RecipeSaveRequest;
+import com.nansogong.model.Menu;
 import com.nansogong.model.RecipeAppliesTo;
 import com.nansogong.model.RecipeItem;
+import com.nansogong.model.RecipeSource;
+import com.nansogong.repository.MenuRepository;
 import com.nansogong.repository.RecipeItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -17,12 +25,65 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** 레시피. 레시피 저장 API 는 준표 ItemService(같은 매장 품목 · 단위 확인)가 나온 뒤 추가한다. */
+/**
+ * 레시피. 바꿀 때는 기존 행을 지우지 않고 닫는다(valid_to): 지난 판매의 재고 계산이 그때 레시피로 남는다.
+ * TODO: 공용 BusinessException 이 생기면 ResponseStatusException 을 업무 예외로 바꾼다.
+ */
 @Service
 @RequiredArgsConstructor
 public class RecipeService {
 
+    private final StoreService storeService;
+    private final InventoryItemService inventoryItemService;   // 품목(준표) 은 service 로만 부른다
+    private final MenuRepository menuRepository;
     private final RecipeItemRepository recipeItemRepository;
+
+    /** 메뉴(또는 옵션)의 지금 레시피 */
+    @Transactional(readOnly = true)
+    public RecipeResponse getRecipe(Long memberId, Long storeId, Long menuId) {
+        storeService.checkOwner(memberId, storeId);
+        findMenu(storeId, menuId);
+        return toResponse(memberId, storeId, menuId, recipeItemRepository.findByMenuIdAndValidToIsNull(menuId));
+    }
+
+    /**
+     * 레시피 저장 (통째로 교체): 지금 레시피 행을 모두 닫고, 받은 내용으로 새 행을 만든다.
+     * 검사: 내 매장 · 이 매장 메뉴 · 이 매장 품목(아니면 404) · 사용 중 품목 · 같은 품목 두 번 금지 · 기본 메뉴는 양수 / 옵션은 0 이 아닌 값
+     */
+    @Transactional
+    public RecipeResponse saveRecipe(Long memberId, Long storeId, Long menuId, RecipeSaveRequest request) {
+        storeService.checkOwner(memberId, storeId);
+        Menu menu = findMenu(storeId, menuId);
+
+        List<RecipeSaveRequest.Line> lines = request.items();
+        Set<Long> itemIds = new HashSet<>();
+        for (RecipeSaveRequest.Line line : lines) {
+            if (!itemIds.add(line.itemId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "같은 품목을 두 번 넣을 수 없습니다");
+            }
+            boolean invalid = menu.isOption() ? line.quantity().signum() == 0 : line.quantity().signum() <= 0;
+            if (invalid) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        menu.isOption() ? "옵션 사용량은 0 일 수 없습니다" : "메뉴 사용량은 0 보다 커야 합니다");
+            }
+        }
+        for (Long itemId : itemIds) {
+            InventoryItemResponse item = inventoryItemService.getItem(memberId, storeId, itemId);   // 다른 매장 · 없는 품목이면 404
+            if (!item.active()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사용 중지된 품목은 레시피에 넣을 수 없습니다: " + item.name());
+            }
+        }
+
+        Instant now = Instant.now();
+        recipeItemRepository.findByMenuIdAndValidToIsNull(menuId).forEach(old -> old.close(now));   // 지금 레시피 닫기
+        List<RecipeItem> created = lines.stream()
+                .map(line -> RecipeItem.create(storeId, menuId, line.itemId(), line.quantity(),
+                        line.appliesTo() == null ? RecipeAppliesTo.ALL : line.appliesTo(), RecipeSource.OWNER, now))
+                .toList();
+        recipeItemRepository.saveAll(created);
+        return toResponse(memberId, storeId, menuId, created);
+    }
+
 
     /**
      * 메뉴 1개(+ 옵션들)를 at 시각에 만들 때 품목별 사용량 (AGENTS.md 3-5 계약, 준표 deductForSale 에서 부른다).
@@ -68,5 +129,22 @@ public class RecipeService {
         for (RecipeItem r : recipe) {
             usage.merge(r.getItemId(), r.getQuantity().multiply(times), BigDecimal::add);
         }
+    }
+
+    /** 이 매장의 메뉴만. 다른 매장 메뉴 번호면 404 */
+    private Menu findMenu(Long storeId, Long menuId) {
+        return menuRepository.findByIdAndStoreId(menuId, storeId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "메뉴를 찾을 수 없습니다"));
+    }
+
+    private RecipeResponse toResponse(Long memberId, Long storeId, Long menuId, List<RecipeItem> rows) {
+        List<RecipeResponse.Line> lines = rows.stream()
+                .map(r -> {
+                    InventoryItemResponse item = inventoryItemService.getItem(memberId, storeId, r.getItemId());
+                    return new RecipeResponse.Line(r.getId(), r.getItemId(), item.name(), item.unit(),
+                            r.getQuantity(), r.getAppliesTo(), r.getSource(), r.getValidFrom());
+                })
+                .toList();
+        return new RecipeResponse(menuId, lines);
     }
 }
