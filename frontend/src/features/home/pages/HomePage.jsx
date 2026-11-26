@@ -69,7 +69,8 @@ export default function HomePage() {
           발주 예정 {won(data.orderFund.planned)}원 · 통장 잔액 {won(data.orderFund.balance)}원
         </Banner>
       )}
-      <div className="grid min-w-0 items-start gap-4 md:grid-cols-2">
+      {/* PC: 첫 화면 아래 끝까지 늘어나고, 오른쪽 캘린더가 남은 높이를 채운다 */}
+      <div className="grid min-w-0 items-start gap-4 md:flex-1 md:grid-cols-2 md:items-stretch">
         {/* ① 지금 할 일 — 가장 먼저 (날씨 한 줄 포함) */}
         <HomeBriefing
           items={todo} approvals={data.approvals}

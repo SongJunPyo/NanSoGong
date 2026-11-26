@@ -52,7 +52,7 @@ export default function HomeCalendar({ events, isPending, error }) {
   }
 
   return (
-    <section data-coach="home-calendar" aria-labelledby="home-calendar-title" className="min-w-0 self-start rounded-card border border-line bg-white p-4">
+    <section data-coach="home-calendar" aria-labelledby="home-calendar-title" className="flex min-w-0 flex-col rounded-card border border-line bg-white p-4 md:flex-1">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h2 id="home-calendar-title" className="text-h2 font-bold text-ink">운영 캘린더</h2>
       </div>
@@ -73,7 +73,8 @@ export default function HomeCalendar({ events, isPending, error }) {
       <div className="grid grid-cols-7" aria-hidden="true">
         {WEEKDAYS.map((day, index) => <span key={day} className={`pb-1 text-center text-caption ${index === 0 ? 'text-danger' : index === 6 ? 'text-woori-blue' : 'text-ink-mute'}`}>{day}</span>)}
       </div>
-      <div role="group" aria-label={formatCalendarMonth(month)} className="grid grid-cols-7 gap-0.5">
+      {/* PC: 남은 높이만큼 날짜 칸이 늘어난다 */}
+      <div role="group" aria-label={formatCalendarMonth(month)} className="grid grid-cols-7 gap-0.5 md:flex-1 md:auto-rows-fr">
         {getCalendarDays(month).map((date) => {
           const inMonth = date.slice(0, 7) === month.slice(0, 7)
           const dayEvents = getHomeEventsForDate(events, date)
@@ -87,7 +88,7 @@ export default function HomeCalendar({ events, isPending, error }) {
               aria-current={isToday ? 'date' : undefined}
               aria-label={`${date.replaceAll('-', ' ')}${isToday ? ' 오늘' : ''}, 일정 ${dayEvents.length}건`}
               onClick={() => openDay(date)}
-              className={`flex min-h-9 flex-col items-center justify-center gap-0.5 rounded-lg py-1 text-[13px] focus-visible:outline-2 focus-visible:outline-woori-blue ${
+              className={`flex h-full min-h-9 flex-col items-center justify-center gap-0.5 rounded-lg py-1 text-[13px] focus-visible:outline-2 focus-visible:outline-woori-blue ${
                 isToday ? 'bg-woori-deep font-bold text-white' :
                   isSelected ? 'bg-woori-tint font-bold text-woori-deep ring-1 ring-inset ring-woori-blue' :
                     inMonth ? 'text-ink hover:bg-surface-muted' : 'text-ink-mute/50'
