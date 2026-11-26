@@ -1,5 +1,6 @@
 package com.nansogong.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.nansogong.model.ItemUnit;
 
 import java.math.BigDecimal;
@@ -29,6 +30,7 @@ public record MenuCostResponse(
     }
 
     /** 품목 한 줄: 사용량 × 단가 = 금액 (단가가 없으면 unitCost · lineCost = null) */
+    @Schema(name = "MenuCostLine")   // Swagger 이름 (Line 이 여러 개라 설명서에서 서로 덮어쓰지 않게)
     public record Line(Long itemId, String itemName, ItemUnit unit, BigDecimal quantity,
                        BigDecimal unitCost, BigDecimal lineCost) {}
 }
