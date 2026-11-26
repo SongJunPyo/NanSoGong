@@ -7,13 +7,14 @@ import SalesTabs from '@/features/sales/components/SalesTabs'
 import { won } from '@/lib/format'
 
 /** 비용·예상 이익 — 기존 비용 추가/분류 화면 연결을 유지한다. */
-export default function CostsPage({ embedded = false }) {
+export default function CostsPage() {
   const { data: costs } = useCosts()
   const { data: forecast } = useCostForecast()
   const profit = forecast.revenue - forecast.estimatedCost - forecast.operatingCost
 
-  const content = (
-    <>
+  return (
+    <Screen title="매출" back={false} tab wide>
+      <SalesTabs />
       <section aria-label="예상 이익 요약" className="bg-hero flex flex-wrap items-center justify-between gap-4 rounded-hero px-5 py-5 text-white lg:px-6">
         <div><h2 className="text-caption text-white/80">{forecast.period} · 예상 이익</h2><p className="num mt-1 text-[32px] leading-tight font-bold">{won(profit)}<span className="ml-1 text-lg">원</span></p></div>
         <div className="rounded-input bg-white/15 px-4 py-3"><p className="text-caption text-white/80">예상 이익률</p><p className="num mt-1 text-xl font-bold">{forecast.revenue ? (profit / forecast.revenue * 100).toFixed(1) : '—'}%</p></div>
@@ -70,14 +71,6 @@ export default function CostsPage({ embedded = false }) {
           </Card>
         </div>
       </div>
-    </>
-  )
-
-  if (embedded) return content
-  return (
-    <Screen title="매출" back={false} tab wide>
-      <SalesTabs />
-      {content}
     </Screen>
   )
 }
