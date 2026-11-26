@@ -48,7 +48,7 @@ function BriefingWeather({ forecast, onAnalyze }) {
 }
 
 /**
- * 매장 데이터 기반 운영 브리핑 = 날씨로 본 수요 예측 + 지금 해야 할 일 (중요도순: 긴급 → 주의 → 일반)
+ * 우리 매장 현황 = 날씨로 본 수요 예측 + 지금 해야 할 일 (중요도순: 긴급 → 주의 → 일반)
  * 이미 일어난 일의 기록은 헤더 알림 패널에서 보여 준다 (같은 내용이 겹치지 않게)
  * @param items     브리핑 항목 (features/home/mock.js 의 homeBriefing)
  * @param aiSummary 오늘 AI가 한 일 (맨 위 회색 요약 줄)
@@ -70,7 +70,7 @@ export default function HomeBriefing({ items, approvals, aiSummary, forecast, on
     <section aria-labelledby="home-briefing-title" className="min-w-0 rounded-card border border-line bg-white p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 id="home-briefing-title" className="flex items-center gap-1.5 text-h2 font-bold text-ink">
-          매장 데이터 기반 운영 브리핑 <AiLabel />
+          우리 매장 현황 <AiLabel />
         </h2>
         <span data-coach="home-approvals">
           <Badge status={approvals.length ? 'pending' : 'neutral'}>할 일 {approvals.length}건</Badge>
@@ -106,7 +106,7 @@ export default function HomeBriefing({ items, approvals, aiSummary, forecast, on
 
       {error && <p role="alert" className="py-2 text-caption text-danger">{error.message}</p>}
       {isPending ? (
-        <div role="status" aria-label="브리핑을 불러오는 중이에요" className="flex flex-col gap-3 py-2">
+        <div role="status" aria-label="매장 현황을 불러오는 중이에요" className="flex flex-col gap-3 py-2">
           {[0, 1, 2].map((i) => (
             <div key={i} className="flex flex-col gap-1.5 px-2">
               <Skeleton className="h-4 w-4/5" />
@@ -154,7 +154,7 @@ export default function HomeBriefing({ items, approvals, aiSummary, forecast, on
                     <div id={`briefing-detail-${notification.id}`} className="flex flex-col gap-1.5 pt-2 pr-1.5">
                       {/* 우리 매장 현황 — 숫자로 */}
                       {notification.status?.length ? (
-                        <dl aria-label="우리 매장 현황" className="flex flex-col gap-1 rounded-lg bg-white/80 px-3 py-2">
+                        <dl aria-label="이 항목의 현황 수치" className="flex flex-col gap-1 rounded-lg bg-white/80 px-3 py-2">
                           {notification.status.map(({ label, value, warn }) => (
                             <div key={label} className="flex items-baseline justify-between gap-3 text-caption">
                               <dt className="text-ink-sub">{label}</dt>
