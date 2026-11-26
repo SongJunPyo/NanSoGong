@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Sparkles } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
-import { Hero, HeroLabel, HeroValue, WeatherIcon } from '@/components/common/ui'
+import { Hero, HeroLabel, HeroValue } from '@/components/common/ui'
 import HomeBriefing from '@/components/home/HomeBriefing'
 import HomeCalendar from '@/components/home/HomeCalendar'
 import { won } from '@/lib/format'
@@ -85,58 +84,27 @@ export default function HomePage() {
           발주 예정 {won(data.orderFund.planned)}원 · 통장 잔액 {won(data.orderFund.balance)}원
         </Banner>
       )}
-      <div className="grid min-w-0 gap-4 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
-        <div data-coach="home-sales" className="flex min-w-0">
-          <Hero className="flex-1 justify-center">
-            <div className="flex items-center gap-2">
-              <HeroLabel>오늘 매출</HeroLabel>
-              <Link to="/sales" className="ml-auto text-caption font-bold text-white/90 hover:text-white">
-                더보기 ›
-              </Link>
-            </div>
-            <HeroValue size="text-[32px] leading-tight lg:text-[36px]">{won(data.sales.amount)}원</HeroValue>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-caption">
-              <span className="text-[#d9ebfa]">주문 {data.sales.orders}건</span>
-              <span className="ml-auto font-bold text-white">{data.sales.diff}</span>
-            </div>
-          </Hero>
-        </div>
-
-        <section aria-label="날씨 데이터 기반 수요 예측" className="flex min-w-0 flex-col justify-center gap-2 rounded-card bg-woori-tint p-4">
+      <div data-coach="home-sales" className="flex min-w-0">
+        <Hero className="flex-1 justify-center">
           <div className="flex items-center gap-2">
-            <h2 className="flex items-center gap-1.5 text-caption font-bold text-woori-blue">
-              날씨 데이터 기반 수요 예측 <AiLabel />
-            </h2>
-            <button
-              type="button"
-              onClick={() => setWeatherOpen(true)}
-              className="ml-auto inline-flex items-center gap-1 rounded-lg bg-woori-blue px-2.5 py-1.5 text-caption font-bold text-white hover:bg-woori-deep"
-            >
-              <Sparkles size={14} aria-hidden="true" />
-              AI 분석
-            </button>
+            <HeroLabel>오늘 매출</HeroLabel>
+            <Link to="/sales" className="ml-auto text-caption font-bold text-white/90 hover:text-white">
+              더보기 ›
+            </Link>
           </div>
-          <div>
-            <p className="text-base font-bold text-ink">내일 비 · 따뜻한 라떼 14잔 더 팔릴 것 같아요</p>
-            <p className="mt-1 text-caption text-ink-sub">강수확률 90% · 최저 4°C · 최근 판매와 날씨를 반영했어요.</p>
+          <HeroValue size="text-[32px] leading-tight lg:text-[36px]">{won(data.sales.amount)}원</HeroValue>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-caption">
+            <span className="text-[#d9ebfa]">주문 {data.sales.orders}건</span>
+            <span className="ml-auto font-bold text-white">{data.sales.diff}</span>
           </div>
-          <div className="grid grid-cols-5 gap-1 border-t border-woori-blue/10 pt-2">
-            {data.forecast.map(({ d, w, t }) => (
-              <div key={d} className="flex flex-col items-center justify-center gap-1 text-caption sm:flex-row">
-                <span className="text-ink-sub">{d}</span>
-                <span className="inline-flex items-center gap-1">
-                  <WeatherIcon type={w} size={16} />
-                  <span className="num font-bold text-ink">{t}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
+        </Hero>
       </div>
 
       <div className="grid min-w-0 items-start gap-4 md:grid-cols-2">
+        {/* 날씨로 본 수요 예측을 브리핑 맨 위에 합쳤다 */}
         <HomeBriefing
           items={todo} approvals={data.approvals} aiSummary={aiSummary}
+          forecast={data.forecast} onWeatherAnalyze={() => setWeatherOpen(true)}
           isPending={briefing.isPending} error={briefing.error}
         />
         <HomeCalendar events={calendar.data ?? []} isPending={calendar.isPending} error={calendar.error} />

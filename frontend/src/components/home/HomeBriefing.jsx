@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Sparkles } from 'lucide-react'
+import { WeatherIcon } from '@/components/common/ui'
 import { HOME_SEVERITIES, sortHomeNotifications } from '@/utils/home'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/loading'
@@ -13,13 +14,48 @@ const SEVERITY_CARD = {
   normal: { card: 'border-line bg-white hover:bg-surface-muted', bar: 'bg-success', chip: 'bg-success-bg text-success' },
 }
 
+/** 브리핑 맨 위 날씨 줄 — 날씨로 본 수요 예측 한 줄 + 5일 예보, [AI 분석] 은 팝업으로 */
+function BriefingWeather({ forecast, onAnalyze }) {
+  return (
+    <div aria-label="날씨 기반 수요 예측" className="mb-3 flex flex-col gap-2 rounded-input bg-woori-tint p-3">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-label font-bold text-ink">내일 비 · 따뜻한 라떼 14잔 더 팔릴 것 같아요</p>
+          <p className="mt-0.5 text-caption text-ink-sub">강수확률 90% · 최저 4°C · 최근 판매와 날씨를 반영했어요.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onAnalyze}
+          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-woori-blue px-2.5 py-1.5 text-caption font-bold text-white hover:bg-woori-deep"
+        >
+          <Sparkles size={14} aria-hidden="true" />
+          AI 분석
+        </button>
+      </div>
+      <div className="grid grid-cols-5 gap-1 border-t border-woori-blue/10 pt-2">
+        {forecast.map(({ d, w, t }) => (
+          <div key={d} className="flex flex-col items-center justify-center gap-1 text-caption sm:flex-row">
+            <span className="text-ink-sub">{d}</span>
+            <span className="inline-flex items-center gap-1">
+              <WeatherIcon type={w} size={16} />
+              <span className="num font-bold text-ink">{t}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /**
- * AI 운영 브리핑 = 지금 해야 할 일 (중요도순: 긴급 → 주의 → 일반)
+ * 날씨 · 매장 데이터 기반 운영 브리핑 = 날씨로 본 수요 예측 + 지금 해야 할 일 (중요도순: 긴급 → 주의 → 일반)
  * 이미 일어난 일의 기록은 헤더 알림 패널에서 보여 준다 (같은 내용이 겹치지 않게)
  * @param items     브리핑 항목 (features/home/mock.js 의 homeBriefing)
  * @param aiSummary 오늘 AI가 한 일 (맨 위 회색 요약 줄)
+ * @param forecast  5일 예보 (없으면 날씨 줄을 그리지 않는다)
+ * @param onWeatherAnalyze [AI 분석] 버튼
  */
-export default function HomeBriefing({ items, approvals, aiSummary, isPending, error }) {
+export default function HomeBriefing({ items, approvals, aiSummary, forecast, onWeatherAnalyze, isPending, error }) {
   const notifications = items
   const [filter, setFilter] = useState('all')
   const sorted = sortHomeNotifications(notifications)
@@ -32,7 +68,7 @@ export default function HomeBriefing({ items, approvals, aiSummary, isPending, e
     <section aria-labelledby="home-briefing-title" className="min-w-0 rounded-card border border-line bg-white p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h2 id="home-briefing-title" className="flex items-center gap-1.5 text-h2 font-bold text-ink">
-          매장 데이터 기반 운영 브리핑 <AiLabel />
+          날씨 · 매장 데이터 기반 운영 브리핑 <AiLabel />
         </h2>
         <span data-coach="home-approvals">
           <Badge status={approvals.length ? 'pending' : 'neutral'}>할 일 {approvals.length}건</Badge>
@@ -45,6 +81,8 @@ export default function HomeBriefing({ items, approvals, aiSummary, isPending, e
           발주안 {aiSummary.orderDrafts}건과 {aiSummary.priceCompared}곳 가격 비교를 미리 준비해 약 {aiSummary.minutesSaved}분을 아꼈어요.
         </p>
       )}
+
+      {forecast && <BriefingWeather forecast={forecast} onAnalyze={onWeatherAnalyze} />}
 
       <div role="group" aria-label="할 일 중요도 필터" className="mb-2 flex flex-wrap gap-1.5">
         {filters.map(({ key, label, dot, filter: selectedStyle }) => {
