@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { RefreshCw } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
 import { Hero, HeroLabel, HeroValue } from '@/components/common/ui'
 import HomeBriefing from '@/components/home/HomeBriefing'
@@ -12,6 +13,7 @@ import { HeaderNotifications } from '@/components/home/HomeNotifications'
 import { useAiSummary, useHome, useHomeBriefing, useHomeEvents } from '@/features/home/queries'
 import { Banner } from '@/components/ui/banner'
 import { Sheet } from '@/components/ui/sheet'
+import { toast } from '@/components/ui/toast'
 import WeatherAnalysis from '@/features/weather/components/WeatherAnalysis'
 import { CoachMark } from '@/components/ui/coach-mark'
 
@@ -24,7 +26,21 @@ const COACH_STEPS = [
 
 /** 11 홈 — 매출·수요 요약, AI 운영 브리핑, 월별 운영 캘린더 (UF-05) */
 export default function HomePage() {
-  const { data } = useHome()
+  const home = useHome()
+  const { data } = home
+  const [refreshing, setRefreshing] = useState(false)
+  // 오늘 매출 새로고침 — 목업은 바로 끝나서 최소 0.6초는 도는 모습을 보여 준다
+  const refreshSales = async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([home.refetch(), new Promise((resolve) => setTimeout(resolve, 600))])
+      toast('오늘 매출을 새로 불러왔어요')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+  const updatedAt = new Date(home.dataUpdatedAt) // initialData 를 넣은 시각부터 시작
+  const updatedText = `${String(updatedAt.getHours()).padStart(2, '0')}:${String(updatedAt.getMinutes()).padStart(2, '0')} 기준`
   const briefing = useHomeBriefing()
   const { data: aiSummary } = useAiSummary()
   const calendar = useHomeEvents()
@@ -54,6 +70,16 @@ export default function HomePage() {
         <Hero className="flex-1 justify-center">
           <div className="flex items-center gap-2">
             <HeroLabel>오늘 매출</HeroLabel>
+            <span className="num text-caption text-[#d9ebfa]">{updatedText}</span>
+            <button
+              type="button"
+              onClick={refreshSales}
+              disabled={refreshing}
+              aria-label={refreshing ? '오늘 매출을 불러오는 중이에요' : '오늘 매출 새로고침'}
+              className="-my-1 inline-flex size-8 items-center justify-center rounded-lg text-white/90 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white disabled:opacity-70"
+            >
+              <RefreshCw size={16} aria-hidden="true" className={refreshing ? 'animate-spin' : ''} />
+            </button>
             <Link to="/sales" className="ml-auto text-caption font-bold text-white/90 hover:text-white">
               더보기 ›
             </Link>
