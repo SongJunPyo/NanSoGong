@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/modal'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonCard } from '@/components/ui/loading'
 import { toast } from '@/components/ui/toast'
+import SalesTabs from '@/features/sales/components/SalesTabs'
 
 // ⚠️ 가정: 운영을 종료하면 오늘 이 시각부터 POS에서 내린다 (POS 반영 시각은 백엔드와 맞출 것)
 const POS_OFF_TIME = '18:00'
@@ -22,7 +23,7 @@ const TABS = [
 const periodText = (p) => `${formatCalendarDate(p.startDate)} – ${formatCalendarDate(p.endDate)}`
 
 /** 44 프로모션 성과 (UF-08) — 진행 중 · 종료 목록, 진행 중인 프로모션 운영 종료 */
-export default function PromotionPerformancePage() {
+export default function PromotionPerformancePage({ embedded = false }) {
   const draftName = useCouponDraft((s) => s.promotionName)
   const { data: promotions = [], isPending } = usePromotions()
   const endMutation = useEndPromotion()
@@ -44,8 +45,8 @@ export default function PromotionPerformancePage() {
     })
   }
 
-  return (
-    <Screen title="프로모션 성과">
+  const content = (
+    <>
       <SegmentedControl
         label="프로모션 상태"
         value={tab}
@@ -86,6 +87,14 @@ export default function PromotionPerformancePage() {
         onConfirm={end}
         tone="danger"
       />
+    </>
+  )
+
+  if (embedded) return content
+  return (
+    <Screen title="매출" back={false} tab wide>
+      <SalesTabs />
+      {content}
     </Screen>
   )
 }
