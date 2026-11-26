@@ -4,7 +4,7 @@
 #   필요: 환경변수 DEV_INSTANCE_ID, AWS 자격 증명(dev 배포 역할), aws CLI
 #   update.sh 가 끝날 때까지 기다리고, 실패하면 EC2 쪽 출력을 보여 주고 실패한다
 set -euo pipefail
-COMPONENT=${1:?api 또는 web}
+COMPONENT=${1:?api · web · ai 중 하나}
 TAG=${2:?이미지 태그}
 INSTANCE=${DEV_INSTANCE_ID:?DEV_INSTANCE_ID 가 없습니다}
 REGION=${AWS_REGION:-ap-northeast-2}
