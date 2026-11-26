@@ -1,7 +1,12 @@
 # 🤖 AI 서비스(FastAPI) 실행에 필요한 라이브러리
 # ~=X.Y.Z : 같은 X.Y 안에서 패치만 올라간다 (팀원 · CI · dev 서버가 같은 동작을 하도록)
-# LangGraph · Anthropic SDK · LangSmith 는 실제 연결을 확인한 뒤 추가하고 버전을 고정한다 (docs/rules/ai.md)
+# LangGraph · Anthropic SDK · LangSmith 버전은 실제 연결을 확인한 뒤 최종 고정한다 (docs/rules/ai.md)
 fastapi~=0.115.0
 uvicorn[standard]~=0.34.0
 prometheus-fastapi-instrumentator~=7.1.0
+pydantic~=2.14.0                 # 2.11 이상 필요: camelCase 내보내기(serialize_by_alias, app/models/base.py)
 pydantic-settings~=2.16.0        # 환경변수 → 설정 (app/config.py)
+# AI 흐름 (app/graphs/). 설치해서 가짜 모델로 테스트한 버전. 실제 Claude 연결 확인은 #36 PR 전에 한다
+langgraph~=1.2.24
+langchain-core~=1.8.5
+langchain-anthropic~=1.7.13
