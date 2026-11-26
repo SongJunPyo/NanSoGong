@@ -4,6 +4,7 @@
 #   docker compose logs -f app                    → 서버 로그 보기 (Ctrl+C 로 나가도 서버는 계속 돈다)
 #   docker compose --profile monitoring up -d     → + Prometheus(9090) + Grafana(3000)
 #   docker compose --profile ml up -d             → + 수요 예측용 Jupyter(8888)
+#   docker compose --profile ai up -d --build     → + AI 서비스 FastAPI(8001) (ai/README.md)
 #   docker compose --profile web up -d --build    → + 배포 모양 화면 nginx(8000) (AWS dev EC2 는 docker-compose.dev.yml 로 항상 켬)
 # 🧑‍💻 서버 코드를 고치며 디버깅할 때는 VS Code "서버 (Spring Boot, 8080)" 로 실행한다
 #     → 실행 전에 컨테이너 서버(app)를 자동으로 멈추고 DB · Redis · 목업만 띄운다 (8080 충돌 방지)
@@ -103,6 +104,17 @@ services:
       - app
 
   # 🤖 (선택) 수요 예측 실험: 이동평균 baseline → LightGBM (ml/README.md)
+  # 🧠 (선택) AI 서비스 FastAPI (ai/Dockerfile). 지금은 /health · /metrics 틀만 있다 (ai/README.md)
+  #    Spring(app) 은 http://ai-api:8000 으로 부른다. 내 PC 에서는 http://localhost:8001 (8000 은 web 프로필이 쓴다)
+  #    AI 작업 API 가 생겨 Spring 이 꼭 필요로 하게 되면 프로필을 빼고 기본으로 띄운다
+  ai-api:
+    build: ./ai
+    image: nansogong-ai:local
+    pull_policy: build
+    profiles: ["ai"]
+    ports:
+      - "${AI_PORT:-8001}:8000"
+
   ml:
     build: ./ml
     profiles: ["ml"]

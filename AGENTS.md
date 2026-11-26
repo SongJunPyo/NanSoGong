@@ -182,6 +182,7 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 docker compose up -d                          # 서버(8080) + PostgreSQL + Redis + 목업(8089)
 docker compose logs -f app                    # 서버 로그
 cd frontend && npm ci && npm run dev          # 화면 (5173)
+docker compose --profile ai up -d --build     # + AI 서비스 FastAPI (8001)
 bash infra/demo-data/load.sh local            # 데모 데이터
 docker compose down -v && docker compose up -d  # 로컬 DB 초기화
 ```
@@ -192,6 +193,7 @@ docker compose down -v && docker compose up -d  # 로컬 DB 초기화
 | http://localhost:8080/api/ping | 서버 · DB · Redis 연결 상태 |
 | http://localhost:8080/swagger-ui/index.html | API 문서 |
 | http://localhost:8089/__admin/requests | 목업이 받은 요청 기록 |
+| http://localhost:8001/docs | AI 서비스(FastAPI) API 문서 (`--profile ai`) |
 
 나머지 실행 방법 · 문제 해결은 [README](README.md)를 본다.
 

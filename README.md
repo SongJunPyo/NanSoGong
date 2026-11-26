@@ -14,7 +14,8 @@
 
 ```
 .
-├── .github/             # workflows/ = GitHub Actions(backend.yml · frontend.yml), PR · 이슈 템플릿
+├── .github/             # workflows/ = GitHub Actions(backend.yml · frontend.yml · ai.yml), PR · 이슈 템플릿
+├── ai/                  # 🧠 AI 서비스 (Python · FastAPI). 지금은 /health · /metrics 틀만 (ai/README.md)
 ├── backend/             # Spring Boot 서버 (build.gradle · gradlew · Dockerfile · src)
 │   └── src/             #   계층별 패키지(controller · service · repository · model · dto · exception · ai · common), resources/db/migration = Flyway SQL, api.http = 요청 모음
 ├── frontend/            # React · Vite 화면 (src/features = 도메인별 폴더)
@@ -31,7 +32,7 @@
 > 💡 **개발 환경은 이미지가 아니라 이 저장소로 공유합니다.**
 > PostgreSQL · Redis 버전은 `docker-compose.yml`, Java 버전은 `backend/build.gradle`(toolchain), Gradle 버전은 `backend/gradlew`,
 > Node 버전은 `.nvmrc`, npm 패키지 버전은 `frontend/package-lock.json` 이 고정합니다.
-> AWS ECR 에는 **배포용 이미지**(서버 · dev 화면, arm64)만 Actions 가 올립니다.
+> AWS ECR 에는 **배포용 이미지**(서버 · dev 화면 · dev AI 서비스, arm64)만 Actions 가 올립니다.
 
 ## 규칙 · 설계 · 진행 상황
 
@@ -168,6 +169,7 @@ npm run dev                       # → http://localhost:5173/screens
 | http://localhost:8080/swagger-ui/index.html | API 문서 |
 | http://localhost:8080/actuator/health | 서버 상태 |
 | http://localhost:8089/__admin/requests | 목업이 받은 요청 기록 (내 서버가 외부에 뭘 보냈는지) |
+| http://localhost:8001/docs | AI 서비스(FastAPI) API 문서 (`--profile ai` 로 띄웠을 때) |
 
 ## 3. 매일 하는 일
 
@@ -179,6 +181,7 @@ cd frontend && npm ci             # package-lock.json 이 바뀐 날만
 
 - 테스트: `backend` 폴더에서 `./gradlew test` (Testcontainers 가 테스트용 PostgreSQL · Redis 를 따로 띄운다. Docker Desktop 실행 필요)
 - 수요 예측 실험: `docker compose --profile ml up -d --build` → http://localhost:8888 (`ml/README.md`)
+- AI 서비스(FastAPI): `docker compose --profile ai up -d --build` → http://localhost:8001/health (`ai/README.md`). 테스트는 `ai` 폴더에서 `pytest`
 - 배포 모양 화면 확인 (nginx · PWA): `docker compose --profile web up -d --build` → http://localhost:8000
 - 데모 데이터 넣기: `bash infra/demo-data/load.sh local` (`infra/demo-data/README.md`)
 - 모니터링 확인: `docker compose --profile monitoring up -d` → Prometheus http://localhost:9090 · Grafana http://localhost:3000 (admin/admin)

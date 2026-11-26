@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-# 📦 공용 (dev · prod 가 함께 쓰는 것, 계정에 한 번): ECR 저장소 2개 · AWS Budgets 알림 · GitHub Actions 빌드 역할
+# 📦 공용 (dev · prod 가 함께 쓰는 것, 계정에 한 번): ECR 저장소 3개 · AWS Budgets 알림 · GitHub Actions 빌드 역할
 #   생성 (콘솔): CloudFormation > 스택 생성 > 새 리소스 사용(표준) > 템플릿 파일 업로드 → 이 파일
 #     스택 이름  nansogong-shared
 #     입력       BudgetEmail=<메일>, GitHubRepository=SongJunPyo/NanSoGong,
@@ -10,6 +10,8 @@ AWSTemplateFormatVersion: '2010-09-09'
 #   이미지는 한 번만 빌드해서 dev 에서 검증한 것을 그대로 prod 에 쓴다 → 저장소는 환경별로 나누지 않는다
 #     nansogong-api : 서버 이미지 (dev EC2 · prod ASG)
 #     nansogong-web : 화면 이미지 (nginx, dev EC2 전용. prod 화면은 S3 + CloudFront)
+#     nansogong-ai  : AI 서비스 이미지 (FastAPI, 지금은 dev EC2 전용. prod 배포는 따로 설계)
+#   이미 만든 스택에 저장소를 추가할 때: 스택 선택 > 업데이트 > 현재 템플릿 교체 > 이 파일 업로드 > 입력값은 그대로 > IAM 승인 체크
 #   dev · prod 스택이 이 스택의 Export(GitHub OIDC 공급자 · 저장소 이름)로 배포 역할을 만든다 → 이 스택을 가장 먼저, 가장 나중에 지운다
 #   🚨 스택을 지우기 전에 이미지를 지워야 한다 (EmptyOnDelete 로 자동 삭제)
 Description: nansogong shared (ECR repositories, monthly budget alert, GitHub OIDC + build role)
@@ -70,6 +72,18 @@ Resources:
             "selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},
             "action":{"type":"expire"}}]}
 
+  AiRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: nansogong-ai
+      EmptyOnDelete: true
+      ImageScanningConfiguration: { ScanOnPush: true }
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"keep last 30 images",
+            "selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":30},
+            "action":{"type":"expire"}}]}
+
   # 💸 이번 달 실제 비용이 80% · 100%, 예상 비용이 100% 를 넘으면 메일
   MonthlyBudget:
     Type: AWS::Budgets::Budget
@@ -99,7 +113,7 @@ Resources:
         - 6938fd4d98bab03faadb97b34396831e3780aea1
         - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
 
-  # 이미지 빌드 역할: dev · main 브랜치의 Actions 만, ECR 두 저장소에 이미지 올리기만
+  # 이미지 빌드 역할: dev · main 브랜치의 Actions 만, ECR 세 저장소에 이미지 올리기만
   BuildRole:
     Type: AWS::IAM::Role
     Properties:
@@ -143,12 +157,15 @@ Resources:
                 Resource:
                   - !GetAtt ApiRepository.Arn
                   - !GetAtt WebRepository.Arn
+                  - !GetAtt AiRepository.Arn
 
 Outputs:
   ApiRepositoryUri:
     Value: !GetAtt ApiRepository.RepositoryUri
   WebRepositoryUri:
     Value: !GetAtt WebRepository.RepositoryUri
+  AiRepositoryUri:
+    Value: !GetAtt AiRepository.RepositoryUri
   BuildRoleArn:
     Description: GitHub 저장소 Variables AWS_BUILD_ROLE_ARN
     Value: !GetAtt BuildRole.Arn
