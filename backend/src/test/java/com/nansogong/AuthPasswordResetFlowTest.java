@@ -1,6 +1,8 @@
 package com.nansogong;
 
 import com.nansogong.common.AppProperties;
+import com.nansogong.service.AuthSmsVerificationService;
+import com.nansogong.service.AuthSmsDeliveryService;
 import com.nansogong.model.Member;
 import com.nansogong.repository.MemberRepository;
 import com.nansogong.service.AuthCredentialService;
@@ -46,6 +48,8 @@ class AuthPasswordResetFlowTest {
     @Autowired MemberRepository members;
     @Autowired PasswordEncoder passwords;
     @Autowired AppProperties props;
+    @Autowired AuthSmsVerificationService sms;
+    @Autowired AuthSmsDeliveryService delivery;
     @Autowired AuthCredentialService credentials;
     @Autowired AuthPasswordResetPersistenceService persistence;
     @Autowired JwtEncoder encoder;
@@ -144,13 +148,13 @@ class AuthPasswordResetFlowTest {
 
     @Test void profileOrRealModeNeverFallsBackToMock() {
         var env = new MockEnvironment(); env.setActiveProfiles("aws");
-        var aws = new AuthPasswordResetService(members, redis, props, env, credentials, passwords, persistence);
+        var aws = new AuthPasswordResetService(members, redis, props, env, credentials, passwords, persistence, sms, delivery);
         assertThatThrownBy(() -> aws.request(new AuthPasswordResetStartRequest("demo-office", PHONE), "local"))
                 .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode().value()).isEqualTo(503));
         env.setActiveProfiles("prod");
         assertThatThrownBy(() -> aws.request(new AuthPasswordResetStartRequest("demo-office", PHONE), "local")).isInstanceOf(ResponseStatusException.class);
-        var realProps = new AppProperties(props.cors(), props.jwt(), new AppProperties.Verification(AppProperties.Verification.Mode.REAL, "000000"), props.crypto(), props.external());
-        var real = new AuthPasswordResetService(members, redis, realProps, new MockEnvironment(), credentials, passwords, persistence);
+        var realProps = new AppProperties(props.cors(), props.jwt(), new AppProperties.Verification(AppProperties.Verification.Mode.REAL, "000000"), props.crypto(), props.external(), props.session(), props.sens());
+        var real = new AuthPasswordResetService(members, redis, realProps, new MockEnvironment(), credentials, passwords, persistence, sms, delivery);
         assertThatThrownBy(() -> real.request(new AuthPasswordResetStartRequest("demo-office", PHONE), "local")).isInstanceOf(ResponseStatusException.class);
     }
 
@@ -202,6 +206,6 @@ class AuthPasswordResetFlowTest {
         return JSON.readTree(result.getResponse().getContentAsByteArray()).get("accessToken").asString();
     }
     private org.springframework.test.web.servlet.ResultActions postJson(String path, Object input) throws Exception {
-        return mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(input)));
+        return mvc.perform(post(path).header("X-Nansogong-Auth", "1").contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(input)));
     }
 }

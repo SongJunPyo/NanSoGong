@@ -207,7 +207,7 @@ class MemberProfileFlowTest {
         return mvc.perform(patch("/api/me").header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsBytes(input)));
     }
     private org.springframework.test.web.servlet.ResultActions loginAttempt(String loginId, String password) throws Exception {
-        return mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsBytes(Map.of("loginId", loginId, "password", password))));
+        return mvc.perform(post("/api/auth/login").header("X-Nansogong-Auth", "1").contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsBytes(Map.of("loginId", loginId, "password", password))));
     }
     private String login(String loginId, String password) throws Exception {
         return JSON.readTree(loginAttempt(loginId, password).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("accessToken").asString();

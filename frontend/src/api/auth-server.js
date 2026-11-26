@@ -16,12 +16,19 @@ export function createAuthApi(request, getToken = () => null) {
       loginId, password, name, phone, phoneVerificationToken,
       stores: stores.map(({ bizRegNo, ownerName, openingDate, bizName }) => ({ bizRegNo, ownerName, openingDate, bizName })),
     }),
-    login: ({ loginId, password }) => post('/auth/login', { loginId, password }),
+    login: ({ loginId, password, rememberMe = false }) => post('/auth/login', { loginId, password, rememberMe }),
+    refreshSession: () => request('/auth/refresh', { method: 'POST' }),
+    getCapabilities: () => request('/auth/capabilities'),
+    requestPhoneChange: ({ phone, currentPassword }) => post('/me/phone-verifications', { phone, currentPassword }),
+    confirmPhoneChange: ({ challengeId, phone, code }) => post(`/me/phone-verifications/${encodeURIComponent(challengeId)}/confirmations`, { phone, code }),
+    async updatePhone({ phone, verificationToken }) {
+      const member = await request('/me/phone', { method: 'PATCH', body: JSON.stringify({ phone, verificationToken }) })
+      return { ...member, memberId: member.id }
+    },
     requestPasswordReset: ({ loginId, phone }) => anonymousPost('/auth/password-resets', { loginId, phone }),
     verifyPasswordReset: ({ challengeId, loginId, phone, code }) => anonymousPost(`/auth/password-resets/${encodeURIComponent(challengeId)}/confirmations`, { loginId, phone, code }),
     resetPassword: ({ resetToken, password, passwordConfirm }) => anonymousPost('/auth/password-resets/completions', { resetToken, password, passwordConfirm }),
-    // 현재 JWT 방식의 로그아웃은 useLogout이 메모리·캐시를 지운다. 서버 토큰 무효화·자동 로그인은 별도 기능이다.
-    logout: async () => undefined,
+    logout: () => request('/auth/logout', { method: 'POST' }),
     async getCurrentUser(token = getToken()) {
       const member = await request('/me', authorization(token))
       return { ...member, memberId: member.id }

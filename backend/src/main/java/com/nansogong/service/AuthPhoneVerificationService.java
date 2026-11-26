@@ -8,6 +8,8 @@ import com.nansogong.dto.AuthPhoneRequest;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -22,7 +24,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
-/** 개발용 인증번호 정책을 서버에서 적용한다. 실제 문자 발송·휴대전화 소유 확인은 수행하지 않는다. */
+/** 가입 목적의 휴대전화 증명. REAL은 SMS 수신, MOCK은 로컬 개발용 코드만 허용한다. */
 @Service
 public class AuthPhoneVerificationService {
 
@@ -47,13 +49,18 @@ public class AuthPhoneVerificationService {
 
     private final StringRedisTemplate redis;
     private final AppProperties props;
+    private final AuthSmsVerificationService sms;
+    private final Environment environment;
 
-    public AuthPhoneVerificationService(StringRedisTemplate redis, AppProperties props) {
+    public AuthPhoneVerificationService(StringRedisTemplate redis, AppProperties props, AuthSmsVerificationService sms, Environment environment) {
         this.redis = redis;
-        this.props = props;
+        this.props = props; this.sms = sms; this.environment = environment;
     }
 
-    public AuthPhoneChallengeResponse requestCode(AuthPhoneRequest request) {
+    public AuthPhoneChallengeResponse requestCode(AuthPhoneRequest request) { return requestCode(request, "unknown"); }
+
+    public AuthPhoneChallengeResponse requestCode(AuthPhoneRequest request, String remoteAddress) {
+        if (realMode()) return sms.request(AuthSmsVerificationService.Purpose.SIGNUP, request.name(), request.phone(), remoteAddress);
         requireMockMode();
         String challengeId = UUID.randomUUID().toString();
         redis.opsForValue().set(challengeKey(challengeId), fingerprint(request.name(), request.phone()), CHALLENGE_TTL);
@@ -61,6 +68,10 @@ public class AuthPhoneVerificationService {
     }
 
     public AuthPhoneConfirmationResponse confirm(UUID challengeId, AuthPhoneConfirmationRequest request) {
+        if (realMode()) {
+            var proof = sms.confirm(AuthSmsVerificationService.Purpose.SIGNUP, request.name(), request.phone(), challengeId, request.code());
+            return new AuthPhoneConfirmationResponse(proof.token(), proof.expiresAt(), request.phone(), request.name());
+        }
         requireMockMode();
         String identity = fingerprint(request.name(), request.phone());
         String key = challengeKey(challengeId.toString());
@@ -77,6 +88,10 @@ public class AuthPhoneVerificationService {
     }
 
     public AuthPhoneProof requireProof(String token, String name, String phone) {
+        if (realMode()) {
+            var proof = sms.requireProof(token, AuthSmsVerificationService.Purpose.SIGNUP, name, phone);
+            return new AuthPhoneProof(proof.key(), proof.value(), proof.verifiedAt());
+        }
         requireMockMode();
         String key = proofKey(token);
         String value = redis.opsForValue().get(key);
@@ -100,8 +115,10 @@ public class AuthPhoneVerificationService {
         }
     }
 
+    private boolean realMode() { return props.verification().mode() == AppProperties.Verification.Mode.REAL; }
+
     private void requireMockMode() {
-        if (props.verification().mode() != AppProperties.Verification.Mode.MOCK || props.verification().mockCode() == null) {
+        if (props.verification().mode() != AppProperties.Verification.Mode.MOCK || props.verification().mockCode() == null || environment.acceptsProfiles(Profiles.of("aws", "prod"))) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "실제 휴대전화 인증은 아직 연결되지 않았어요");
         }
     }

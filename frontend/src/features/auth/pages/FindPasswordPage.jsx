@@ -4,11 +4,12 @@ import { Link, useNavigate } from 'react-router-dom'
 import AuthLayout from '@/components/auth/AuthLayout'
 import AuthButton from '@/components/auth/AuthButton'
 import AuthField from '@/components/auth/AuthField'
-import { requestPasswordReset, verifyPasswordReset, resetPassword } from '@/api/auth'
+import { requestPasswordReset, verifyPasswordReset, resetPassword, logout } from '@/api/auth'
 import { normalizePhone, PASSWORD_HINT, validatePasswordFields } from '@/utils/auth'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useSignupStore } from '@/store/useSignupStore'
 import { useStoreSelection } from '@/store/useStoreSelection'
+import { useAuthCapabilities } from '@/hooks/useAuthCapabilities'
 
 export default function FindPasswordPage() {
   const [form, setForm] = useState({ loginId: '', phone: '' })
@@ -25,6 +26,8 @@ export default function FindPasswordPage() {
   const busy = requestTask.isPending || confirmTask.isPending || resetTask.isPending
   const navigate = useNavigate()
   const cache = useQueryClient()
+  const capabilities = useAuthCapabilities()
+  const mockMode = capabilities.data?.verificationMode === 'MOCK'
   const deadline = proof?.expiresAt ?? challenge?.expiresAt
   const seconds = deadline ? Math.max(0, Math.ceil((deadline - now) / 1000)) : 0
   useEffect(() => {
@@ -61,7 +64,11 @@ export default function FindPasswordPage() {
     const invalid = validatePasswordFields(password, passwordConfirm)
     setErrors(invalid)
     if (Object.keys(invalid).length || !seconds || busy) return
-    resetTask.mutate({ resetToken: proof.resetToken, password, passwordConfirm }, { onSuccess: () => {
+    const epoch = useAuthStore.getState().sessionEpoch
+    resetTask.mutate({ resetToken: proof.resetToken, password, passwordConfirm }, { onSuccess: async () => {
+      if (useAuthStore.getState().sessionEpoch !== epoch) return
+      try { await logout() } catch { /* 비밀번호 변경으로 이전 자격의 토큰은 이미 차단된다. */ }
+      if (useAuthStore.getState().sessionEpoch !== epoch) return
       setProof(null); setPassword(''); setPasswordConfirm('')
       useAuthStore.getState().logout(); useStoreSelection.getState().clear(); useSignupStore.getState().reset(); cache.clear()
       navigate('/login', { replace: true, state: { loginId: form.loginId.trim(), passwordReset: true } })
@@ -70,11 +77,11 @@ export default function FindPasswordPage() {
   const failure = requestTask.error ?? confirmTask.error ?? resetTask.error
   return (
     <AuthLayout title="비밀번호 재설정" description="가입할 때 등록한 휴대전화 인증 후 새 비밀번호를 설정해요.">
-      <p className="rounded-input bg-surface-muted p-3 text-caption text-ink-sub">현재는 데모 계정만 이용할 수 있어요. 예: demo-office / 010-0000-9001. 개발용 인증번호는 000000이며 실제 문자는 발송되지 않아요. 일반 가입 계정은 실제 문자 인증 연결 후 이용할 수 있어요.</p>
+      <p className="rounded-input bg-surface-muted p-3 text-caption text-ink-sub">{mockMode ? '개발용 재설정은 demo-office / 010-0000-9001 등 고정 데모 계정만 가능해요. 인증번호는 000000이며 실제 문자는 발송되지 않아요.' : capabilities.data?.smsReady ? '아이디와 가입한 전화번호가 일치하면 SMS 인증을 진행할 수 있어요.' : 'SMS 인증 설정을 준비 중이에요. 일반 계정 재설정은 실제 문자 인증 연결 후 이용할 수 있어요.'}</p>
       {!challenge && !proof && <form noValidate onSubmit={requestCode} className="space-y-4">
         <AuthField label="아이디" name="loginId" autoComplete="username" maxLength={50} value={form.loginId} disabled={busy} onChange={(event) => { setForm({ ...form, loginId: event.target.value }); setErrors({}); requestTask.reset() }} error={errors.loginId} />
         <AuthField label="가입한 휴대전화 번호" name="phone" type="tel" autoComplete="tel" value={form.phone} disabled={busy} onChange={(event) => { setForm({ ...form, phone: event.target.value }); setErrors({}); requestTask.reset() }} error={errors.phone} />
-        <AuthButton type="submit" busy={requestTask.isPending}>인증번호 요청</AuthButton>
+        <AuthButton type="submit" busy={requestTask.isPending} disabled={capabilities.isPending || capabilities.isError || (!mockMode && !capabilities.data?.smsReady)}>인증번호 요청</AuthButton>
       </form>}
       {challenge && <form noValidate onSubmit={confirmCode} className="space-y-4">
         <p className="text-label text-ink-sub">입력한 정보에 해당하는 재설정 가능 계정이 있으면 인증을 진행할 수 있어요.</p>

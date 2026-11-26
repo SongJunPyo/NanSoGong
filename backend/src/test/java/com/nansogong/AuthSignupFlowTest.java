@@ -1,6 +1,8 @@
 package com.nansogong;
 
 import com.nansogong.common.AppProperties;
+import com.nansogong.service.AuthSmsVerificationService;
+import com.nansogong.service.AuthSmsDeliveryService;
 import com.nansogong.dto.AuthPhoneRequest;
 import com.nansogong.model.Member;
 import com.nansogong.model.Store;
@@ -81,6 +83,8 @@ class AuthSignupFlowTest {
     @Autowired private PasswordEncoder passwords;
     @Autowired private AuthPhoneVerificationService phones;
     @Autowired private AppProperties props;
+    @Autowired private AuthSmsVerificationService sms;
+    @Autowired private org.springframework.core.env.Environment environment;
 
     @DynamicPropertySource
     static void externalProperties(DynamicPropertyRegistry registry) {
@@ -226,8 +230,8 @@ class AuthSignupFlowTest {
 
     @Test
     void refusesToSubstituteTheMockWhenRealPhoneModeIsRequested() {
-        var realProps = new AppProperties(props.cors(), props.jwt(), new AppProperties.Verification(AppProperties.Verification.Mode.REAL, "000000"), props.crypto(), props.external());
-        var real = new AuthPhoneVerificationService(redis, realProps);
+        var realProps = new AppProperties(props.cors(), props.jwt(), new AppProperties.Verification(AppProperties.Verification.Mode.REAL, "000000"), props.crypto(), props.external(), props.session(), props.sens());
+        var real = new AuthPhoneVerificationService(redis, realProps, sms, environment);
         assertThatThrownBy(() -> real.requestCode(new AuthPhoneRequest(NAME, PHONE)))
                 .isInstanceOfSatisfying(ResponseStatusException.class, error -> assertThat(error.getStatusCode().value()).isEqualTo(503));
     }
@@ -335,6 +339,6 @@ class AuthSignupFlowTest {
     }
     private ResultActions signup(Map<String, Object> input) throws Exception { return postJson("/api/auth/signup", input); }
     private ResultActions postJson(String path, Object input) throws Exception {
-        return mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(input)));
+        return mvc.perform(post(path).header("X-Nansogong-Auth", "1").contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(input)));
     }
 }

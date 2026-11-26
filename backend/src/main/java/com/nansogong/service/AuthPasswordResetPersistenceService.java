@@ -20,6 +20,7 @@ public class AuthPasswordResetPersistenceService {
     private final MemberRepository members;
     private final AuthCredentialService credentials;
     private final StringRedisTemplate redis;
+    private final AuthSmsVerificationService sms;
 
     /** DB 행 잠금으로 여러 증명의 동시 사용도 차단한다. 실패 시 재인증하며 증명을 되살리지 않는다. */
     @Transactional
@@ -28,6 +29,16 @@ public class AuthPasswordResetPersistenceService {
         if (!AuthPasswordResetService.demoEligible(member, member.getPhone().replaceAll("[-\\s]", ""))
                 || !credentials.matches(credentials.version(member), version)) throw invalid();
         if (!Long.valueOf(1).equals(redis.execute(CONSUME, List.of(key), state))) throw invalid();
+        member.resetPassword(passwordHash);
+        members.flush();
+    }
+    @Transactional
+    public void completeReal(Long memberId, String version, String verifiedPhone, AuthSmsVerificationService.VerifiedProof proof, String passwordHash) {
+        var member = members.findForPasswordReset(memberId).orElseThrow(this::invalid);
+        if (member.getStatus() != com.nansogong.model.MemberStatus.ACTIVE
+                || !credentials.matches(credentials.version(member), version)
+                || !member.getPhone().replaceAll("[-\\s]", "").equals(verifiedPhone)) throw invalid();
+        sms.claim(proof);
         member.resetPassword(passwordHash);
         members.flush();
     }

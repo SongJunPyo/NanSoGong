@@ -5,6 +5,8 @@ import { SkeletonCard } from '@/components/ui/loading'
 import { toast } from '@/components/ui/toast'
 import AuthField from '@/components/auth/AuthField'
 import AuthButton from '@/components/auth/AuthButton'
+import MemberPhoneChange from '@/components/auth/MemberPhoneChange'
+import { useAuthCapabilities } from '@/hooks/useAuthCapabilities'
 import { useMyMember, useUpdateMyMember } from '@/hooks/useAuthSession'
 import { useAuthStore } from '@/store/useAuthStore'
 import { PASSWORD_HINT, validateMemberUpdate } from '@/utils/auth'
@@ -15,11 +17,13 @@ const emptyPasswords = () => ({ currentPassword: '', password: '', passwordConfi
 /** 구현-1-5: JWT 주인의 조회·이름 수정·현재 비밀번호 확인 후 비밀번호 변경. */
 export default function MemberInfoPage() {
   const memberId = useAuthStore((state) => state.user?.memberId)
-  return <MemberInfoContent key={memberId ?? 'anonymous'} />
+  const epoch = useAuthStore((state) => state.sessionEpoch)
+  return <MemberInfoContent key={`${memberId ?? 'anonymous'}:${epoch}`} />
 }
 
 function MemberInfoContent() {
   const memberQuery = useMyMember()
+  const capabilities = useAuthCapabilities()
   const update = useUpdateMyMember()
   const [draftName, setDraftName] = useState(null)
   const [changePassword, setChangePassword] = useState(false)
@@ -40,7 +44,7 @@ function MemberInfoContent() {
     try {
       const result = await update.mutateAsync({ name: name.trim(), ...(changePassword ? passwords : {}) })
       const current = useAuthStore.getState()
-      if (!changePassword && current.accessToken === result.token && current.user?.memberId === result.memberId) {
+      if (!changePassword && current.sessionEpoch === result.epoch && current.user?.memberId === result.memberId) {
         setDraftName(null)
         toast('회원정보를 저장했어요.')
       }
@@ -68,7 +72,7 @@ function MemberInfoContent() {
         {member && <form noValidate onSubmit={save} aria-busy={busy} className="flex flex-col gap-5">
           <AuthField label="아이디" name="loginId" value={member.loginId} readOnly autoComplete="username" hint="아이디는 변경할 수 없어요." />
           <AuthField label="이름" name="name" value={name} disabled={busy} maxLength={50} autoComplete="name" error={errors.name} onChange={(event) => { setDraftName(event.target.value); setErrors({}); update.reset() }} hint="회원 이름을 수정해요. 등록한 사업자 대표자 정보는 바뀌지 않아요." />
-          <AuthField label="휴대전화 번호" name="phone" value={member.phone} readOnly type="tel" autoComplete="tel" hint="현재는 조회만 가능해요. 번호 변경은 본인확인과 새 번호 SMS 인증 연결 후 제공해요." />
+          <AuthField label="휴대전화 번호" name="phone" value={member.phone} readOnly type="tel" autoComplete="tel" hint="번호 변경은 아래에서 현재 비밀번호와 새 번호 SMS 인증을 거쳐 진행해요." />
           <Card tone="line" gap="gap-3" pad="p-4">
             <button type="button" aria-expanded={changePassword} aria-controls="member-password-fields" disabled={busy} onClick={togglePassword} className="min-h-10 text-left text-body font-bold text-woori-deep">{changePassword ? '비밀번호 변경 취소' : '비밀번호 변경'}</button>
             {changePassword && <div id="member-password-fields" className="flex flex-col gap-4 border-t border-line pt-4">
@@ -82,7 +86,8 @@ function MemberInfoContent() {
           <AuthButton type="submit" busy={busy} disabled={memberQuery.isError}>{busy ? '저장 중…' : changePassword ? '회원정보·비밀번호 저장' : '회원정보 저장'}</AuthButton>
         </form>}
       </>}
-      <div><button type="button" disabled className="min-h-10 text-label text-ink-mute">회원 탈퇴 (준비 중)</button></div>
+      {member && <MemberPhoneChange key={`${member.memberId}:${member.phone}`} available={Boolean(capabilities.data?.phoneChangeAvailable)} disabled={busy} />}
+      <div><button type="button" disabled className="min-h-10 text-label text-ink-mute">회원 탈퇴 (준비 중)</button><p className="text-caption text-ink-sub">{capabilities.data?.withdrawalReason ?? '탈퇴 및 데이터 보존 정책을 확인 중이에요.'}</p></div>
     </Screen>
   )
 }

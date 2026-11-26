@@ -56,14 +56,17 @@ public class AuthPasswordResetService {
     private final AuthCredentialService credentials;
     private final PasswordEncoder passwords;
     private final AuthPasswordResetPersistenceService persistence;
+    private final AuthSmsVerificationService sms;
+    private final AuthSmsDeliveryService delivery;
 
     public AuthPasswordResetService(MemberRepository members, StringRedisTemplate redis, AppProperties props,
-            Environment environment, AuthCredentialService credentials, PasswordEncoder passwords, AuthPasswordResetPersistenceService persistence) {
+            Environment environment, AuthCredentialService credentials, PasswordEncoder passwords, AuthPasswordResetPersistenceService persistence, AuthSmsVerificationService sms, AuthSmsDeliveryService delivery) {
         this.members = members; this.redis = redis; this.props = props; this.environment = environment;
-        this.credentials = credentials; this.passwords = passwords; this.persistence = persistence;
+        this.credentials = credentials; this.passwords = passwords; this.persistence = persistence; this.sms = sms; this.delivery = delivery;
     }
 
     public AuthPhoneChallengeResponse request(AuthPasswordResetStartRequest request, String remoteAddress) {
+        if (realMode()) return requestReal(request, remoteAddress);
         requireDemoMode();
         limit("client", remoteAddress == null ? "unknown" : remoteAddress, 20);
         limit("account", request.loginId(), 3);
@@ -78,6 +81,13 @@ public class AuthPasswordResetService {
     }
 
     public AuthPasswordResetProofResponse confirm(UUID challengeId, AuthPasswordResetConfirmationRequest request) {
+        if (realMode()) {
+            delivery.requireAvailable();
+            var member = members.findByLoginId(request.loginId()).filter(m -> eligible(m, request.phone())).orElseThrow(this::invalid);
+            var proof = sms.confirm(AuthSmsVerificationService.Purpose.PASSWORD_RESET, binding(member), request.phone(), challengeId, request.code());
+            redis.opsForValue().set(realProofKey(proof.token()), member.getId() + "|" + credentials.version(member), PROOF_TTL);
+            return new AuthPasswordResetProofResponse(proof.token(), proof.expiresAt());
+        }
         requireDemoMode();
         String key = challengeKey(challengeId.toString());
         String state = redis.execute(CONFIRM, List.of(key, key + ":attempts"), identity(request.loginId(), request.phone()),
@@ -89,12 +99,24 @@ public class AuthPasswordResetService {
     }
 
     public void complete(AuthPasswordResetCompletionRequest request) {
-        requireDemoMode();
+        if (realMode()) delivery.requireAvailable(); else requireDemoMode();
         if (!request.password().equals(request.passwordConfirm())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호가 일치하지 않아요");
         }
         if (request.password().getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "비밀번호가 너무 길어요. 영문·숫자·기호로 줄여 주세요");
+        }
+        if (realMode()) {
+            String state = redis.opsForValue().get(realProofKey(request.resetToken()));
+            if (state == null) throw invalid();
+            String[] fields = state.split("\\|", -1);
+            if (fields.length != 2 || !fields[0].matches("[1-9][0-9]*")) throw invalid();
+            var member = members.findById(Long.valueOf(fields[0])).filter(m -> m.getStatus() == MemberStatus.ACTIVE).orElseThrow(this::invalid);
+            if (!credentials.matches(credentials.version(member), fields[1])) throw invalid();
+            var proof = sms.requireProof(request.resetToken(), AuthSmsVerificationService.Purpose.PASSWORD_RESET, binding(member), normalizedPhone(member));
+            persistence.completeReal(member.getId(), fields[1], normalizedPhone(member), proof, passwords.encode(request.password()));
+            redis.delete(realProofKey(request.resetToken()));
+            return;
         }
         String key = proofKey(request.resetToken());
         String state = redis.opsForValue().get(key);
@@ -103,6 +125,20 @@ public class AuthPasswordResetService {
         if (values.length != 3 || !values[1].matches("[1-9][0-9]*")) throw invalid();
         persistence.complete(Long.valueOf(values[1]), values[2], key, state, passwords.encode(request.password()));
     }
+
+    private boolean realMode() { return props.verification().mode() == AppProperties.Verification.Mode.REAL; }
+    private AuthPhoneChallengeResponse requestReal(AuthPasswordResetStartRequest request, String remoteAddress) {
+        delivery.requireAvailable();
+        limit("client", remoteAddress == null ? "unknown" : remoteAddress, 20);
+        limit("account", request.loginId(), 3);
+        var member = members.findByLoginId(request.loginId()).filter(m -> eligible(m, request.phone()));
+        if (member.isEmpty()) return new AuthPhoneChallengeResponse(UUID.randomUUID().toString(), Instant.now().plus(CHALLENGE_TTL).toEpochMilli());
+        return sms.request(AuthSmsVerificationService.Purpose.PASSWORD_RESET, binding(member.get()), request.phone(), remoteAddress);
+    }
+    private boolean eligible(Member member, String phone) { return member.getStatus() == MemberStatus.ACTIVE && normalizedPhone(member).equals(phone); }
+    private String normalizedPhone(Member member) { return member.getPhone().replaceAll("[-\\s]", ""); }
+    private String binding(Member member) { return member.getId() + "\n" + credentials.version(member); }
+    private String realProofKey(String token) { return "auth:password-reset:real-proof:" + credentials.fingerprint("password-reset-real-proof", token); }
 
     public static boolean demoEligible(Member member, String phone) {
         String expected = DEMO_PHONES.get(member.getLoginId());

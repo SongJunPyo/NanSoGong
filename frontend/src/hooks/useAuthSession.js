@@ -24,12 +24,14 @@ export function useUpdateMyMember() {
     mutationFn: async (input) => {
       const session = useAuthStore.getState()
       const user = await auth.updateCurrentUser(input, session.accessToken)
-      return { user, token: session.accessToken, memberId: session.user?.memberId }
+      return { user, epoch: session.sessionEpoch, memberId: session.user?.memberId }
     },
-    onSuccess: async ({ user, token, memberId }, input) => {
+    onSuccess: async ({ user, epoch, memberId }, input) => {
       const current = useAuthStore.getState()
-      if (current.accessToken !== token || current.user?.memberId !== memberId) return
+      if (current.sessionEpoch !== epoch || current.user?.memberId !== memberId) return
       if (input.password !== undefined) {
+        try { await auth.logout() } catch { /* 자격 버전 변경으로 이전 Access·Refresh는 이미 차단된다. */ }
+        if (useAuthStore.getState().sessionEpoch !== epoch) return
         // AuthGuard의 로그아웃 이동과 겹쳐도 완료 안내가 사라지지 않게 전역 토스트로 알린다.
         toast('비밀번호를 변경했어요. 새 비밀번호로 로그인해 주세요.', { duration: 6000 })
         useAuthStore.getState().logout()
@@ -40,7 +42,7 @@ export function useUpdateMyMember() {
       } else {
         await cache.cancelQueries({ queryKey: myMemberKey(memberId), exact: true })
         const latest = useAuthStore.getState()
-        if (latest.accessToken !== token || latest.user?.memberId !== memberId) return
+        if (latest.sessionEpoch !== epoch || latest.user?.memberId !== memberId) return
         useAuthStore.setState({ user })
         cache.setQueryData(myMemberKey(memberId), user)
       }
@@ -58,10 +60,17 @@ export function useLogin() {
   const navigate = useNavigate()
   const task = useMutation({ mutationKey: ['auth', 'login'], retry: false, gcTime: 0,
     mutationFn: async (input) => {
+      const epoch = useAuthStore.getState().sessionEpoch
       const session = await auth.login(input)
       let stores, user
       try { [user, stores] = await Promise.all([auth.getCurrentUser(session.accessToken), auth.getMyStores(session.accessToken)]) }
-      catch (error) { await auth.logout(session.accessToken); throw error }
+      catch (error) {
+        if (useAuthStore.getState().sessionEpoch === epoch && error.code !== 'SESSION_CHANGED') {
+          try { await auth.logout() } catch { /* 조회 오류의 원래 메시지는 유지한다. */ }
+        }
+        throw error
+      }
+      if (useAuthStore.getState().sessionEpoch !== epoch) throw Object.assign(new Error('로그인 상태가 바뀌었어요.'), { code: 'SESSION_CHANGED' })
       cache.clear()
       useStoreSelection.getState().clear()
       useAuthStore.getState().login(session.accessToken, user)
@@ -80,13 +89,19 @@ export function useLogout() {
   const navigate = useNavigate()
   const task = useMutation({ mutationKey: ['auth', 'logout'], retry: false, gcTime: 0,
     mutationFn: async () => {
+      const epoch = useAuthStore.getState().sessionEpoch
       try { await auth.logout() }
-      finally {
-        useAuthStore.getState().logout()
-        useStoreSelection.getState().clear()
-        useSignupStore.getState().reset()
-        cache.clear()
-        navigate('/login', { replace: true })
+      catch (error) {
+        if (useAuthStore.getState().sessionEpoch === epoch) toast(error.message, { tone: 'error', duration: 6000 })
+        throw error
+      } finally {
+        if (useAuthStore.getState().sessionEpoch === epoch) {
+          useAuthStore.getState().logout()
+          useStoreSelection.getState().clear()
+          useSignupStore.getState().reset()
+          cache.clear()
+          navigate('/login', { replace: true })
+        }
       }
     },
   })

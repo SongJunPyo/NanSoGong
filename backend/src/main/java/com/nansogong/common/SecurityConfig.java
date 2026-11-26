@@ -2,6 +2,9 @@ package com.nansogong.common;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nansogong.service.AuthCredentialService;
+import com.nansogong.service.AuthSessionService;
+import com.nansogong.service.AuthCookieService;
+import com.nansogong.service.AuthSessionCsrfFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -18,6 +21,7 @@ import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -29,8 +33,10 @@ public class SecurityConfig {
 
     // 토큰 서명에 쓰는 비밀키 (HS256 = 같은 키로 서명하고 같은 키로 검증)
     private final SecretKey key;
+    private final AppProperties props;
 
     public SecurityConfig(AppProperties props) {
+        this.props = props;
         this.key = new SecretKeySpec(props.jwt().secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
     }
 
@@ -40,9 +46,9 @@ public class SecurityConfig {
     }
 
     @Bean
-    JwtDecoder jwtDecoder(AuthCredentialService credentials) { // 비밀번호 변경 전 토큰도 차단한다
+    JwtDecoder jwtDecoder(AuthCredentialService credentials, AuthSessionService sessions) {
         var decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
-        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefault(), credentials));
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(JwtValidators.createDefault(), credentials, sessions));
         return decoder;
     }
 
@@ -52,10 +58,11 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, AuthCookieService cookies, AuthSessionService sessions) throws Exception {
         http
                 .cors(Customizer.withDefaults())            // 🚨 이 줄이 없으면 WebConfig 의 CORS 설정이 무시된다
-                .csrf(AbstractHttpConfigurer::disable)      // 쿠키 세션 대신 토큰을 쓰므로 CSRF 는 끈다
+                .csrf(AbstractHttpConfigurer::disable)      // 업무 API는 Bearer 전용. 쿠키 인증은 아래 전용 필터가 CSRF를 검사한다
+                .addFilterBefore(new AuthSessionCsrfFilter(props, cookies, sessions), BearerTokenAuthenticationFilter.class)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2ResourceServer(o -> o.jwt(Customizer.withDefaults()))     // Authorization: Bearer 토큰 검사
                 .authorizeHttpRequests(a -> a

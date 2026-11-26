@@ -6,10 +6,13 @@ import AuthField from '@/components/auth/AuthField'
 import AuthButton from '@/components/auth/AuthButton'
 import { useSignupStore } from '@/store/useSignupStore'
 import * as auth from '@/api/auth'
+import { useAuthCapabilities } from '@/hooks/useAuthCapabilities'
 import { PASSWORD_HINT, normalizePhone, validateMember } from '@/utils/auth'
 
 export default function SignupPage() {
   const draft = useSignupStore()
+  const capabilities = useAuthCapabilities()
+  const mockMode = capabilities.data?.verificationMode === 'MOCK'
   const navigate = useNavigate()
   const [errors, setErrors] = useState({})
   const [idMessage, setIdMessage] = useState('')
@@ -76,15 +79,15 @@ export default function SignupPage() {
         <AuthField label="비밀번호" name="password" type="password" autoComplete="new-password" value={member.password} disabled={busy} onChange={(event) => change('password', event.target.value)} onBlur={() => blur('password')} error={errors.password} hint={PASSWORD_HINT} />
         <AuthField label="비밀번호 확인" name="passwordConfirm" type="password" autoComplete="new-password" value={member.passwordConfirm} disabled={busy} onChange={(event) => change('passwordConfirm', event.target.value)} onBlur={() => blur('passwordConfirm')} error={errors.passwordConfirm} />
         <AuthField label="이름" name="name" autoComplete="name" maxLength={50} value={member.name} disabled={busy} onChange={(event) => change('name', event.target.value)} onBlur={() => blur('name')} error={errors.name} />
-        <AuthField label="휴대전화 번호" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" value={member.phone} disabled={busy} onChange={(event) => change('phone', event.target.value)} onBlur={() => blur('phone')} error={errors.phone || sendTask.error?.message} right={<AuthButton type="button" variant="outline" busy={sendTask.isPending} disabled={busy && !sendTask.isPending} onClick={sendCode}>{challenge ? '다시 요청' : '인증 요청'}</AuthButton>} />
+        <AuthField label="휴대전화 번호" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" value={member.phone} disabled={busy} onChange={(event) => change('phone', event.target.value)} onBlur={() => blur('phone')} error={errors.phone || sendTask.error?.message} right={<AuthButton type="button" variant="outline" busy={sendTask.isPending} disabled={capabilities.isPending || capabilities.isError || (!mockMode && !capabilities.data?.smsReady) || (busy && !sendTask.isPending)} onClick={sendCode}>{challenge ? '다시 요청' : '인증 요청'}</AuthButton>} />
         {challenge && !phoneVerified && (
           <div className="space-y-2 rounded-input bg-surface-muted p-3">
-            <p className="text-caption text-woori-deep">실제 문자는 발송되지 않아요. 개발용 인증번호는 <strong>000000</strong>이에요.</p>
+            <p className="text-caption text-woori-deep">{mockMode ? <>실제 문자는 발송되지 않아요. 개발용 인증번호는 <strong>000000</strong>이에요.</> : <>발송 요청을 접수했어요. 수신한 인증번호를 입력해 주세요.</>}</p>
             <AuthField label="인증번호" name="verificationCode" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} disabled={busy} onChange={(event) => { setCode(event.target.value); setErrors((previous) => ({ ...previous, code: '' })); verifyTask.reset() }} error={errors.code || verifyTask.error?.message} right={<AuthButton type="button" variant="outline" busy={verifyTask.isPending} disabled={seconds <= 0 || (busy && !verifyTask.isPending)} onClick={verifyCode}>인증 확인</AuthButton>} />
             <p role="status" className={`text-caption ${seconds ? 'text-ink-sub' : 'text-danger'}`}>{seconds ? `남은 시간 ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : '인증 시간이 만료되었어요. 다시 요청해 주세요.'}</p>
           </div>
         )}
-        {phoneVerified && <p role="status" className="text-caption font-bold text-success">휴대전화 인증 완료 · 개발용 Mock</p>}
+        {phoneVerified && <p role="status" className="text-caption font-bold text-success">휴대전화 인증 완료{mockMode ? ' · 개발용 Mock' : ''}</p>}
         <AuthButton type="submit" disabled={!validFields || !checked || !phoneVerified || busy}>다음: 사업자등록</AuthButton>
         <p className="text-center text-caption text-ink-sub">이미 계정이 있으신가요? <Link to="/login" className="font-bold text-woori-blue">로그인</Link></p>
       </form>

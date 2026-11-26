@@ -59,6 +59,11 @@ public class Member {
 
     public void changeName(String name) { this.name = name; }
 
+    public void changePhone(String phone, Instant verifiedAt) {
+        this.phone = phone;
+        this.phoneVerifiedAt = verifiedAt;
+    }
+
     /** 내부 데모 생성용. 실제 가입 API는 서버가 확인한 인증 시각을 받는 오버로드를 쓴다. */
     public static Member create(String loginId, String passwordHash, String name, String phone) {
         return create(loginId, passwordHash, name, phone, Instant.now());

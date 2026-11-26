@@ -50,6 +50,29 @@ Content-Type: application/json
 # Body: {"resetToken":"<확인 응답>","password":"<직접 입력>","passwordConfirm":"<직접 입력>"}
 # 성공 시 204. 이전 비밀번호와 JWT는 사용할 수 없고 새 비밀번호로 로그인한다.
 
+### 로그인 (HTTP 클라이언트는 응답 쿠키를 보관한다. 토큰·비밀번호를 파일에 저장하지 않는다)
+# POST /api/auth/login
+# Content-Type: application/json
+# X-Nansogong-Auth: 1
+# Body: {"loginId":"<직접 입력>","password":"<직접 입력>","rememberMe":true}
+# 응답에는 Access만 있다. Refresh는 HttpOnly 쿠키다.
+
+### 세션 복원·로그아웃 계약 (같은 쿠키로 보안 토큰을 읽고 즉시 사용한다)
+# GET /api/auth/csrf -> { csrfToken }
+# POST /api/auth/refresh 또는 /api/auth/logout
+# X-Nansogong-Auth: 1
+# X-CSRF-Token: <직전 응답, 원문 저장 금지>
+# Refresh 회전 후 이전 CSRF 토큰도 버린다. 이전 Refresh 재사용 시 그 세션을 종료한다.
+
+### 설정의 전화번호 변경 (REAL SMS 준비 후만 가능)
+# POST /api/me/phone-verifications, Authorization: Bearer <Access>
+# Body: {"currentPassword":"<직접 입력>","phone":"<새 번호>"}
+# POST /api/me/phone-verifications/{challengeId}/confirmations
+# Body: {"phone":"<새 번호>","code":"<수신한 번호>"}
+# PATCH /api/me/phone
+# Body: {"phone":"<새 번호>","verificationToken":"<확인 응답>"}
+# 확인 성공은 저장 완료가 아니다. 마지막 PATCH의 DB 저장 성공 후만 완료한다.
+
 ### ─── 외부 연동 목업 (docker compose 의 mock, 8089) ───
 
 ### 국세청 복수 진위확인 목업 (각 사업자별로 결과를 돌려준다)

@@ -2,8 +2,10 @@ import { Link } from 'react-router-dom'
 import { Coffee, ShieldCheck } from 'lucide-react'
 import { Card } from '@/components/common/ui'
 import SignupProgress from './SignupProgress'
+import { useAuthCapabilities } from '@/hooks/useAuthCapabilities'
 
 export default function AuthLayout({ title, description, step, children }) {
+  const capabilities = useAuthCapabilities()
   return (
     <main className="mx-auto grid w-full max-w-5xl gap-6 px-5 py-6 sm:p-8 lg:grid-cols-[0.75fr_1.25fr] lg:gap-10 lg:py-12">
       <aside className="min-w-0 lg:sticky lg:top-12 lg:self-start">
@@ -21,8 +23,9 @@ export default function AuthLayout({ title, description, step, children }) {
         {step && <SignupProgress step={step} />}
         <div><h1 className="text-h1 font-bold text-ink">{title}</h1>{description && <p className="mt-2 text-label text-ink-sub">{description}</p>}</div>
         <div role="note" className="rounded-input bg-warning-bg px-3 py-2 text-caption leading-relaxed text-amber-800">
-          회원·매장 정보는 서버에 저장돼요. 휴대전화 인증은 개발용 인증번호를 사용하며 실제 문자는 발송되지 않아요.
+          {capabilities.error ? capabilities.error.message : capabilities.data?.verificationMode === 'MOCK' ? '휴대전화는 개발용 인증이며 실제 문자는 발송되지 않아요.' : capabilities.data?.smsReady ? '문자로 받은 번호를 확인해요. 통신사 명의·실명 확인은 진행하지 않아요.' : capabilities.isPending ? '휴대전화 인증 설정을 확인하고 있어요.' : 'SMS 발신번호 등록과 인증 설정을 준비 중이에요.'}
         </div>
+        {capabilities.error && <button type="button" onClick={() => capabilities.refetch()} className="min-h-10 text-left text-label font-bold text-woori-deep">인증 설정 다시 확인</button>}
         {children}
       </Card>
     </main>

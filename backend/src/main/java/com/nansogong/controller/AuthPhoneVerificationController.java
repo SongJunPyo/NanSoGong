@@ -6,6 +6,7 @@ import com.nansogong.dto.AuthPhoneConfirmationResponse;
 import com.nansogong.dto.AuthPhoneRequest;
 import com.nansogong.service.AuthPhoneVerificationService;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,8 +24,8 @@ public class AuthPhoneVerificationController {
     private final AuthPhoneVerificationService phoneService;
 
     @PostMapping
-    public AuthPhoneChallengeResponse requestCode(@Valid @RequestBody AuthPhoneRequest request) {
-        return phoneService.requestCode(request);
+    public AuthPhoneChallengeResponse requestCode(@Valid @RequestBody AuthPhoneRequest request, HttpServletRequest http) {
+        return phoneService.requestCode(request, http.getRemoteAddr());
     }
 
     @PostMapping("/{challengeId}/confirmations")

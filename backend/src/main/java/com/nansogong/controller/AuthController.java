@@ -5,6 +5,13 @@ import com.nansogong.dto.AuthSignupResponse;
 import com.nansogong.dto.SignupRequest;
 import com.nansogong.dto.TokenResponse;
 import com.nansogong.service.AuthService;
+import com.nansogong.service.AuthSessionService;
+import com.nansogong.service.AuthCookieService;
+import com.nansogong.service.AuthSmsDeliveryService;
+import com.nansogong.common.AppProperties;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.server.ResponseStatusException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,6 +32,10 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthSessionService sessions;
+    private final AuthCookieService cookies;
+    private final AuthSmsDeliveryService sms;
+    private final AppProperties props;
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
@@ -38,7 +49,40 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public TokenResponse login(@Valid @RequestBody LoginRequest request) {
-        return authService.login(request);
+    public TokenResponse login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
+        var session = authService.login(request);
+        cookies.write(response, session);
+        return session.access();
+    }
+
+    @GetMapping("/csrf")
+    public Map<String, String> csrf(HttpServletRequest request, HttpServletResponse response) {
+        cookies.noStore(response);
+        try { return Map.of("csrfToken", sessions.csrfToken(cookies.read(request))); }
+        catch (ResponseStatusException failure) { cookies.clear(response); throw failure; }
+    }
+
+    @PostMapping("/refresh")
+    public TokenResponse refresh(HttpServletRequest request, HttpServletResponse response) {
+        try {
+            var session = sessions.refresh(cookies.read(request));
+            cookies.write(response, session);
+            return session.access();
+        } catch (ResponseStatusException failure) { cookies.clear(response); throw failure; }
+    }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout(HttpServletRequest request, HttpServletResponse response) {
+        sessions.logout(cookies.read(request));
+        cookies.clear(response);
+    }
+
+    @GetMapping("/capabilities")
+    public Map<String, Object> capabilities(HttpServletResponse response) {
+        cookies.noStore(response);
+        return Map.of("verificationMode", props.verification().mode().name(), "smsReady", sms.available(),
+                "phoneChangeAvailable", sms.available(), "withdrawalAvailable", false,
+                "withdrawalReason", "탈퇴 및 데이터 보존 정책을 확인 중이에요.");
     }
 }

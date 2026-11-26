@@ -89,3 +89,23 @@ test('비밀번호 재설정은 익명 API에 필요한 필드만 보내고 서�
   const fail = createAuthApi(async () => { throw new Error('인증 시간이 만료됐어요') })
   await assert.rejects(fail.resetPassword({}), /인증 시간이 만료/)
 })
+
+test('로그인 유지 선택과 서버 갱신·로그아웃 경로를 전달한다', async () => {
+  const calls=[]
+  const api=createAuthApi(async(path, options)=>{calls.push({path,options});return {accessToken:'server-access'}})
+  await api.login({loginId:'testowner',password:'Owner123!',rememberMe:true})
+  await api.refreshSession(); await api.logout(); await api.getCapabilities()
+  assert.deepEqual(JSON.parse(calls[0].options.body),{loginId:'testowner',password:'Owner123!',rememberMe:true})
+  assert.deepEqual(calls.map(call=>call.path),['/auth/login','/auth/refresh','/auth/logout','/auth/capabilities'])
+  assert.equal(calls[2].options.method,'POST')
+})
+
+test('전화번호 변경은 JWT 주인의 현재 비밀번호·새 번호·용도별 증명만 보낸다', async () => {
+  const calls=[]
+  const api=createAuthApi(async(path,options)=>{calls.push({path,body:JSON.parse(options.body)});return {id:7,phone:'01000003003'}})
+  await api.requestPhoneChange({phone:'01000003003',currentPassword:'Owner123!',memberId:999})
+  await api.confirmPhoneChange({challengeId:'phone-challenge',phone:'01000003003',code:'654321',memberId:999})
+  const member=await api.updatePhone({phone:'01000003003',verificationToken:'phone-only-proof',memberId:999,status:'WITHDRAWN'})
+  assert.deepEqual(calls,[{path:'/me/phone-verifications',body:{phone:'01000003003',currentPassword:'Owner123!'}},{path:'/me/phone-verifications/phone-challenge/confirmations',body:{phone:'01000003003',code:'654321'}},{path:'/me/phone',body:{phone:'01000003003',verificationToken:'phone-only-proof'}}])
+  assert.equal(member.memberId,7)
+})
