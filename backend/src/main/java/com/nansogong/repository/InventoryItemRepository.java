@@ -29,6 +29,12 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, Lo
     /** 매장의 품목 중 ids 에 든 것만. 없거나 다른 매장 품목은 결과에서 빠진다 */
     List<InventoryItem> findByStoreIdAndIdIn(Long storeId, Collection<Long> ids);
 
+    /** 재고 현황용: 매장의 품목 전체 (이름 검색, 이름 순). 상태 필터를 계산 뒤에 걸어야 해서 페이지로 자르지 않는다 */
+    List<InventoryItem> findByStoreIdAndNameContainingIgnoreCaseOrderByNameAscIdAsc(Long storeId, String name);
+
+    /** 재고 현황용: 매장의 품목 전체 (이름 검색 + 사용 여부, 이름 순) */
+    List<InventoryItem> findByStoreIdAndActiveAndNameContainingIgnoreCaseOrderByNameAscIdAsc(Long storeId, boolean active, String name);
+
     /** 매장의 품목 목록 (이름 검색). name 이 "" 이면 전체 */
     Page<InventoryItem> findByStoreIdAndNameContainingIgnoreCase(Long storeId, String name, Pageable pageable);
 
