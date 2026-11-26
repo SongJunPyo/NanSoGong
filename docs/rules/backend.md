@@ -72,8 +72,18 @@ public class InventoryItemNotFoundException extends BusinessException {
 - 응답은 `{ "bizRegNo": "숫자 10자리", "status": "ACTIVE" }`다. `status`는 `ACTIVE`(계속사업자), `SUSPENDED`(휴업), `CLOSED`(폐업), `NOT_FOUND`(명확한 미등록 응답)다.
 - 잘못된 입력은 `400 INVALID_BUSINESS_NUMBER`, 외부 통신·HTTP 오류는 `503 NTS_UNAVAILABLE`, 누락·불일치·알 수 없는 응답은 `502 NTS_INVALID_RESPONSE`다. 오류 본문은 `{ "code": "...", "message": "사용자 안내" }`다.
 - 공용 `BusinessException`·`GlobalExceptionHandler` 구현 전에는 기존 인증 코드와 같은 `ResponseStatusException`을 사용하고 이 Controller 안에서만 오류를 변환한다. 공용 처리가 생기면 그 계약으로 합친다.
-- 이 API는 대표자명·개업일자 진위확인, 가입 허가, 매장 저장·상태 변경을 수행하지 않는다. 회원가입 화면의 사업자 확인 버튼이 이 API를 호출한다. 나머지 회원 기능은 개발용 Mock을 유지한다.
+- 이 API는 대표자명·개업일자 진위확인, 가입 허가, 매장 저장·상태 변경을 수행하지 않는다. 회원가입 화면은 아래 진위확인 API를 사용한다.
 - 실제 주소·키는 기존 환경변수 `NTS_BASE_URL`, `DATA_GO_KR_SERVICE_KEY`로 전달한다. 실제 국세청과 목업을 어느 쪽으로 호출했는지 구분해서 검증한다. 기존 목업은 별도 미등록 시나리오가 없어 `0000000000`도 계속사업자로 응답한다.
+
+### 국세청 사업자 진위확인
+
+- `POST /api/auth/business-verifications`는 가입 전 단건 진위확인 API다. 요청은 `{ "bizRegNo": "숫자 10자리", "ownerName": "대표자명", "openingDate": "YYYYMMDD" }`다. 이름은 50자 이내이며 개업일자는 실제 달력 날짜인지 검증한다.
+- `AuthBusinessVerificationService`가 기존 `ntsRestClient`·인증키로 `/validate`를 호출한다. 외부 요청은 `businesses: [{ b_no, start_dt, p_nm }]`이며 인증키·개인정보·외부 응답 원문을 로그에 남기지 않는다.
+- 응답은 `{ "bizRegNo": "숫자 10자리", "status": "ACTIVE" }`다. `valid=01`이고 요청 정보가 일치하며 영업 상태가 `01`일 때만 `ACTIVE`다. 휴업은 `SUSPENDED`, 폐업은 `CLOSED`, 진위확인 불가는 `MISMATCH`다.
+- 성공 응답의 `request_param`이 보낸 세 값과 일치하는지, 중첩 `status.b_no`가 같은 번호인지 확인한다. 누락·모순·알 수 없는 값은 `502 NTS_INVALID_RESPONSE`다. `valid=02` 응답은 중첩 영업 상태가 없어도 처리하며 상태조회로 대체해 성공 처리하지 않는다.
+- 입력 오류는 `400 INVALID_BUSINESS_INFORMATION`, 통신·외부 HTTP 오류는 `503 NTS_UNAVAILABLE`다. 원본 국세청 오류 대신 `{ code, message }`를 반환한다. 오류 변환은 상태조회와 같은 방식으로 이 Controller에만 적용한다.
+- 이 API는 회원·매장을 저장하거나 가입 권한·서버 검증 토큰을 발급하지 않는다. 실제 가입 처리의 검증·DB 중복 검사와 별개의 조회 API다.
+- 목업 진위확인 번호는 `0000000000`·`8888888888`(확인 불가), `7777777777`(휴업), `9999999999`(폐업), 그 외(정보 일치·영업 중)다. 실제 국세청의 번호 판정과 구분한다.
 
 ## 테스트
 

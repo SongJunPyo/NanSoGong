@@ -74,16 +74,16 @@ export function createAuthMock({ delayMs = 180, now = () => Date.now() } = {}) {
       phoneProofs.set(verificationToken, { phone: challenge.phone, name: challenge.name, expiresAt })
       return { verificationToken, expiresAt, phone: challenge.phone, name: challenge.name }
     },
-    async verifyBusiness(input, lookupStatus) {
+    async verifyBusiness(input, verifyRemote) {
       await ready()
       checkFields(validateBusiness(input))
       const business = normalizeBusiness(input)
       let status
-      if (lookupStatus) {
-        // 화면에서는 항상 백엔드 조회 함수를 전달한다. 실패 시 가짜 성공으로 대체하지 않는다.
-        const response = await lookupStatus(business.bizRegNo)
-        if (response?.bizRegNo !== business.bizRegNo || !['ACTIVE', 'SUSPENDED', 'CLOSED', 'NOT_FOUND'].includes(response?.status)) {
-          throw failure('사업자 상태조회 결과를 확인할 수 없어요. 다시 시도해 주세요.', null, 'BUSINESS_UNAVAILABLE', 502)
+      if (verifyRemote) {
+        // 화면에서는 세 값으로 진위확인을 요청한다. 상호·키는 보내지 않고 상태조회로 대체하지 않는다.
+        const response = await verifyRemote({ bizRegNo: business.bizRegNo, ownerName: business.ownerName, openingDate: business.openingDate })
+        if (response?.bizRegNo !== business.bizRegNo || !['ACTIVE', 'SUSPENDED', 'CLOSED', 'MISMATCH'].includes(response?.status)) {
+          throw failure('사업자 진위확인 결과를 확인할 수 없어요. 다시 시도해 주세요.', null, 'BUSINESS_UNAVAILABLE', 502)
         }
         status = response.status
       } else {

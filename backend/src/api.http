@@ -6,6 +6,13 @@ GET http://localhost:8080/api/ping
 ### 서버 상태 (ALB 헬스체크와 같은 주소)
 GET http://localhost:8080/actuator/health
 
+### 난소공 백엔드 → 국세청 진위확인 (세 값이 일치하고 영업 중인 경우에만 ACTIVE)
+# 테스트용 가짜 정보는 실제 국세청에서 MISMATCH가 예상된다. 회원·매장을 저장하지 않는다.
+POST http://localhost:8080/api/auth/business-verifications
+Content-Type: application/json
+
+{"bizRegNo": "0000000000", "ownerName": "테스트대표", "openingDate": "20000101"}
+
 ### 난소공 백엔드 → 국세청 상태조회 (루트 .env의 주소·키 사용, 로그인 불필요)
 # 실제 국세청에서는 0000000000 → NOT_FOUND. 기존 목업은 이 번호도 ACTIVE를 반환한다.
 # 이 요청은 상태조회만 하며 가입·매장 저장·대표자 진위확인을 수행하지 않는다.

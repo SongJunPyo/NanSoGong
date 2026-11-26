@@ -21,7 +21,7 @@ export default function AuthLayout({ title, description, step, children }) {
         {step && <SignupProgress step={step} />}
         <div><h1 className="text-h1 font-bold text-ink">{title}</h1>{description && <p className="mt-2 text-label text-ink-sub">{description}</p>}</div>
         <div role="note" className="rounded-input bg-warning-bg px-3 py-2 text-caption leading-relaxed text-amber-800">
-          <strong>회원 기능 개발 중</strong> · 회원가입·로그인·휴대전화 인증은 예시 데이터로 동작해요. 사업자 영업 상태는 서버에서 조회해요. 입력과 가입 정보는 새로고침하면 초기화돼요.
+          <strong>회원 기능 개발 중</strong> · 회원가입·로그인·휴대전화 인증은 예시 데이터로 동작해요. 사업자 진위·영업 상태는 서버에서 확인해요. 입력과 가입 정보는 새로고침하면 초기화돼요.
         </div>
         {children}
       </Card>

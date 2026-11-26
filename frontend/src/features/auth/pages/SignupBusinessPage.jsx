@@ -10,11 +10,11 @@ import { signup, verifyBusiness } from '@/api/auth'
 import { emptyBusiness, formatBusinessNumber, normalizeBusiness, normalizePhone, validateBusiness } from '@/utils/auth'
 
 const RESULTS = {
-  ACTIVE: '영업 중인 사업자로 조회됐어요. 아래 버튼으로 등록 목록에 추가해 주세요.',
+  ACTIVE: '사업자 정보가 일치하고 영업 중인 사업자로 확인됐어요. 아래 버튼으로 등록 목록에 추가해 주세요.',
   SUSPENDED: '휴업 사업자는 등록할 수 없어요. 사업자 상태를 확인해 주세요.',
   CLOSED: '폐업 사업자는 등록할 수 없어요. 다른 정상 사업자를 등록해 주세요.',
   DUPLICATE: '이미 등록된 사업자등록번호예요. 다른 번호를 확인해 주세요.',
-  NOT_FOUND: '사업자 정보를 조회할 수 없어요. 신규 개업자는 정보 반영이 지연될 수 있으니 입력을 확인한 후 다시 시도해 주세요.',
+  MISMATCH: '사업자정보를 확인할 수 없어요. 사업자등록번호·대표자명·개업일자가 사업자등록증과 일치하는지 확인해 주세요.',
 }
 
 export default function SignupBusinessPage() {
@@ -25,7 +25,7 @@ export default function SignupBusinessPage() {
   const [editing, setEditing] = useState(null)
   const [notice, setNotice] = useState('')
   // 가입 전 조회라 storeId가 없다. 조회 결과는 화면을 벗어나면 캐시에 남기지 않는다.
-  const verifyTask = useMutation({ mutationKey: ['auth', 'business-status'], mutationFn: verifyBusiness, retry: false, gcTime: 0 })
+  const verifyTask = useMutation({ mutationKey: ['auth', 'business-verification'], mutationFn: verifyBusiness, retry: false, gcTime: 0 })
   const signupTask = useAsyncAction()
   const result = verifyTask.data
   const busy = verifyTask.isPending || signupTask.pending
@@ -59,7 +59,7 @@ export default function SignupBusinessPage() {
     else entries[editing] = value
     draft.setBusinesses(entries)
     resetForm()
-    setNotice(editing === null ? '영업 상태를 확인한 사업자를 등록 목록에 추가했어요.' : '상태를 다시 확인한 사업자정보를 수정했어요.')
+    setNotice(editing === null ? '진위·영업 상태를 확인한 사업자를 등록 목록에 추가했어요.' : '다시 확인한 사업자정보를 수정했어요.')
   }
   function editBusiness(index) {
     const value = draft.businesses[index]
@@ -84,12 +84,12 @@ export default function SignupBusinessPage() {
   return (
     <AuthLayout title="사업자정보를 등록해 주세요" description="영업 중인 사업자정보를 최소 1개 등록해야 개발용 회원가입을 완료할 수 있어요." step={2}>
       <form noValidate onSubmit={(event) => { event.preventDefault(); verify() }} className="space-y-4">
-        <p className="text-caption leading-relaxed text-ink-sub">사업자등록번호의 영업 상태를 조회해요. 대표자명·개업일자의 일치 여부는 확인하지 않아요.</p>
+        <p className="text-caption leading-relaxed text-ink-sub">사업자등록번호·대표자명·개업일자의 일치 여부와 영업 상태를 함께 확인해요.</p>
         <AuthField label="사업자등록번호" name="bizRegNo" inputMode="numeric" placeholder="123-45-67890" maxLength={12} value={form.bizRegNo} disabled={busy} onChange={(event) => change('bizRegNo', formatBusinessNumber(event.target.value))} error={errors.bizRegNo} />
         <AuthField label="대표자명" name="ownerName" autoComplete="name" maxLength={50} value={form.ownerName} disabled={busy} onChange={(event) => change('ownerName', event.target.value)} error={errors.ownerName} />
-        <AuthField label="개업일자" name="openingDate" inputMode="numeric" placeholder="YYYYMMDD · 예: 20260101" maxLength={8} value={form.openingDate} disabled={busy} onChange={(event) => change('openingDate', event.target.value)} error={errors.openingDate} />
+        <AuthField label="개업일자" name="openingDate" inputMode="numeric" placeholder="YYYYMMDD · 예: 20260101" maxLength={8} value={form.openingDate} disabled={busy} onChange={(event) => change('openingDate', event.target.value)} error={errors.openingDate} hint="사업자등록증에 적힌 개업일자를 입력해 주세요." />
         <AuthField label="상호 (선택)" name="bizName" autoComplete="organization" maxLength={100} value={form.bizName} disabled={busy} onChange={(event) => change('bizName', event.target.value)} error={errors.bizName} hint="입력한 상호는 첫 매장 설정의 매장명 기본값으로 사용해요." />
-        <AuthButton type="submit" variant="outline" busy={verifyTask.isPending} disabled={signupTask.pending}>{verifyTask.isPending ? '영업 상태 조회 중…' : verifyTask.error ? '사업자 확인 재시도' : '사업자 확인'}</AuthButton>
+        <AuthButton type="submit" variant="outline" busy={verifyTask.isPending} disabled={signupTask.pending}>{verifyTask.isPending ? '사업자 진위확인 중…' : verifyTask.error ? '사업자 확인 재시도' : '사업자 확인'}</AuthButton>
         {verifyTask.error && <p role="alert" className="text-label text-danger">{verifyTask.error.message}</p>}
         {result && <p role="status" className={`rounded-input p-3 text-label ${result.status === 'ACTIVE' ? 'bg-success-bg text-success' : 'bg-warning-bg text-amber-800'}`}>{RESULTS[result.status] ?? '확인 결과를 해석하지 못했어요. 다시 확인해 주세요.'}</p>}
         {result?.status === 'ACTIVE' && <AuthButton type="button" onClick={addBusiness} disabled={busy}>{editing === null ? '등록 목록에 추가' : '확인한 정보 저장'}</AuthButton>}
@@ -101,7 +101,7 @@ export default function SignupBusinessPage() {
         {!draft.businesses.length ? <p className="text-label text-ink-sub">아직 등록한 사업자가 없어요.</p> : (
           <ul className="space-y-2">{draft.businesses.map((business, index) => (
             <li key={business.bizRegNo} className={`rounded-input border p-3 ${index === editing ? 'border-woori-blue' : 'border-line'}`}>
-              <p className="text-label font-bold text-ink">{business.bizName || '상호 미입력'} <span className="text-caption text-success">영업 상태 확인됨</span></p>
+              <p className="text-label font-bold text-ink">{business.bizName || '상호 미입력'} <span className="text-caption text-success">진위·영업 상태 확인됨</span></p>
               <p className="mt-1 text-caption text-ink-sub">{formatBusinessNumber(business.bizRegNo)} · {business.ownerName} · {business.openingDate}</p>
               <div className="mt-2 flex gap-4 text-caption font-bold"><button type="button" disabled={busy} onClick={() => editBusiness(index)} className="text-woori-blue">수정</button><button type="button" disabled={busy} onClick={() => deleteBusiness(index)} className="text-danger">삭제</button></div>
             </li>
