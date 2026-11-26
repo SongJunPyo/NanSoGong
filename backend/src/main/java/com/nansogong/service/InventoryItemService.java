@@ -14,6 +14,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * 재고 품목 등록 · 수정 · 조회 · 사용 중지 (구현-3-1, UF-09).
  *
@@ -79,6 +85,53 @@ public class InventoryItemService {
         InventoryItem item = find(storeId, itemId);
         item.deactivate();
         log.info("품목 사용 중지 storeId={} itemId={}", storeId, itemId);
+    }
+
+    // ─── 다른 도메인이 부르는 메서드 (docs/rules/domain.md 도메인 사이 메서드 계약) ───
+    // 부르는 쪽이 이미 checkOwner 로 매장 권한을 확인했다고 보고, 여기서는 품목이 그 매장 것인지만 본다.
+
+    /**
+     * 품목들이 모두 이 매장 것인지 한 번에 확인한다 (레시피 저장 등). 하나라도 없거나 다른 매장 것이면 400.
+     * 같은 id 가 여러 번 와도 한 번으로 센다. 비어 있으면 확인할 것이 없으므로 통과한다.
+     * 사용 중지 여부는 보지 않는다.
+     */
+    @Transactional(readOnly = true)
+    public void validateSameStore(Long storeId, Collection<Long> itemIds) {
+        Set<Long> ids = distinctIds(itemIds);
+        if (ids.isEmpty()) {
+            return;
+        }
+        Set<Long> found = inventoryItemRepository.findByStoreIdAndIdIn(storeId, ids).stream()
+                .map(InventoryItem::getId)
+                .collect(Collectors.toSet());
+        if (!found.containsAll(ids)) {
+            Set<Long> missing = new HashSet<>(ids);
+            missing.removeAll(found);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이 매장의 품목이 아닙니다: " + missing);
+        }
+    }
+
+    /**
+     * 품목 여러 개를 id 로 가져온다 (화면에 이름 · 단위를 보여 줄 때). itemId → 품목.
+     * 없거나 다른 매장 품목은 결과에서 빠진다 (예외 없음). 모두 있어야 하면 validateSameStore 를 먼저 부른다.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, InventoryItemResponse> getItemsByIds(Long storeId, Collection<Long> itemIds) {
+        Set<Long> ids = distinctIds(itemIds);
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return inventoryItemRepository.findByStoreIdAndIdIn(storeId, ids).stream()
+                .collect(Collectors.toMap(InventoryItem::getId, InventoryItemResponse::from));
+    }
+
+    private Set<Long> distinctIds(Collection<Long> itemIds) {
+        if (itemIds == null) {
+            return Set.of();
+        }
+        Set<Long> ids = new HashSet<>(itemIds);
+        ids.remove(null);
+        return ids;
     }
 
     private InventoryItem find(Long storeId, Long itemId) {
