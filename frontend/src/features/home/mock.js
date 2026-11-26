@@ -13,8 +13,8 @@ export const home = {
     { d: '월', w: 'rain', t: '4°' },
   ],
   approvals: [
-    { title: '발주 승인', value: '145,800원', to: '/orders/recommendation' },
-    { title: '오늘 도착한 입고 확인', value: '3개 품목', to: '/receiving' },
+    { title: '발주 승인', value: '3개 품목 145,800원', to: '/orders/recommendation' }, // purchase/mock 의 orderRecommendation.total
+    { title: '오늘 도착한 입고 확인', value: '2개 품목', to: '/receiving' }, // 입고 확인 화면의 DELIVERY
     { title: '프로모션 승인', value: '1건', to: '/promotions/latte-set' },
   ],
   results: [
@@ -33,6 +33,7 @@ export const home = {
 
 // AI 운영 브리핑 = 지금 해야 할 일 (중요도순: 긴급 → 주의 → 일반)
 //   headline   : 제목 아래 한 줄 — 판단의 핵심 숫자 (숫자 먼저)
+//   tag        : 뱃지 글자 (부족 · 임박 · 자금 · 추천). 같은 품목은 재고 화면과 같은 이름으로 부른다
 //   actionLabel: 다음 행동 하나 — 누르기 전에 결과를 알 수 있게
 //   basis   : AI가 판단에 쓴 근거 (화면에 '근거: …' 로 표시)
 //   aiDraft : AI가 미리 만들어 둔 안 — 긴급 배너에 쓴다 (승인은 사장님이 해당 화면에서)
@@ -40,13 +41,14 @@ export const homeBriefing = [
   {
     id: 'milk-shortage', severity: 'urgent', read: false,
     title: '우유가 내일 오전에 부족해요',
+    tag: '부족', // 뱃지 글자 — 재고 화면과 같은 이름 (색 · 기호는 severity)
     headline: '4개 남음 · 하루 3.4개 사용',
-    actionLabel: 'AI 발주안 보기 · 12개 145,800원',
+    actionLabel: 'AI 발주안 보기 · 우유 12개 33,600원', // 발주 추천 화면의 우유 줄과 같은 금액
     description: '예상 소진까지 1.2일. 우유 12개 발주가 필요해요.',
     basis: '최근 7일 사용량 · 기상청 예보',
     // 펼쳤을 때 보이는 우리 매장 현황 (warn: 빨강으로 강조)
     status: [
-      { label: '지금 남은 양', value: '4개 (1L)', warn: true },
+      { label: '지금 남은 양', value: '4개', warn: true },
       { label: '하루 평균 사용', value: '3.4개' },
       { label: '앞으로 3일 사용 예상', value: '14개 (비 오는 날 +1.4개)' },
       { label: '다 떨어지는 때', value: '내일 오전 11시쯤', warn: true },
@@ -56,14 +58,15 @@ export const homeBriefing = [
     aiDraft: {
       title: 'AI가 우유 발주안을 만들어 뒀어요',
       summary: '내일 오전에 부족해요. 최근 7일 사용량과 내일 비 예보를 보고 12개로 계산했어요.',
-      amount: '우유 12개 · 145,800원',
+      amount: '우유 12개 · 33,600원',
       basisTo: '/orders/recommendation#basis',
     },
   },
   {
     id: 'vanilla-expiry', severity: 'warning', read: false,
     title: '바닐라 시럽 소비기한이 2일 남았어요',
-    headline: '2개 남음 · 11.28(토)까지',
+    tag: '임박', // 뱃지 글자 — 재고 화면과 같은 이름 (색 · 기호는 severity)
+    headline: '2개 남음 · 11.28(토)까지 1.2개 남을 수 있어요',
     actionLabel: '먼저 쓸 입고분 보기',
     description: '먼저 입고된 시럽부터 사용하고 남은 수량을 확인해 주세요.',
     basis: '입고일 · 소비기한 기록',
@@ -78,6 +81,7 @@ export const homeBriefing = [
   {
     id: 'latte-promotion', severity: 'normal', read: false,
     title: '비 오는 오후, 라떼 세트 프로모션을 추천해요',
+    tag: '추천', // 뱃지 글자 — 재고 화면과 같은 이름 (색 · 기호는 severity)
     headline: '오후 주문 하루 43건 → 32건 (−25%)',
     actionLabel: '프로모션 조건 보기 · 승인 1건',
     description: '오후 방문을 늘릴 수 있는 프로모션 조건을 확인해 보세요.',
@@ -108,7 +112,7 @@ export const homeNotifications = [
   {
     id: 'milk-order-sent', severity: 'normal', result: 'success', read: false,
     title: '우유 10개 발주를 ○○유통에 보냈어요',
-    description: '11.20 도착 예정이에요.',
+    description: '11.20에 입고됐어요.',
     createdAt: '2026-11-24T15:40:00+09:00', to: '/orders/o1',
   },
   {

@@ -53,7 +53,7 @@ export default function HomePage() {
     ...(briefing.data ?? []),
     ...(fund
       ? [{
-          id: 'order-fund', severity: 'warning', createdAt: '2026-11-24T09:25:00+09:00', to: '/sales/cashflow',
+          id: 'order-fund', severity: 'warning', tag: '자금', createdAt: '2026-11-24T09:25:00+09:00', to: '/sales/cashflow',
           title: '이번 주 발주 자금이 부족해요',
           headline: `발주 예정 ${won(fund.planned)}원 · 통장 잔액 ${won(fund.balance)}원`,
           description: `발주 전에 통장에 ${won(fund.planned - fund.balance)}원이 더 필요해요.`,
@@ -96,7 +96,7 @@ export default function HomePage() {
           </div>
           <div className="flex items-baseline gap-2">
             <HeroValue size="text-[26px] leading-tight md:text-[32px] lg:text-[36px]">{won(data.sales.amount)}원</HeroValue>
-            <span className="ml-auto text-caption font-bold text-white md:hidden">{data.sales.diff.replace('지난주보다 ', '')}</span>
+            <span className="ml-auto text-caption font-bold text-white md:hidden">{data.sales.diff}</span>
           </div>
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-caption">
             <span className="text-[#d9ebfa]">

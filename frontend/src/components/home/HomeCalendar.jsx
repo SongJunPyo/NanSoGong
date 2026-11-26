@@ -88,15 +88,25 @@ export default function HomeCalendar({ events, isPending, error }) {
               aria-current={isToday ? 'date' : undefined}
               aria-label={`${date.replaceAll('-', ' ')}${isToday ? ' 오늘' : ''}, 일정 ${dayEvents.length}건`}
               onClick={() => openDay(date)}
-              className={`flex h-full min-h-9 flex-col items-center justify-center gap-0.5 rounded-lg py-1 text-[13px] focus-visible:outline-2 focus-visible:outline-woori-blue ${
+              className={`flex h-full min-h-9 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg py-1 text-[13px] md:justify-start md:pt-1.5 focus-visible:outline-2 focus-visible:outline-woori-blue ${
                 isToday ? 'bg-woori-deep font-bold text-white' :
                   isSelected ? 'bg-woori-tint font-bold text-woori-deep ring-1 ring-inset ring-woori-blue' :
                     inMonth ? 'text-ink hover:bg-surface-muted' : 'text-ink-mute/50'
               } ${isToday && isSelected ? 'ring-2 ring-woori-blue ring-offset-1' : ''}`}
             >
               {Number(date.slice(8))}
-              <span aria-hidden="true" className="flex h-1.5 items-center gap-0.5">
+              {/* 앱: 점만 / PC: 칸이 커지니 일정 이름을 2개까지 적는다 (점만으로는 무슨 일정인지 알 수 없어서) */}
+              <span aria-hidden="true" className="flex h-1.5 items-center gap-0.5 md:hidden">
                 {types.map((type) => <span key={type} className={`size-1 rounded-full ${HOME_EVENT_TYPES[type].dot} ${isToday ? 'ring-1 ring-white/70' : ''}`} />)}
+              </span>
+              <span aria-hidden="true" className="hidden w-full min-w-0 flex-col gap-0.5 px-0.5 md:flex">
+                {dayEvents.slice(0, 2).map((event) => (
+                  <span key={event.id} className={`flex min-w-0 items-center gap-1 text-left text-[11px] leading-tight ${isToday ? 'text-white' : 'text-[#4B5563]'}`}>
+                    <span className={`size-1.5 shrink-0 rounded-full ${HOME_EVENT_TYPES[event.type].dot}`} />
+                    <span className="truncate">{event.title}</span>
+                  </span>
+                ))}
+                {dayEvents.length > 2 && <span className={`text-[11px] ${isToday ? 'text-white/80' : 'text-[#4B5563]'}`}>+{dayEvents.length - 2}</span>}
               </span>
             </button>
           )

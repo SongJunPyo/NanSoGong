@@ -10,6 +10,7 @@ import { AiLabel } from '@/components/ui/ai-label'
  *   목표: 홈을 열고 3초 안에 "오늘 뭘 해야 하지"를 알고, 엄지 한 번으로 처리
  *   - 할 일이 3건뿐이라 중요도 필터를 없앴다 (힉의 법칙: 선택지를 줄인다)
  *   - 색은 왼쪽 막대와 뱃지 두 곳에만. 뱃지는 글자 + 기호(● ◐ ○)로 색 없이도 구분
+ *   - 뱃지 글자는 task.tag (부족 · 임박 …) — 같은 우유를 홈과 재고가 같은 이름으로 부르게. 급한 정도는 색 · 기호로
  *   - 카드 = ① 중요도 · 무엇 ② 핵심 숫자 한 줄 ③ 다음 행동 하나. 수치 표 · 근거는 [현황 자세히] 로 (점진적 공개)
  *   - 큰 파란 버튼은 긴급 카드에만 (카드 폭 전체 · 48px). 나머지는 펼친 뒤 테두리 버튼
  *   - 보조 글자 #4B5563 (흰 바탕 대비 약 7.6:1)
@@ -33,7 +34,7 @@ function WeatherRow({ onAnalyze }) {
       <CloudRain size={22} aria-hidden="true" className="shrink-0 text-weather-rain" />
       <span className="min-w-0 flex-1">
         <span className="block text-label font-bold text-ink">내일 비 · 따뜻한 라떼 +14잔 예상</span>
-        <span className={`block text-[13px] ${SUB}`}>강수확률 90% · 최저 4°C · 날씨 분석 보기</span>
+        <span className={`block text-[13px] ${SUB}`}>강수확률 90% · 최저 4°C</span>
       </span>
       <ChevronRight size={18} aria-hidden="true" className="shrink-0 text-woori-deep" />
     </button>
@@ -54,7 +55,7 @@ function TaskCard({ task, approval, open, onToggle }) {
       <div className="flex flex-col gap-1">
         <span className={`inline-flex w-fit items-center gap-1 rounded-md px-2 py-1 text-[13px] leading-none font-bold ${s.badge}`}>
           <span aria-hidden="true">{s.mark}</span>
-          {s.label}
+          {task.tag ?? s.label}
         </span>
         <Link to={task.to} className="mt-1 text-[16px] leading-snug font-bold text-ink hover:text-woori-blue focus-visible:outline-2 focus-visible:outline-woori-blue">
           {task.title}
