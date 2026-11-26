@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { getInventory, saveInventoryItem } from '@/api/inventory'
+import { adjustInventoryItem, getInventory, receiveInventoryItem, saveInventoryItem } from '@/api/inventory'
 import { useStoreSelection } from '@/store/useStoreSelection'
 import * as mock from './mock'
 
@@ -11,11 +11,20 @@ export const useInventory = () => {
   return useQuery({ queryKey: ['inventory', 'inventory', storeId], queryFn: () => getInventory(storeId), initialData: mock.inventory, initialDataUpdatedAt: 0 })
 }
 
-export const useSaveInventoryItem = () => {
+// 저장 · 입고 · 실사 모두 끝나면 재고 목록을 다시 불러온다
+const useInventoryMutation = (fn) => {
   const storeId = useStoreSelection((s) => s.storeId)
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, patch }) => saveInventoryItem(storeId, id, patch),
+    mutationFn: (vars) => fn(storeId, vars),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['inventory', 'inventory', storeId] }),
   })
 }
+
+export const useSaveInventoryItem = () => useInventoryMutation((storeId, { id, patch }) => saveInventoryItem(storeId, id, patch))
+
+export const useReceiveInventoryItem = () =>
+  useInventoryMutation((storeId, { id, ...lot }) => receiveInventoryItem(storeId, id, lot))
+
+export const useAdjustInventoryItem = () =>
+  useInventoryMutation((storeId, { id, counted, countedAt }) => adjustInventoryItem(storeId, id, counted, countedAt))
