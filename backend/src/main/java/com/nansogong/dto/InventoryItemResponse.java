@@ -1,6 +1,6 @@
 package com.nansogong.dto;
 
-import com.nansogong.model.Item;
+import com.nansogong.model.InventoryItem;
 import com.nansogong.model.ItemType;
 import com.nansogong.model.ItemUnit;
 
@@ -20,7 +20,7 @@ public record InventoryItemResponse(
         Instant createdAt,
         Instant updatedAt
 ) {
-    public static InventoryItemResponse from(Item item) {
+    public static InventoryItemResponse from(InventoryItem item) {
         return new InventoryItemResponse(item.getId(), item.getName(), item.getItemType(), item.getCategory(),
                 item.getUnit(), item.getPurchaseUnit(), item.getPackSize(), item.isActive(),
                 item.getCreatedAt(), item.getUpdatedAt());

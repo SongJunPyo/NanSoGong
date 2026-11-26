@@ -30,7 +30,7 @@ import java.time.Instant;
 @Table(name = "item")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Item {
+public class InventoryItem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -72,9 +72,9 @@ public class Item {
     private Instant updatedAt;
 
     /** 품목 등록. 처음에는 사용 중 상태다 */
-    public static Item create(Long storeId, String name, ItemType itemType, String category, ItemUnit unit,
+    public static InventoryItem create(Long storeId, String name, ItemType itemType, String category, ItemUnit unit,
                               String purchaseUnit, BigDecimal packSize) {
-        Item item = new Item();
+        InventoryItem item = new InventoryItem();
         item.storeId = storeId;
         item.name = name.strip();
         item.itemType = itemType;
