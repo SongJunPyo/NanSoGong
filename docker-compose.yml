@@ -65,6 +65,14 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # 회원 인증: 실제 값은 환경변수/Secrets에서만 전달한다.
+      VERIFICATION_MODE: ${VERIFICATION_MODE:-mock}
+      SENS_SERVICE_ID: ${SENS_SERVICE_ID:-}
+      SENS_ACCESS_KEY: ${SENS_ACCESS_KEY:-}
+      SENS_SECRET_KEY: ${SENS_SECRET_KEY:-}
+      SENS_FROM: ${SENS_FROM:-}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_COOKIE_SAME_SITE: ${AUTH_COOKIE_SAME_SITE:-Lax}
       # 컨테이너끼리는 서비스 이름으로 부른다 (localhost 가 아니다)
       DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-nansogong}
       DB_USER: ${DB_USER:-dev}

@@ -134,9 +134,9 @@ npm run dev                       # 화면 5173
 
 ### 화면만 둘러보기 (서버 없이)
 
-대부분의 화면은 각 영역의 예시 데이터로 그려지므로 **`npm run dev` 만으로** 둘러볼 수 있습니다. **회원가입·로그인·사업자 확인·매장 설정은 실제 백엔드와 DB를 사용**하므로 `docker compose up -d`로 서버도 켜야 합니다. 휴대전화는 서버의 개발용 인증번호 `000000`을 사용하며 실제 문자는 발송하지 않습니다. 가입·인증의 상세 조건은 [백엔드 계약](docs/rules/backend.md#회원가입--로그인--매장-저장)을 따릅니다. 새로고침하면 HttpOnly Refresh 쿠키로 세션을 복원합니다. 상세 조건은 [세션 계약](docs/rules/backend.md#로그인-유지--서버-로그아웃)을 따릅니다. 일반 계정 재설정·전화번호 변경은 실제 SMS 설정이 준비된 REAL 모드에서만 가능합니다. MOCK 재설정은 [고정 데모 계정](docs/rules/backend.md#비밀번호-재설정-개발용)으로 제한합니다.
+대부분의 화면은 각 영역의 예시 데이터로 그려지므로 **`npm run dev` 만으로** 둘러볼 수 있습니다. **회원가입·로그인·사업자 확인·매장 설정은 실제 백엔드와 DB를 사용**하므로 `docker compose up -d`로 서버도 켜야 합니다. 기본 MOCK 모드의 휴대전화 인증은 개발용 번호 `000000`을 사용하며 실제 문자는 발송하지 않습니다. 가입·인증의 상세 조건은 [백엔드 계약](docs/rules/backend.md#회원가입--로그인--매장-저장)을 따릅니다. 새로고침하면 HttpOnly Refresh 쿠키로 세션을 복원합니다. 상세 조건은 [세션 계약](docs/rules/backend.md#로그인-유지--서버-로그아웃)을 따릅니다. 일반 계정 재설정·전화번호 변경은 실제 SMS 설정이 준비된 REAL 모드에서만 가능합니다. MOCK 재설정은 [고정 데모 계정](docs/rules/backend.md#비밀번호-재설정-개발용)으로 제한합니다.
 
-SENS 실연동 준비 사항은 [인증 계약](docs/rules/backend.md#sms-수신-인증-sens)과 [환경변수 목록](infra/secrets/README.md#키-목록)을 따릅니다. `.env`를 채우는 것과 컨테이너에 환경변수를 전달하는 것은 별개입니다. 현재 Compose 파일은 이번 변경에서 수정하지 않았으므로 `SENS_*`·`AUTH_COOKIE_*`의 앱 환경 전달 여부를 별도로 확인해야 합니다. 키를 출력하는 `docker compose config`나 환경변수 전체 출력으로 확인하지 않습니다.
+SENS 실연동 준비 사항은 [인증 계약](docs/rules/backend.md#sms-수신-인증-sens)과 [환경변수 목록](infra/secrets/README.md#키-목록)을 따릅니다. `docker-compose.yml`과 `docker-compose.dev.yml`은 `VERIFICATION_MODE`·`SENS_*`·`AUTH_COOKIE_*`를 앱 환경으로 전달합니다. 기본은 MOCK이며 실제 발송은 명시적으로 REAL을 선택하고 SENS 설정을 준비해야 합니다. 현재 로컬·dev HTTP의 쿠키 기본은 `Secure=false`이며, HTTPS 환경에서는 `AUTH_COOKIE_SECURE=true`로 설정합니다. 환경변수 변경은 앱 컨테이너를 다시 생성해야 반영됩니다. 키를 출력하는 `docker compose config`나 환경변수 전체 출력으로 확인하지 않습니다.
 
 ```bash
 cd frontend

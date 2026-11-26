@@ -169,7 +169,7 @@ public class InventoryItemNotFoundException extends BusinessException {
 - Redis에 세션 ID·회원 ID·자격 버전·Refresh HMAC·회전 이력·절대 만료 시각을 둔다. Refresh 원문은 저장하지 않는다. 회전해도 최초 14일 만료를 연장하지 않는다. Access는 Redis 세션 상태와 기존 `credentialVersion`을 모두 검증한다. 이전의 sid 없는 JWT는 재로그인이 필요하다.
 - Refresh는 원자적으로 회전한다. 이미 사용한 진짜 토큰의 재사용은 그 세션만 종료한다. 임의의 잘못된 토큰으로 다른 세션을 종료할 수 없다. 종료·만료·재사용된 세션은 아직 JWT 만료 전이어도 Access와 Refresh를 거절한다. 비밀번호 변경·LOCKED·WITHDRAWN 상태도 갱신 시 DB에서 재검사한다.
 - `GET /api/auth/csrf`가 현재 Refresh에 묶인 HMAC 토큰을 반환한다. 갱신·로그아웃에는 같은 쿠키와 `X-CSRF-Token`·`X-Nansogong-Auth: 1`을 요구한다. 로그인도 `X-Nansogong-Auth: 1`을 요구해 단순 폼 요청을 거절한다. Origin이 있으면 CORS의 정확한 허용 목록과 대조한다. 쿠키 인증 전용 필터에서 확인하며 Bearer 전용 업무 API에는 쿠키로 접근 권한을 주지 않는다.
-- 쿠키·Access·CSRF 응답은 `Cache-Control: no-store`다. CORS는 기존 정확한 Origin·credentials 설정을 유지한다. 로컬 HTTP는 Secure=false, HTTPS dev는 true가 기본이다. SameSite 기본 Lax, 서로 다른 사이트가 필요한 환경만 None+Secure=true로 명시한다. 관련 변수는 [환경변수 목록](../../infra/secrets/README.md#키-목록)을 따른다.
+- 쿠키·Access·CSRF 응답은 `Cache-Control: no-store`다. CORS는 기존 정확한 Origin·credentials 설정을 유지한다. 현재 로컬·dev HTTP는 Secure=false가 기본이며 HTTPS 환경은 true로 명시한다. SameSite 기본 Lax, 서로 다른 사이트가 필요한 환경만 None+Secure=true로 명시한다. 관련 변수는 [환경변수 목록](../../infra/secrets/README.md#키-목록)을 따른다.
 - 로그아웃은 현재 쿠키의 세션을 종료하고 동일 속성의 만료 쿠키를 반환한다. 해당 세션의 모든 Access도 차단한다. 다른 기기 세션을 일괄 종료하지 않는다. 저장소 오류는 인증을 허용하지 않으며 로그아웃 성공으로 표시하지 않는다.
 
 ### 회원탈퇴
