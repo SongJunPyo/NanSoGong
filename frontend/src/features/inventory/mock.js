@@ -37,12 +37,12 @@ export const inventory = [
   },
   {
     id: 'lid', name: '뚜껑', value: '추정 290개', tags: [],
-    category: '포장재', unit: 'EA', packSize: 1, packLabel: '개', packPrice: 40, safeStock: 300, dailyUse: 35,
+    category: '포장재', unit: 'EA', packSize: 1, packLabel: '개', packPrice: 40, safeStock: 200, dailyUse: 35,
     lots: [{ id: 'lid-1105', receivedAt: '2026-11-05', qty: 290, amount: 11600, expiresAt: null }],
   },
   {
     id: 'financier', name: '휘낭시에', value: '추정 18개', tags: [],
-    category: '디저트', unit: 'EA', packSize: 1, packLabel: '개', packPrice: 1500, safeStock: 20, dailyUse: 6,
+    category: '디저트', unit: 'EA', packSize: 1, packLabel: '개', packPrice: 1500, safeStock: 12, dailyUse: 6,
     lots: [{ id: 'financier-1124', receivedAt: '2026-11-24', qty: 18, amount: 27000, expiresAt: '2026-11-29' }],
   },
 ]
