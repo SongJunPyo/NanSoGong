@@ -7,3 +7,9 @@ scrape_configs:
     metrics_path: /actuator/prometheus
     static_configs:
       - targets: ["host.docker.internal:8080"]
+
+  # AI 서비스(FastAPI). docker compose --profile ai 로 띄웠을 때만 값이 들어온다 (안 띄웠으면 Targets 에 DOWN 으로 보인다)
+  - job_name: nansogong-ai
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8001"]

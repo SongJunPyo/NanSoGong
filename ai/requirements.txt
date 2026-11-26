@@ -1,0 +1,6 @@
+# 🤖 AI 서비스(FastAPI) 실행에 필요한 라이브러리
+# ~=X.Y.Z : 같은 X.Y 안에서 패치만 올라간다 (팀원 · CI · dev 서버가 같은 동작을 하도록)
+# LangGraph · Anthropic SDK · LangSmith 는 실제 연결을 확인한 뒤 추가하고 버전을 고정한다 (docs/rules/ai.md)
+fastapi~=0.115.0
+uvicorn[standard]~=0.34.0
+prometheus-fastapi-instrumentator~=7.1.0

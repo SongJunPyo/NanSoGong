@@ -20,7 +20,7 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
 
 | 파일 | 용도 |
 |---|---|
-| `cloudformation/shared.yml` | (계정에 한 번) ECR 저장소 `nansogong-api` · `nansogong-web`, AWS Budgets $100 알림, GitHub OIDC 공급자, 빌드 역할 `nansogong-build` |
+| `cloudformation/shared.yml` | (계정에 한 번) ECR 저장소 `nansogong-api` · `nansogong-web` · `nansogong-ai`, AWS Budgets $100 알림, GitHub OIDC 공급자, 빌드 역할 `nansogong-build` |
 | `cloudformation/prod.yml` | prod 전체를 스택 하나로. ① 네트워크: VPC, public · private · data 서브넷 (각 2개 가용 영역), NAT 2개, 보안 그룹 (CloudFront → ALB → 서버 → RDS · Redis) ② 데이터: RDS PostgreSQL 17 Multi-AZ (timezone=Asia/Seoul), ElastiCache Redis 7.1 2노드(TLS), DB 비밀번호 자동 생성 ③ 앱: ALB(HTTPS) · WAF · ASG(t4g, arm64) · CodeDeploy · S3(화면 · 배포 묶음) · CloudFront · Route 53 · CloudWatch 알람, 배포 역할 `nansogong-deploy-prod` |
 | `cloudformation/dev.yml` | dev EC2 1대 (Docker · compose 설치, 고정 IP, SSM 접속, ECR · `nansogong/dev` 읽기 권한), 배포 역할 `nansogong-deploy-dev` |
 | `secrets/` | 서버 비밀값(API 키 · JWT 등)을 콘솔에서 넣는 방법과 붙여넣을 JSON 틀 (`secrets/README.md`) |
@@ -33,7 +33,7 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
 
 | 역할 | 만드는 스택 | 쓸 수 있는 곳 | 권한 | GitHub 에 넣을 곳 (스택 출력) |
 |---|---|---|---|---|
-| `nansogong-build` | shared | `dev` · `main` 브랜치 | ECR 두 저장소에 이미지 올리기 | 저장소 Variables `AWS_BUILD_ROLE_ARN` (`BuildRoleArn`) |
+| `nansogong-build` | shared | `dev` · `main` 브랜치 | ECR 세 저장소에 이미지 올리기 | 저장소 Variables `AWS_BUILD_ROLE_ARN` (`BuildRoleArn`) |
 | `nansogong-deploy-dev` | dev | Environment `dev` | dev EC2 에 SSM 명령 보내기 | Environment `dev` → `AWS_DEPLOY_ROLE_ARN` (`DeployRoleArn`) |
 | `nansogong-deploy-prod` | prod | Environment `prod` | CodeDeploy 배포 · 화면 S3 업로드 · CloudFront 캐시 비우기 | Environment `prod` → `AWS_DEPLOY_ROLE_ARN` (`DeployRoleArn`) |
 
@@ -59,6 +59,7 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
    - `BudgetEmail`: 예산 알림 메일 / `GitHubRepository`: `SongJunPyo/NanSoGong`
    - `CreateGitHubOidcProvider`: IAM > 자격 증명 공급자에 `token.actions.githubusercontent.com` 이 **이미 있으면 `false`**, 없으면 `true`
    - IAM 승인 체크 → 만든 뒤 출력 `BuildRoleArn` 을 GitHub 저장소 Settings > Secrets and variables > Actions > Variables 의 `AWS_BUILD_ROLE_ARN` 에
+   - 이미 만든 스택에 새 ECR 저장소(`nansogong-ai`)를 추가할 때: 스택 선택 > **업데이트** > **현재 템플릿 교체** > `shared.yml` 업로드 > 입력값은 그대로 > IAM 승인 체크 → 제출
 5. GitHub 저장소 Settings > Environments: `dev`, `prod` 생성. `prod` 에는 **Required reviewers** 와 **Deployment branches: `main` 만**
 
 ## dev 만들기 (약 1시간)
@@ -77,6 +78,8 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
    (저장소가 private 이면 읽기 전용 fine-grained 토큰으로 clone: `https://<토큰>@github.com/...`)
 5. GitHub Actions 에서 `backend` · `frontend` 워크플로를 `dev` 으로 **Run workflow** → ECR 에 이미지가 생기고 dev 가 뜬다
    이미지가 이미 있으면 EC2 에서 바로 `bash /opt/nansogong/infra/dev/update.sh`
+   AI 서비스(FastAPI)는 `ai` 워크플로를 같은 방법으로 실행하면 함께 뜬다. 이미지가 없으면 건너뛰므로 서버 · 화면 배포에는 영향이 없다
+   (확인: EC2 에서 `cd /opt/nansogong && docker compose -f docker-compose.yml -f docker-compose.dev.yml exec app wget -qO- http://ai-api:8000/health`)
 6. 스택 출력 `Url`(`http://<고정 IP>`) 에서 화면, `http://<고정 IP>/api/ping` 에서 연결 확인. 이후 `dev` 머지마다 자동 갱신
 7. 데모 데이터: `bash /opt/nansogong/infra/demo-data/load.sh local`
 
