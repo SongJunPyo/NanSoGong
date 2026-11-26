@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Screen } from '@/components/common/layout'
+import InventoryTabs from '@/features/inventory/components/InventoryTabs'
 import { Button, Card, Divider, Eyebrow, Field, H1, H2, HeadRow, KV, P } from '@/components/common/ui'
 import { Badge } from '@/components/ui/badge'
 import { QuantityInput } from '@/components/ui/quantity-input'
@@ -85,7 +86,8 @@ export default function ReceivingPage() {
   }
 
   return (
-    <Screen title="입고 확인">
+    <Screen title="재고" back={false} tab wide>
+      <InventoryTabs />
       <Eyebrow>오늘 도착 · {DELIVERY.length}개 품목</Eyebrow>
       <H1>{'받은 수량을\n입력해 주세요'}</H1>
 

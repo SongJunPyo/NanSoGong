@@ -1,4 +1,4 @@
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { BadgePercent, BarChart3, ChevronLeft, Coffee, Home, Package, Settings } from 'lucide-react'
 import { HeaderNotifications } from '@/components/home/HomeNotifications'
 
@@ -56,25 +56,27 @@ export function Header({ title, eyebrow, back = true, backTo, settings = false, 
   )
 }
 
+// also: 이 경로에서도 탭을 켠다 (같은 탭 묶음의 다른 화면)
 const TABS = [
   { to: '/', label: '홈', icon: Home, end: true },
-  { to: '/inventory', label: '재고', icon: Package },
+  { to: '/inventory', label: '재고', icon: Package, also: ['/orders', '/receiving'] }, // 재고 탭 안의 발주 목록 · 입고 확인에서도 켠다
   { to: '/menu', label: '메뉴', icon: Coffee },
   { to: '/sales', label: '매출', icon: BarChart3 },
 ]
 
 /** 하단 탭바 — Figma 'HF/TabBar' */
 export function TabBar() {
+  const { pathname } = useLocation()
   return (
     <nav aria-label="모바일 주요 메뉴" className="fixed inset-x-0 bottom-0 z-20 grid h-[calc(84px+env(safe-area-inset-bottom))] w-full grid-cols-4 border-t border-line bg-white pb-[calc(24px+env(safe-area-inset-bottom))] lg:hidden">
-      {TABS.map(({ to, label, icon: Icon, end }) => (
+      {TABS.map(({ to, label, icon: Icon, end, also }) => (
         <NavLink
           key={to}
           to={to}
           end={end}
           className={({ isActive }) =>
             `flex flex-col items-center justify-center gap-[3px] text-[11px] ${
-              isActive ? 'font-bold text-woori-deep' : 'text-ink-mute'
+              isActive || also?.includes(pathname) ? 'font-bold text-woori-deep' : 'text-ink-mute'
             }`
           }
         >
@@ -88,6 +90,7 @@ export function TabBar() {
 
 /** PC에서는 주요 메뉴를 왼쪽에 고정해 상세 화면에서도 이동할 수 있게 한다. */
 export function DesktopNav() {
+  const { pathname } = useLocation()
   return (
     <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-white p-6 lg:flex">
       <Link to="/" className="mb-10 flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-woori-blue">
@@ -100,14 +103,14 @@ export function DesktopNav() {
         </span>
       </Link>
       <nav aria-label="주요 메뉴" className="flex flex-col gap-2">
-        {TABS.map(({ to, label, icon: Icon, end }) => (
+        {TABS.map(({ to, label, icon: Icon, end, also }) => (
           <NavLink
             key={to}
             to={to}
             end={end}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-input px-4 py-3.5 text-body font-bold transition-colors focus-visible:outline-2 focus-visible:outline-woori-blue ${
-                isActive ? 'bg-woori-tint text-woori-deep' : 'text-ink-sub hover:bg-surface-muted hover:text-ink'
+                isActive || also?.includes(pathname) ? 'bg-woori-tint text-woori-deep' : 'text-ink-sub hover:bg-surface-muted hover:text-ink'
               }`
             }
           >
