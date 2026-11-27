@@ -16,6 +16,17 @@ PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추�
 - 상태 코드를 늘릴 때는 새 마이그레이션으로 `CHECK` 를 바꾼다.
 - 스키마 파일이 있다는 것과 실행 중인 DB에 적용됐다는 것은 다르다. 둘을 구분해서 보고한다.
 
+### 환경별 DB · Flyway
+
+| 환경 | DB | Flyway |
+|---|---|---|
+| 내 PC | docker compose 의 postgres 컨테이너 (기본) 또는 `.env` 의 `DB_URL` | 켜짐 · 기본 검증 |
+| dev 서버 | 팀 공용 온프레미스 PostgreSQL 17 (Secrets Manager `nansogong/dev` 의 `DB_URL`) | 켜짐 · `application-dev.yml` 에서 코드에 없는 적용 기록(`*:missing`)을 무시 |
+| prod 서버 | RDS PostgreSQL 17 (prod 스택이 연결) | 켜짐 · 기본 검증 |
+
+- 🚨 **새 마이그레이션은 머지 전까지 로컬 컨테이너 DB에서만 실행한다.** 공용 DB에 먼저 적용하면 그 파일이 없는 팀원 PC 서버는 Flyway 검증에 실패해서 뜨지 않는다 (dev 서버는 위 설정으로 무시한다).
+- 공용 DB에 이미 적용된 마이그레이션 파일은 머지 전이라도 고치지 않는다. 체크섬이 달라져서 dev 서버까지 막힌다. 바꿀 내용은 새 파일로 만든다.
+
 ## 이름 · 타입
 
 | 대상 | 규칙 |

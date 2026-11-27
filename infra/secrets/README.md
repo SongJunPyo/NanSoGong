@@ -29,10 +29,12 @@
 | `JWT_SECRET` | 필수 | 필수 | 로그인 토큰 서명 키 (`openssl rand -base64 48`) |
 | `CREDENTIAL_ENCRYPTION_KEY` | 필수 | 필수 | 연동 인증 정보 암호화 키 (`openssl rand -base64 32`) |
 | `ANTHROPIC_API_KEY` | 필수 | 필수 | AI 호출 |
+| `DB_URL` · `DB_USER` · `DB_PASSWORD` | 필수 (팀 공용 온프레미스 DB) | 넣지 않음 (prod 스택이 RDS 를 연결) | 예: `jdbc:postgresql://<DB 주소>:<포트>/nansogong`. 🚨 `localhost` 금지 (EC2 자신을 가리킨다). 비밀번호에 `$` · `#` · 공백 · 따옴표를 쓰지 않는다 (`.env` 로 옮길 때 깨진다) |
 | `POS_BASE_URL` · `SUPPLIER_BASE_URL` · `MYDATA_BASE_URL` | 넣지 않음 (compose 에 들어 있음) | 필수 (없으면 서버가 뜨지 않는다) | 목업 주소 |
 | `CORS_ALLOWED_ORIGINS` | 선택 | 필수 `https://<도메인>` | |
 | `AI_MODEL` · `DATA_GO_KR_SERVICE_KEY` · `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `VERIFICATION_MODE` | 선택 | 선택 | 필요할 때만 행 추가 |
 
 - 값이 없는 키는 **빈 값으로 두지 말고 아예 넣지 않습니다** (빈 값도 그대로 환경변수로 들어간다)
-- 🚨 `DB_URL` · `DB_USER` · `DB_PASSWORD` · `REDIS_HOST` 는 넣지 않습니다. prod 는 prod 스택이 넣어 주고, dev 는 같은 EC2 의 컨테이너를 씁니다
+- 🚨 prod 에는 `DB_URL` · `DB_USER` · `DB_PASSWORD` · `REDIS_HOST` 를 넣지 않습니다 (prod 스택이 넣어 준다). dev 에는 DB 값 3개만 넣고 `REDIS_HOST` 는 넣지 않습니다 (같은 EC2 의 Redis 컨테이너)
+- dev 의 온프레미스 DB 방화벽은 dev EC2 고정 IP(dev 스택 출력 `Url`)만 허용합니다. dev 스택을 다시 만들면 IP 가 바뀌므로 방화벽도 고칩니다
 - 새 환경변수를 만들면 이 표와 틀 파일도 함께 고칩니다

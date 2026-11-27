@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Screen } from '@/components/common/layout'
 import { Card, Chips, Field, H2, KV, Label } from '@/components/common/ui'
 import { won } from '@/lib/format'
@@ -7,15 +7,24 @@ import { QuantityInput } from '@/components/ui/quantity-input'
 import { InlineError } from '@/components/ui/inline-error'
 import { ButtonLoading } from '@/components/ui/loading'
 import { toast } from '@/components/ui/toast'
+import { useInventory } from '@/features/inventory/queries'
+import { NOW_TEXT, stockInfo } from '@/features/inventory/stock'
 
-const STOCK = 3 // 현재 추정 재고 (목업)
-const UNIT_COST = 2800 // 우유 1L 개당 원가 (목업)
 const QTY_ERROR_ID = 'discard-qty-error'
 
 /** 23-1 폐기·손실 등록 (UF-11 3B) */
 export default function DiscardPage() {
   const navigate = useNavigate()
-  const [qty, setQty] = useState(1)
+  // 어느 품목에서 눌렀는지 주소로 받는다 (?item=milk). 없으면 우유 (목업)
+  const [params] = useSearchParams()
+  const itemId = params.get('item') ?? 'milk'
+  const { data: items } = useInventory()
+  const item = items.find((i) => i.id === itemId)
+  const info = item ? stockInfo(item) : null
+  // 현재 재고 = 쓸 수 있는 양 + 기한 지난 양 (기한 지난 것도 폐기해야 하니 포함)
+  const STOCK = info ? info.left + info.expired : 0
+  const UNIT_COST = item?.packPrice ?? 0
+  const [qty, setQty] = useState(info?.expired || 1)
   const [saving, setSaving] = useState(false)
 
   const error =
@@ -31,9 +40,9 @@ export default function DiscardPage() {
 
   return (
     <Screen title="재고 조정">
-      <Chips items={['실사', '폐기', '손실']} defaultIndex={1} links={['/inventory/adjust', null, null]} />
+      <Chips items={['실사', '폐기', '손실']} defaultIndex={1} links={[`/inventory/adjust?item=${itemId}`, null, null]} />
       <Card>
-        <KV label="품목" value="우유 1L" />
+        <KV label="품목" value={item?.name ?? '—'} />
         <KV label="현재 추정 재고" value={`${STOCK}개`} />
       </Card>
       <div className="flex flex-col gap-2">
@@ -43,7 +52,7 @@ export default function DiscardPage() {
         <QuantityInput id="discard-qty" value={qty} onChange={setQty} min={0} max={STOCK} unit="개" invalid={!!error} errorId={QTY_ERROR_ID} />
         <InlineError id={QTY_ERROR_ID}>{error}</InlineError>
       </div>
-      <Field label="발생 시점" defaultValue="2026.11.19 21:00" />
+      <Field label="발생 시점" defaultValue={NOW_TEXT} />
       <Label>사유</Label>
       <Chips items={['소비기한 지남', '파손', '품질 이상', '기타']} />
       <Card tone="line">
