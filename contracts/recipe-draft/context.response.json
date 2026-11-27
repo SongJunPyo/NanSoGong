@@ -1,0 +1,19 @@
+{
+  "items": [
+    { "itemId": 3, "name": "딸기퓨레", "unit": "ML", "unitCost": null, "costSource": null },
+    { "itemId": 2, "name": "우유", "unit": "ML", "unitCost": 2.5, "costSource": "MANUAL" },
+    { "itemId": 1, "name": "원두", "unit": "G", "unitCost": 25, "costSource": "MANUAL" }
+  ],
+  "menus": [
+    {
+      "menuId": 10,
+      "name": "카페라떼",
+      "category": "커피",
+      "price": 4500,
+      "recipe": [
+        { "itemId": 1, "itemName": "원두", "unit": "G", "quantity": 18, "appliesTo": "ALL" },
+        { "itemId": 2, "itemName": "우유", "unit": "ML", "quantity": 200, "appliesTo": "ALL" }
+      ]
+    }
+  ]
+}

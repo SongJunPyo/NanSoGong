@@ -15,6 +15,9 @@ public interface RecipeItemRepository extends JpaRepository<RecipeItem, Long> {
     /** 지금 쓰는 레시피 (아직 끝나지 않은 행) */
     List<RecipeItem> findByMenuIdAndValidToIsNull(Long menuId);
 
+    /** 매장 전체 메뉴의 지금 레시피 (메뉴마다 조회하지 않게 한 번에) */
+    List<RecipeItem> findByStoreIdAndValidToIsNull(Long storeId);
+
     /** 여러 메뉴의 레시피 중 at 시각에 적용되던 행 (valid_from ≤ at < valid_to) */
     @Query("""
             select r from RecipeItem r

@@ -10,6 +10,7 @@
 -- 📋 이후 마이그레이션 (V202611241000 뒤. 추가할 때마다 이 목록에도 적는다)
 --    - V202611261001__enforce_unique_store_business_number.sql  store.biz_reg_no 전체 UQ   → store 표 안에 반영
 --    - V202611262100__create_ai_job.sql                         ai_job 표 추가             → 파일 끝
+--    - V202611271730__make_suggestion_version_unique_per_store.sql  suggestion UQ 에 store_id 추가 → suggestion 표 안에 반영
 -- 🚨 마이그레이션은 머지 후 절대 고치지 않습니다. 표를 바꿀 때는 새 마이그레이션 파일을 추가하고, 이 설계 문서에도 같은 변경을 반영합니다.
 --
 -- 11/24 계약 적용 내용
@@ -480,14 +481,14 @@ CREATE TABLE suggestion (
   added_menu_id         BIGINT REFERENCES menu (menu_id),
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (workflow_key, version),
+  CONSTRAINT uq_suggestion_store_workflow_version UNIQUE (store_id, workflow_key, version),
   UNIQUE (added_menu_id)
 );
 
 COMMENT ON TABLE suggestion IS '발주·쿠폰·메뉴·재고 제안의 버전별 결과';
 COMMENT ON COLUMN suggestion.suggestion_id IS '제안 버전 ID';
 COMMENT ON COLUMN suggestion.store_id IS '매장';
-COMMENT ON COLUMN suggestion.workflow_key IS '동일 업무의 안정적인 키 (version과 묶어서 UQ)';
+COMMENT ON COLUMN suggestion.workflow_key IS '동일 업무의 안정적인 키 (store_id · version 과 묶어서 UQ)';
 COMMENT ON COLUMN suggestion.version IS '1부터 증가하는 버전';
 COMMENT ON COLUMN suggestion.parent_suggestion_id IS '수정 전 버전. 처음이면 NULL';
 COMMENT ON COLUMN suggestion.change_source IS 'AI_GENERATED AI생성 / OWNER_EDITED 사장님수정 / REGENERATE_REQUESTED 재생성요청 / REANALYZED 재분석. 이 버전을 만든 주체';

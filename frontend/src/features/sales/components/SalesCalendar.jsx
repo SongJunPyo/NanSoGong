@@ -9,7 +9,7 @@ import { won } from '@/lib/format'
 
 export default function SalesCalendar() {
   const { data: analytics } = useSalesAnalytics()
-  const [selected, setSelected] = useState('2026-11-18')
+  const [selected, setSelected] = useState(analytics.defaultRange.to)
   const [year, month] = analytics.defaultRange.from.split('-').map(Number)
   const offset = new Date(Date.UTC(year, month - 1, 1)).getUTCDay()
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
@@ -26,9 +26,9 @@ export default function SalesCalendar() {
   const compare = (record) => record?.amount > 0 ? `${Math.abs((day.amount - record.amount) / record.amount * 100).toFixed(1)}% ${day.amount >= record.amount ? '↑' : '↓'}` : '비교 자료 없음'
 
   return (
-    <Card tone="line" gap="gap-4" pad="p-4 sm:p-6">
+    <Card tone="line" gap="gap-4" pad="p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div><H2><span className="flex items-center gap-2"><CalendarDays size={19} className="text-woori-blue" aria-hidden="true" />매출 캘린더</span></H2><p className="mt-1 text-caption text-ink-sub">{year}년 {month}월 · 날짜를 선택해 상세 매출을 확인하세요</p></div>
+        <div><H2><span className="flex items-center gap-2"><CalendarDays size={19} className="text-woori-blue" aria-hidden="true" />매출 캘린더</span></H2><p className="mt-1 text-caption text-ink-sub">{year}년 {month}월 전체 · 날짜를 눌러 상세 확인</p></div>
         <Pill>월 누적 {won(total)}원</Pill>
       </div>
       <WeekHeader />
@@ -37,17 +37,17 @@ export default function SalesCalendar() {
           const record = records.get(number)
           const active = record?.date === selected
           return number === null ? <div key={`blank-${index}`} aria-hidden="true" /> : (
-            <button key={number} type="button" disabled={!record} aria-pressed={active}
+            <button key={number} type="button" disabled={!record} aria-pressed={active} title={record ? `${won(record.amount)}원` : '수집된 자료 없음'}
               aria-label={`${month}월 ${number}일${record ? ` 매출 ${won(record.amount)}원` : ' 자료 없음'}`}
               onClick={() => setSelected(record.date)}
               className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-2 rounded-input py-2 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-woori-blue sm:min-h-20 ${active ? 'bg-woori-deep text-white' : record ? 'bg-surface-muted text-ink hover:bg-woori-tint' : 'text-ink-mute'}`}>
               <span className="text-caption font-bold sm:text-label">{number}</span>
-              <span className={`num text-[9px] tracking-tight sm:text-[11px] ${active ? 'text-white' : 'text-woori-blue'}`}>{record ? won(record.amount) : '—'}</span>
+              <span className={`num text-[11px] tracking-tight sm:text-caption ${active ? 'text-white' : 'text-woori-deep'}`}>{record ? `${won(record.amount / 10000)}만` : '—'}</span>
             </button>
           )
         })}
       </div>
-      <p className="text-caption text-ink-sub">날짜 아래는 매출액(원)이에요. — 표시는 아직 수집된 자료가 없는 날짜예요.</p>
+      <p className="text-caption leading-relaxed text-ink-sub">달력 금액은 만원 단위예요. 정확한 금액은 아래에서 확인하세요. — 는 수집된 자료가 없는 날짜예요.</p>
       {day && (
         <div aria-live="polite" className="rounded-input bg-woori-tint p-4">
           <p className="mb-3 text-label font-bold text-woori-deep">{formatSalesDate(day.date)} ({WEEK[new Date(`${day.date}T12:00:00+09:00`).getUTCDay()]}) 상세 매출</p>

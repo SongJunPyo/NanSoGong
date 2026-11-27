@@ -1,10 +1,13 @@
 import { Screen } from '@/components/common/layout'
 import { Button, Card, Chips, Eyebrow, H1, KV2 } from '@/components/common/ui'
+import SalesTabs from '@/features/sales/components/SalesTabs'
 
 /** 43-2 거래 분류 확인 (UF-18 1~2) */
 export default function CostClassifyPage() {
   return (
-    <Screen title="거래 분류 확인">
+    <Screen title="매출" tab wide compact>
+      <SalesTabs />
+      <p className="rounded-input bg-woori-tint p-3 text-label text-woori-deep">거래 분류 시연이에요. 선택 내용은 아직 저장되거나 예상 이익 계산에 반영되지 않아요.</p>
       <Eyebrow>확인이 필요한 거래 2건</Eyebrow>
       <H1>{'이 거래는\n어떤 비용인가요?'}</H1>
       <Card tone="line">
@@ -17,7 +20,7 @@ export default function CostClassifyPage() {
         <p className="text-[13px] font-medium text-warning">직접 입력한 공과금 240,000원과 겹칠 수 있어요</p>
         <Chips items={['공과금에 포함', '별도 비용', '개인 지출']} />
       </Card>
-      <Button to="/sales/costs">분류 저장하고 다시 계산</Button>
+      <Button to="/sales/costs">분류 예시 확인 마치기</Button>
     </Screen>
   )
 }
