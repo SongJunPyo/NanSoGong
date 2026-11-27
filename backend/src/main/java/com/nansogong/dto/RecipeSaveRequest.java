@@ -1,7 +1,9 @@
 package com.nansogong.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.nansogong.model.RecipeAppliesTo;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
@@ -18,9 +20,10 @@ public record RecipeSaveRequest(
      * @param quantity  메뉴 1개당 관리 단위 사용량. 기본 메뉴는 양수, 옵션은 기본 대비 증감량(음수 가능, 0 은 안 됨)
      * @param appliesTo 없으면 ALL
      */
+    @Schema(name = "RecipeSaveLine")   // Swagger 이름 (Line 이 여러 개라 설명서에서 서로 덮어쓰지 않게)
     public record Line(
             @NotNull Long itemId,
-            @NotNull BigDecimal quantity,
+            @NotNull @Digits(integer = 16, fraction = 3) BigDecimal quantity,   // DB DECIMAL(19,3): 소수 4자리부터 400
             RecipeAppliesTo appliesTo
     ) {}
 }
