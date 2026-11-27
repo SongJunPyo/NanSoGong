@@ -1,0 +1,9 @@
+{
+  "menuName": "딸기라떼",
+  "description": "딸기 퓨레를 넣은 라떼",
+  "lines": [
+    { "itemId": 2, "itemName": "우유", "qty": 200, "unit": "ML" },
+    { "itemId": null, "itemName": "딸기퓨레", "qty": 30, "unit": "ML" },
+    { "itemId": null, "itemName": "생딸기", "qty": 50, "unit": "G" }
+  ]
+}
