@@ -34,7 +34,8 @@ from app.models.suggestion import SuggestionSave
 from app.prompts import render
 
 MAX_REVISIONS = 2
-GRAPH_VERSION = "recipe-draft/2"                # 2: 초안 사용량 칸 qty → quantity (#35 계약)
+ENTRY_NODE = "load_context"                     # 처음 실행하는 노드 (작업 실행기가 첫 진행 보고에 쓴다)
+GRAPH_VERSION = "recipe-draft/3"                # 2: 초안 사용량 칸 qty → quantity (#35 계약) / 3: jobId 숫자 (Spring ai_job_id)
 
 
 class RecipeOutcome(StrEnum):
@@ -51,7 +52,7 @@ class RecipeState(TypedDict, total=False):
     """
 
     # 시작할 때 넣는 값
-    job_id: str
+    job_id: int
     workflow_key: str
     menu_name: str
     # 단계를 지나며 채워지는 값
@@ -214,7 +215,7 @@ def build_recipe_graph(spring: SpringClient, writer: DraftWriter, checkpointer=N
     # ---------- 갈림길 (다음에 갈 노드 이름을 돌려준다) ----------
 
     def skip_if_done(state: RecipeState) -> str:
-        return END if state.get("outcome") else "load_context"
+        return END if state.get("outcome") else ENTRY_NODE
 
     def stop_if_generation_failed(state: RecipeState) -> str:
         return END if state.get("outcome") == RecipeOutcome.GENERATION_FAILED else "validate"
@@ -227,15 +228,15 @@ def build_recipe_graph(spring: SpringClient, writer: DraftWriter, checkpointer=N
         return "revise"
 
     builder = StateGraph(RecipeState)
-    builder.add_node("load_context", load_context)
+    builder.add_node(ENTRY_NODE, load_context)
     builder.add_node("generate_draft", generate_draft)
     builder.add_node("validate", validate)
     builder.add_node("revise", revise)
     builder.add_node("save", save)
     builder.add_node("give_up", give_up)
 
-    builder.add_conditional_edges(START, skip_if_done, ["load_context", END])
-    builder.add_edge("load_context", "generate_draft")
+    builder.add_conditional_edges(START, skip_if_done, [ENTRY_NODE, END])
+    builder.add_edge(ENTRY_NODE, "generate_draft")
     builder.add_conditional_edges("generate_draft", stop_if_generation_failed, ["validate", END])
     builder.add_conditional_edges("validate", after_validate, ["save", "revise", "give_up"])
     builder.add_conditional_edges("revise", stop_if_generation_failed, ["validate", END])

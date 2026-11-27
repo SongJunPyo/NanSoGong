@@ -20,7 +20,7 @@ from app.graphs.recipe import (
 from app.models.recipe import RecipeLineCheck, RecipeReason, RecipeValidation
 from tests.fakes import BAD_DRAFT, CONTEXT, GOOD_DRAFT, INVALID, VALID, FakeSpring, FakeWriter
 
-START_INPUT = {"job_id": "job-1", "workflow_key": "MENU:job-1", "menu_name": "딸기라떼"}
+START_INPUT = {"job_id": 1, "workflow_key": "MENU:1", "menu_name": "딸기라떼"}
 
 
 def run(spring: FakeSpring, writer: FakeWriter) -> dict:
@@ -42,11 +42,11 @@ def test_valid_draft_is_saved_once():
     assert len(spring.saved) == 1
     saved = spring.saved[0]
     assert saved.suggestion_type == "MENU"
-    assert saved.workflow_key == "MENU:job-1"
+    assert saved.workflow_key == "MENU:1"
     assert saved.payload["menuName"] == "딸기라떼"          # Spring 으로 가는 JSON 은 camelCase
     assert saved.evidence["valid"] is True
     context = saved.generation_context
-    assert context["jobId"] == "job-1" and context["revisions"] == 0
+    assert context["jobId"] == 1 and context["revisions"] == 0
     assert datetime.fromisoformat(context["generatedAt"]).tzinfo is not None   # 기준 시각은 offset 포함
 
 

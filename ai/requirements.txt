@@ -10,3 +10,7 @@ pydantic-settings~=2.16.0        # 환경변수 → 설정 (app/config.py)
 langgraph~=1.2.24
 langchain-core~=1.8.5
 langchain-anthropic~=1.7.13
+# AI 작업 저장소 (Postgres ai 스키마: 작업 등록부 · 체크포인트, app/db/)
+psycopg[binary]~=3.3.9
+psycopg-pool~=3.3.3
+langgraph-checkpoint-postgres~=3.2.1   # 체크포인트 표 생성 · 올리기는 배포 명령 python -m app.db.migrate 가 한다

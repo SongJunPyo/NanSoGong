@@ -15,6 +15,9 @@ class Settings(BaseSettings):
 
     # Spring → Python 내부 호출 토큰 (X-Internal-Token). 비어 있으면 내부 API 를 모두 거절한다
     ai_service_token: SecretStr = SecretStr("")
+    # AI 작업 저장소(ai 스키마) 접속 주소. Python 전용 계정이다 (업무 표 쓰기 권한 없음, docs/rules/db.md)
+    # 예: postgresql://ai_app:비밀번호@postgres:5432/nansogong. 비어 있으면 작업 API 가 503 을 돌려준다
+    ai_database_url: SecretStr = SecretStr("")
 
 
 @lru_cache

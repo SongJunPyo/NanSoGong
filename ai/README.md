@@ -1,7 +1,7 @@
 # ai — AI 서비스 (Python · FastAPI)
 
-Spring 이 부르는 **내부용 AI 서버**입니다. 지금은 서버 틀(`/health` · `/metrics`)만 있습니다.
-AI 작업 API(접수 · 조회 · 재개) · LangGraph 워커 · 수요 예측 API 는 [아키텍처 미정 사항](../docs/rules/architecture.md#미정-사항)의 내부 API 계약이 정해진 뒤 추가합니다.
+Spring 이 부르는 **내부용 AI 서버**입니다. Spring 이 작업(`jobId`)을 넘기면 접수만 하고 바로 답하고, 워커가 LangGraph 그래프를 돌려 진행 · 결과를 Spring 에 보고합니다.
+지금 붙어 있는 작업은 레시피 초안(`RECIPE_DRAFT`) 하나입니다. Spring 내부 API(#35) · 실제 Claude 연결 · 워커 실행 명령 · docker-compose 연결은 아직 없습니다 (테스트는 가짜 Spring · 가짜 LLM).
 
 | 항목 | 값 |
 |---|---|
@@ -17,6 +17,7 @@ docker compose --profile ai up -d --build      # 서버 · DB 등 + AI 서비스
 ```
 
 - http://localhost:8001/health → `{"status":"UP"}`
+- 작업 API 를 쓰려면 `AI_SERVICE_TOKEN` · `AI_DATABASE_URL` 이 있어야 한다 (없으면 401 · 503). 아직 docker-compose 에 연결하지 않았다
 - http://localhost:8001/docs → API 문서 (FastAPI 자동 생성)
 - Spring 컨테이너에서 확인: `docker compose exec app wget -qO- http://ai-api:8000/health`
 
@@ -29,7 +30,27 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-Docker 만 있으면: `docker run --rm -v "$PWD/ai:/app" -w /app python:3.12-slim sh -c "pip install -q -r requirements-dev.txt && pytest"`
+- 작업 등록부 · 체크포인트 테스트는 testcontainers 로 Postgres 17 컨테이너를 띄운다 → **Docker Desktop 이 켜져 있어야 한다.** Docker 가 없으면 내 PC 에서는 그 테스트만 건너뛰고, CI(`CI=true`)에서는 실패한다
+- 실제 모델 · 실제 Spring 을 부르지 않는다 (`tests/fakes.py`)
+
+## 작업 API (Spring → Python)
+
+모두 `X-Internal-Token` 이 필요하다. 모양은 `app/models/job.py`, 결정 배경은 #34 ⑥.
+
+| 경로 | 하는 일 |
+|---|---|
+| `POST /jobs` `{ jobId, jobType, workflowKey, input }` | 접수. 새 작업 202, 같은 `jobId` · 같은 내용 200(기존 작업), 내용이 다르면 409 `JOB_CONFLICT`. 그래프가 없는 종류는 400 `UNSUPPORTED_JOB_TYPE`, 입력이 종류에 안 맞으면 400 `INVALID_JOB_INPUT` |
+| `GET /jobs/{jobId}` | 조회 (Spring 이 대조 · 복구할 때). 화면은 이 API 가 아니라 Spring `ai_job` 을 본다 |
+| `POST /jobs/{jobId}/cancel` | 취소. 처리 중이면 워커가 다음 단계 전에 멈춘다. 끝난 작업은 그대로 |
+
+진행 · 결과는 Python 이 Spring `POST /internal/ai-jobs/{jobId}/reports` 로 `seq` 순서대로 보낸다 (보고 편지함 `ai.job_report`).
+
+## AI 작업 저장소 (Postgres `ai` 스키마)
+
+- 표: 작업 등록부(`ai.job`) · 보고 편지함(`ai.job_report`) · LangGraph 체크포인트. 규칙은 [DB 규칙 AI 작업 저장소](../docs/rules/db.md#ai-작업-저장소-ai-스키마)
+- 표 만들기 · 올리기는 배포 명령: `python -m app.db.migrate` (`AI_DATABASE_URL` 의 DB). 서버 · 워커는 실행 중에 표를 만들지 않는다
+- 새 표 · 칸은 `app/db/migrations/` 에 다음 번호 SQL 파일로 추가한다. 이미 적용된 파일은 고치지 않는다
+- `ai` 스키마와 Python 전용 계정은 인프라 DB 초기화 스크립트가 만든다 (아직 없음, #34 ④)
 
 ## 규칙
 

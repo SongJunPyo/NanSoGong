@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 
+from app.models.job import JobReport
 from app.models.recipe import (
     ContextItem,
     ContextMenu,
@@ -51,23 +52,36 @@ INVALID = RecipeValidation(
 
 
 class FakeSpring:
-    """validations 에 넣은 검증 결과를 차례로 돌려준다. 받은 호출을 기록한다."""
+    """validations 에 넣은 검증 결과를 차례로 돌려준다. 예외를 넣어 두면 그 차례에 예외를 던진다.
 
-    def __init__(self, validations: list[RecipeValidation]):
+    받은 호출(검증 · 저장 · 보고)을 기록한다. report_errors 에 예외를 넣으면 보고를 받을 때 차례로 던진다.
+    """
+
+    def __init__(self, validations: list[RecipeValidation | BaseException]):
         self._validations = list(validations)
         self.validated: list[RecipeDraft] = []
         self.saved: list[SuggestionSave] = []
+        self.reports: list[tuple[int, JobReport]] = []
+        self.report_errors: list[Exception] = []
 
-    def get_recipe_context(self, job_id: str) -> RecipeContext:
+    def get_recipe_context(self, job_id: int) -> RecipeContext:
         return CONTEXT
 
-    def validate_recipe(self, job_id: str, draft: RecipeDraft) -> RecipeValidation:
+    def validate_recipe(self, job_id: int, draft: RecipeDraft) -> RecipeValidation:
         self.validated.append(draft)
-        return self._validations.pop(0)
+        result = self._validations.pop(0)
+        if isinstance(result, BaseException):
+            raise result
+        return result
 
-    def save_suggestion(self, job_id: str, suggestion: SuggestionSave) -> SavedSuggestion:
+    def save_suggestion(self, job_id: int, suggestion: SuggestionSave) -> SavedSuggestion:
         self.saved.append(suggestion)
         return SavedSuggestion(suggestion_id=500, version=1)
+
+    def report(self, job_id: int, report: JobReport) -> None:
+        if self.report_errors:
+            raise self.report_errors.pop(0)
+        self.reports.append((job_id, report))
 
 
 class FakeWriter:
