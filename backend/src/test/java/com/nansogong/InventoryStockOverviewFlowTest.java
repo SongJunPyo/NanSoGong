@@ -85,7 +85,7 @@ class InventoryStockOverviewFlowTest {
         Member member = memberRepository.save(
                 Member.create("t" + UUID.randomUUID().toString().substring(0, 20), "hash", "테스트", "010-0000-0000"));
         memberId = member.getId();
-        storeId = storeRepository.save(Store.create(memberId, "1234567890", "테스트카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
+        storeId = storeRepository.save(Store.create(memberId, "%09d1".formatted(memberId), "테스트카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
         stocksUrl = "/api/stores/" + storeId + "/inventory-items/stocks";
 
         milkId = item(storeId, "우유", ItemUnit.ML);
@@ -200,7 +200,7 @@ class InventoryStockOverviewFlowTest {
 
     @Test
     void 다른_매장_품목은_섞이지_않는다() throws Exception {
-        Long otherStoreId = storeRepository.save(Store.create(memberId, "9876543210", "다른카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
+        Long otherStoreId = storeRepository.save(Store.create(memberId, "%09d2".formatted(memberId), "다른카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
         item(otherStoreId, "다른매장 우유", ItemUnit.ML);
 
         call(get(stocksUrl)).andExpect(jsonPath("$.totalElements").value(5));
@@ -225,7 +225,7 @@ class InventoryStockOverviewFlowTest {
 
         // 없는 품목 · 다른 매장 품목 → 404
         call(get("/api/stores/" + storeId + "/inventory-items/999999999/transactions")).andExpect(status().isNotFound());
-        Long otherStoreId = storeRepository.save(Store.create(memberId, "9876543210", "다른카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
+        Long otherStoreId = storeRepository.save(Store.create(memberId, "%09d2".formatted(memberId), "다른카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
         call(get("/api/stores/" + otherStoreId + "/inventory-items/" + milkId + "/stock-counts")).andExpect(status().isNotFound());
     }
 
@@ -233,7 +233,7 @@ class InventoryStockOverviewFlowTest {
     void 남의_매장이면_403() throws Exception {
         Member stranger = memberRepository.save(
                 Member.create("s" + UUID.randomUUID().toString().substring(0, 20), "hash", "남", "010-1111-1111"));
-        Long theirStoreId = storeRepository.save(Store.create(stranger.getId(), "1111111111", "남의카페", "남", LocalDate.of(2026, 1, 1))).getId();
+        Long theirStoreId = storeRepository.save(Store.create(stranger.getId(), "%09d1".formatted(stranger.getId()), "남의카페", "남", LocalDate.of(2026, 1, 1))).getId();
         Long theirItemId = item(theirStoreId, "남의 우유", ItemUnit.ML);
         String theirItemUrl = "/api/stores/" + theirStoreId + "/inventory-items/" + theirItemId;
 
