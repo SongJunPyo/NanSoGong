@@ -230,12 +230,13 @@ cd frontend && npm ci             # package-lock.json 이 바뀐 날만
 | 언제 바뀌나 | 내 마음대로 | `dev` 에 머지될 때 | `main` 에 머지 + 승인될 때 |
 | 구성 | docker compose | EC2 t4g.small 1대 + docker compose (화면 nginx 포함) | CloudFront · ALB · WAF · ASG(Graviton) · NAT (`infra/cloudformation`) |
 | Spring 프로필 | (기본) `application.yml` | `dev` | `aws,prod` |
-| DB · Redis | docker compose | 같은 EC2 의 컨테이너 | prod 전용 RDS Multi-AZ · ElastiCache 2노드 |
+| DB | docker compose 의 postgres (또는 `.env` 의 `DB_URL`) | 팀 공용 온프레미스 PostgreSQL 17 | prod 전용 RDS Multi-AZ |
+| Redis | docker compose | 같은 EC2 의 컨테이너 | prod 전용 ElastiCache 2노드 |
 | 환경변수 | `.env` | Secrets Manager `nansogong/dev` → `.env` (`infra/dev/update.sh`) | Secrets Manager `nansogong/prod` · `nansogong/prod/db` |
 | Swagger · 상세 로그 | 켜짐 | 켜짐 | 꺼짐 |
 
 설정 파일은 겹쳐 쓰는 구조입니다. `application.yml`(로컬 기본값) ← `application-aws.yml`(prod, 기본값 없음) ← `application-dev.yml` / `application-prod.yml`.
-dev 는 비용을 줄이려고 로컬과 같은 docker compose 구성을 EC2 한 대에 올린 것이라 `aws` 프로필을 쓰지 않습니다. 그래서 RDS · ElastiCache · ALB 처럼 prod 에서만 쓰는 것은 dev 에서 확인되지 않습니다 (`infra/README.md`).
+dev 는 비용을 줄이려고 로컬과 같은 docker compose 구성을 EC2 한 대에 올리고 DB 만 팀 공용 온프레미스 PostgreSQL 에 붙인 것이라 `aws` 프로필을 쓰지 않습니다. 그래서 RDS · ElastiCache · ALB 처럼 prod 에서만 쓰는 것은 dev 에서 확인되지 않습니다 (`infra/README.md`).
 AWS 에서 환경변수가 하나라도 빠지면 서버가 뜨지 않습니다. 로컬 기본값으로 조용히 떠서 엉뚱한 DB 를 보는 사고를 막기 위해서입니다.
 
 ## 브랜치 전략

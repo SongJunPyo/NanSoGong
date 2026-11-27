@@ -88,9 +88,18 @@ class RecipeSaveTest {
     }
 
     @Test
-    void 남의_매장_품목은_404() {
+    void 남의_매장_품목은_400() {
+        // 품목 확인은 준표 validateSameStore 로 한 번에 한다: 없거나 다른 매장 품목이면 400
         assertStatus(() -> recipeService.saveRecipe(memberId, storeId, menuId, request(new Line(otherStoreItemId, BigDecimal.ONE, null))),
-                HttpStatus.NOT_FOUND);
+                HttpStatus.BAD_REQUEST);
+        assertThat(recipeService.getRecipe(memberId, storeId, menuId).items()).isEmpty();   // 저장되지 않음
+    }
+
+    @Test
+    void 없는_품목_번호는_400() {
+        assertStatus(() -> recipeService.saveRecipe(memberId, storeId, menuId,
+                        request(new Line(beanId, new BigDecimal("18"), null), new Line(999_999L, BigDecimal.ONE, null))),
+                HttpStatus.BAD_REQUEST);
     }
 
     @Test

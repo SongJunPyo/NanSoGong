@@ -1,5 +1,6 @@
 package com.nansogong.dto;
 
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -11,6 +12,6 @@ import java.math.BigDecimal;
 public record MenuRequest(
         @NotBlank @Size(max = 100) String name,
         @Size(max = 50) String category,
-        @NotNull @Positive BigDecimal price,     // 판매가 > 0
+        @NotNull @Positive @Digits(integer = 17, fraction = 2) BigDecimal price,     // 판매가 > 0, DB DECIMAL(19,2)
         @Size(max = 50) String spec              // 규격. 예: 톨, 1인분
 ) {}
