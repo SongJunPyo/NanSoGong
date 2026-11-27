@@ -1,8 +1,12 @@
 package com.nansogong;
 
 import com.jayway.jsonpath.JsonPath;
+import com.nansogong.model.InventoryItem;
+import com.nansogong.model.ItemType;
+import com.nansogong.model.ItemUnit;
 import com.nansogong.model.Member;
 import com.nansogong.model.Store;
+import com.nansogong.repository.InventoryItemRepository;
 import com.nansogong.repository.MemberRepository;
 import com.nansogong.repository.StoreRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -20,6 +25,7 @@ import org.springframework.web.context.WebApplicationContext;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -33,7 +39,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * 품목 등록 흐름 (구현-3-1): 요청 → 저장 → 조회 결과까지 실제 DB(Testcontainers)로 따라간다.
- * TODO(매장 분리): StoreService.checkOwner 가 들어오면 "남의 매장 → 403" 경우를 추가한다.
  */
 @SpringBootTest
 @Import(TestcontainersConfig.class)
@@ -45,6 +50,8 @@ class InventoryItemFlowTest {
     private MemberRepository memberRepository;
     @Autowired
     private StoreRepository storeRepository;
+    @Autowired
+    private InventoryItemRepository inventoryItemRepository;
 
     private MockMvc mockMvc;
     private Long memberId;
@@ -166,5 +173,36 @@ class InventoryItemFlowTest {
 
         // 토큰 없음 → 401
         mockMvc.perform(get(baseUrl)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void 남의_매장이면_403이고_아무것도_바뀌지_않는다() throws Exception {
+        Member stranger = memberRepository.save(
+                Member.create("s" + UUID.randomUUID().toString().substring(0, 20), "hash", "남", "010-1111-1111"));
+        Store theirStore = storeRepository.save(Store.create(stranger.getId(), "1111111111", "남의카페", "남", LocalDate.of(2026, 1, 1)));
+        InventoryItem theirItem = inventoryItemRepository.save(
+                InventoryItem.create(theirStore.getId(), "남의 우유", ItemType.INGREDIENT, null, ItemUnit.ML, null, null));
+        String theirUrl = "/api/stores/" + theirStore.getId() + "/inventory-items";
+        String theirItemUrl = theirUrl + "/" + theirItem.getId();
+
+        // 내 토큰으로 남의 매장 주소를 부르면 모두 403
+        postJson(theirUrl, """
+                {"name": "몰래 등록", "itemType": "INGREDIENT", "unit": "G"}
+                """).andExpect(status().isForbidden());
+        call(get(theirUrl)).andExpect(status().isForbidden());
+        call(get(theirItemUrl)).andExpect(status().isForbidden());
+        call(put(theirItemUrl).contentType(MediaType.APPLICATION_JSON).content("""
+                {"name": "몰래 수정", "itemType": "INGREDIENT"}
+                """)).andExpect(status().isForbidden());
+        call(patch(theirItemUrl + "/deactivate")).andExpect(status().isForbidden());
+        // 없는 매장도 403 (있는 매장인지 알려 주지 않는다)
+        call(get("/api/stores/999999999/inventory-items")).andExpect(status().isForbidden());
+
+        // 남의 매장 품목은 그대로다
+        InventoryItem after = inventoryItemRepository.findById(theirItem.getId()).orElseThrow();
+        assertThat(after.getName()).isEqualTo("남의 우유");
+        assertThat(after.isActive()).isTrue();
+        assertThat(inventoryItemRepository.findByStoreIdAndNameContainingIgnoreCase(theirStore.getId(), "", Pageable.unpaged())
+                .getTotalElements()).isEqualTo(1);
     }
 }
