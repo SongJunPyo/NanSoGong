@@ -2,6 +2,7 @@ package com.nansogong;
 
 import com.jayway.jsonpath.JsonPath;
 import com.nansogong.model.InventoryItem;
+import com.nansogong.model.InventoryStockCount;
 import com.nansogong.model.InventoryTransaction;
 import com.nansogong.model.InventoryTransactionType;
 import com.nansogong.model.ItemType;
@@ -9,6 +10,7 @@ import com.nansogong.model.ItemUnit;
 import com.nansogong.model.Member;
 import com.nansogong.model.Store;
 import com.nansogong.repository.InventoryItemRepository;
+import com.nansogong.repository.InventoryStockCountRepository;
 import com.nansogong.repository.InventoryTransactionRepository;
 import com.nansogong.repository.MemberRepository;
 import com.nansogong.repository.StoreRepository;
@@ -48,7 +50,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 실사 · 폐기 · 손실 흐름 (구현-3-6, UF-11): 실제 DB(Testcontainers)로 기준점이 바뀌는 것까지 확인한다.
  * 판매 차감 API 는 아직 없어서 판매 장부 행은 Repository 로 직접 넣는다.
- * TODO(매장 분리): StoreService.checkOwner 가 들어오면 "남의 매장 → 403" 경우를 추가한다.
  */
 @SpringBootTest
 @Import(TestcontainersConfig.class)
@@ -62,6 +63,8 @@ class InventoryStockAdjustmentFlowTest {
     private StoreRepository storeRepository;
     @Autowired
     private InventoryItemRepository inventoryItemRepository;
+    @Autowired
+    private InventoryStockCountRepository inventoryStockCountRepository;
     @Autowired
     private InventoryTransactionRepository inventoryTransactionRepository;
 
@@ -257,5 +260,24 @@ class InventoryStockAdjustmentFlowTest {
         call(get(itemUrl + "/stock"))
                 .andExpect(jsonPath("$.baseType").value("INITIAL"))
                 .andExpect(jsonPath("$.estimatedQty").value(1000));
+    }
+
+    @Test
+    void 남의_매장이면_403이고_실사_폐기가_남지_않는다() throws Exception {
+        Member stranger = memberRepository.save(
+                Member.create("s" + UUID.randomUUID().toString().substring(0, 20), "hash", "남", "010-1111-1111"));
+        Store theirStore = storeRepository.save(Store.create(stranger.getId(), "%09d1".formatted(stranger.getId()), "남의카페", "남", LocalDate.of(2026, 1, 1)));
+        InventoryItem theirItem = inventoryItemRepository.save(
+                InventoryItem.create(theirStore.getId(), "남의 우유", ItemType.INGREDIENT, null, ItemUnit.ML, null, null));
+        // 초기 재고까지 있어서, 권한 확인이 없다면 아래 요청은 성공했을 상태
+        inventoryStockCountRepository.save(InventoryStockCount.initial(theirStore.getId(), theirItem.getId(), new BigDecimal("1000"), t0, null));
+        String theirItemUrl = "/api/stores/" + theirStore.getId() + "/inventory-items/" + theirItem.getId();
+        Instant later = t0.plus(Duration.ofHours(1));
+
+        postCount(theirItemUrl, "/stock-counts", "0", later).andExpect(status().isForbidden());
+        postAdjustment(theirItemUrl, null, "LOSS", "1000", later).andExpect(status().isForbidden());
+
+        assertThat(inventoryStockCountRepository.findAll().stream().filter(c -> c.getItemId().equals(theirItem.getId()))).hasSize(1);
+        assertThat(inventoryTransactionRepository.findAll().stream().filter(t -> t.getItemId().equals(theirItem.getId()))).isEmpty();
     }
 }

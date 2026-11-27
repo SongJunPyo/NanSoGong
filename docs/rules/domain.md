@@ -39,7 +39,10 @@
 | 메뉴 | `MenuService.resolve(storeId, posMenuCode, List<String> optionCodes)` | 코드 → `menuId` 와 옵션별 `menuId` (못 찾으면 null) |
 | 메뉴 | `RecipeService.usageOf(menuId, List<OptionQty> options, at)` | **메뉴 1개 기준** 품목별 사용량 `Map<itemId, BigDecimal>` |
 | 재고 | `InventoryService.deductForSale(orderItemId)` | `resolve` → `usageOf` × 차감 수량 → 장부 기록 → `deduct_status` 변경 |
+| 재고 | `InventoryItemService.validateSameStore(storeId, Collection<Long> itemIds)` | 품목이 하나라도 없거나 다른 매장 것이면 400. 사용 중지 여부는 보지 않는다 |
+| 재고 | `InventoryItemService.getItemsByIds(storeId, Collection<Long> itemIds)` | `Map<itemId, InventoryItemResponse>` (이름 · 단위 등). 없거나 다른 매장 품목은 빠진다 |
 
+- 재고의 품목 메서드는 부르는 쪽이 `checkOwner` 를 이미 했다고 보고 매장 권한을 다시 확인하지 않는다.
 - `usageOf` 는 메뉴 1개 기준만 돌려준다. **수량을 곱하는 일은 `deductForSale` 이 맡는다.** 취소 · 부분 취소가 생겨도 `usageOf` 는 바꾸지 않는다.
 
 ## 판매 → 재고 차감

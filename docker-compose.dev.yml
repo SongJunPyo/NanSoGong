@@ -1,7 +1,8 @@
 # 🧪 AWS dev EC2 전용 덧씌우기 파일 (내 PC 에서는 쓰지 않는다)
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d   ← infra/dev/update.sh 가 실행
 #   docker-compose.yml 위에 아래 내용만 바꾼다
-#     - 서버 · 화면: EC2 에서 빌드하지 않고 GitHub Actions 가 ECR 에 올린 arm64 이미지를 받는다
+#     - 서버 · 화면 · AI 서비스: EC2 에서 빌드하지 않고 GitHub Actions 가 ECR 에 올린 arm64 이미지를 받는다
+#     - AI 서비스(ai-api)는 ECR 에 이미지가 생긴 뒤부터 update.sh 가 켠다 (COMPOSE_PROFILES=ai)
 #     - 화면(web, nginx)을 80 포트로 연다 → http://<dev 고정 IP> 하나로 화면과 /api 를 함께 본다
 #     - DB · Redis · 목업 · 서버 포트는 밖에 열지 않는다 (같은 EC2 안에서만 통신)
 #     - 비밀값(.env)은 Secrets Manager 의 nansogong/dev 에서 update.sh 가 만든다
@@ -38,6 +39,15 @@ services:
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?nansogong/dev 비밀에 CREDENTIAL_ENCRYPTION_KEY 필요}
       AI_MODEL: ${AI_MODEL:-claude-haiku-5-5}
       JAVA_TOOL_OPTIONS: -Duser.timezone=Asia/Seoul -XX:MaxRAMPercentage=35   # 메모리 2GB 를 DB · Redis 와 나눠 쓴다
+
+  # 🧠 AI 서비스: 포트를 밖에 열지 않는다 (같은 EC2 의 app 만 http://ai-api:8000 으로 부른다)
+  #    AI_TAG 가 없을 때(이미지가 아직 없을 때)는 ai 프로필이 꺼져 있어서 뜨지 않는다 → 기본값으로 오류만 막는다
+  ai-api:
+    image: ${ECR_REGISTRY}/nansogong-ai:${AI_TAG:-not-deployed}
+    pull_policy: always
+    restart: always
+    ports: !reset []
+    mem_limit: 256m                               # 메모리 2GB 를 나눠 쓴다. 지금은 틀만 있어 100MB 안팎. LangGraph 워커를 붙일 때 EC2 크기와 함께 다시 정한다
 
   web:
     image: ${ECR_REGISTRY}/nansogong-web:${WEB_TAG:?WEB_TAG 없음}
