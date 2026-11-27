@@ -55,15 +55,28 @@ public class Member {
     @Column(nullable = false)
     private Instant updatedAt;
 
-    /** 가입. 비밀번호는 이미 해시한 값을 받는다. 휴대폰 인증은 2주 범위 밖이라 가입 시각으로 채운다. */
+    public void resetPassword(String passwordHash) { this.passwordHash = passwordHash; }
+
+    public void changeName(String name) { this.name = name; }
+
+    public void changePhone(String phone, Instant verifiedAt) {
+        this.phone = phone;
+        this.phoneVerifiedAt = verifiedAt;
+    }
+
+    /** 내부 데모 생성용. 실제 가입 API는 서버가 확인한 인증 시각을 받는 오버로드를 쓴다. */
     public static Member create(String loginId, String passwordHash, String name, String phone) {
+        return create(loginId, passwordHash, name, phone, Instant.now());
+    }
+
+    public static Member create(String loginId, String passwordHash, String name, String phone, Instant phoneVerifiedAt) {
         Member member = new Member();
         member.loginId = loginId;
         member.passwordHash = passwordHash;
         member.name = name;
         member.phone = phone;
         member.status = MemberStatus.ACTIVE;
-        member.phoneVerifiedAt = Instant.now();
+        member.phoneVerifiedAt = phoneVerifiedAt;
         return member;
     }
 }

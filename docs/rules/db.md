@@ -1,6 +1,6 @@
 # DB 규칙
 
-PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추측하지 말고 [전체 표 구조](../pjt_source/store-agent-db.sql)를 봅니다. 28개 표를 만드는 SQL이고, 마이그레이션 `V202611241000__create_store_agent_schema.sql`(27개 표)과 그 뒤에 추가한 마이그레이션(`ai_job`)을 합친 것과 내용이 같습니다. 설명은 [표 설계 설명](../pjt_source/store-agent-db-desc.md)에 있습니다.
+PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추측하지 말고 [전체 표 구조](../pjt_source/store-agent-db.sql)를 봅니다. 28개 표의 현재 스키마입니다. 처음 27개 표는 `V202611241000__create_store_agent_schema.sql`, 그 뒤 변경은 이후 마이그레이션(`V202611261001` 사업자번호 UQ, `V202611262100` `ai_job`)에 있습니다. 설명은 [표 설계 설명](../pjt_source/store-agent-db-desc.md)에 있습니다.
 
 - 업무 규칙(차감 계산 · 결제 상태 전이 등)은 [도메인 규칙](domain.md)에 씁니다.
 - AI 작업 상태 저장 방식은 [AI 규칙](ai.md#상태-저장--재개)에 씁니다.
@@ -15,6 +15,17 @@ PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추�
 - 새 표를 만들면 `infra/demo-data/` 에 데모 데이터 SQL도 추가할지 사용자에게 묻는다.
 - 상태 코드를 늘릴 때는 새 마이그레이션으로 `CHECK` 를 바꾼다.
 - 스키마 파일이 있다는 것과 실행 중인 DB에 적용됐다는 것은 다르다. 둘을 구분해서 보고한다.
+
+### 환경별 DB · Flyway
+
+| 환경 | DB | Flyway |
+|---|---|---|
+| 내 PC | docker compose 의 postgres 컨테이너 (기본) 또는 `.env` 의 `DB_URL` | 켜짐 · 기본 검증 |
+| dev 서버 | 팀 공용 온프레미스 PostgreSQL 17 (Secrets Manager `nansogong/dev` 의 `DB_URL`) | 켜짐 · `application-dev.yml` 에서 코드에 없는 적용 기록(`*:missing`)을 무시 |
+| prod 서버 | RDS PostgreSQL 17 (prod 스택이 연결) | 켜짐 · 기본 검증 |
+
+- 🚨 **새 마이그레이션은 머지 전까지 로컬 컨테이너 DB에서만 실행한다.** 공용 DB에 먼저 적용하면 그 파일이 없는 팀원 PC 서버는 Flyway 검증에 실패해서 뜨지 않는다 (dev 서버는 위 설정으로 무시한다).
+- 공용 DB에 이미 적용된 마이그레이션 파일은 머지 전이라도 고치지 않는다. 체크섬이 달라져서 dev 서버까지 막힌다. 바꿀 내용은 새 파일로 만든다.
 
 ## 이름 · 타입
 
@@ -41,6 +52,13 @@ PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추�
 ## 칸 계약 (공용 표)
 
 업무에서 이 칸들을 어떻게 쓰는지는 [도메인 규칙](domain.md)에 있습니다. 여기서는 칸과 값의 모양만 정합니다.
+
+### 회원 · 매장
+
+- `store.biz_reg_no`는 모든 계정에서 유일하다. 기존 복합 UQ도 유지한다. 기존 중복이 있으면 마이그레이션이 중단되며 자동 삭제·병합하지 않는다.
+- 가입에서 서버가 진위 일치·계속사업자를 재확인한 매장만 `VERIFIED`와 `verified_at`을 저장한다.
+- `member.phone_verified_at`은 서버 휴대전화 인증 증명의 확인 시각이다. 현재 개발용 인증 여부는 [가입 계약](backend.md#회원가입--로그인--매장-저장)을 따른다.
+- `store.onboarding_status.storeBasics`는 매장 기본정보 저장 여부다. 다른 초기 설정 키는 보존한다.
 
 ### 품목 · 연동
 

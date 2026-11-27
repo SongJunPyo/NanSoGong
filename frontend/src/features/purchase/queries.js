@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { confirmDelivery, getDeliveries, getOrders } from '@/api/purchase'
 import { useStoreSelection } from '@/store/useStoreSelection'
 import * as mock from './mock'
 
@@ -11,7 +12,31 @@ const useMockQuery = (key, data) => {
 }
 
 export const useOrderRecommendation = () => useMockQuery(['purchase', 'orderRecommendation'], mock.orderRecommendation)
-export const useOrders = () => useMockQuery(['purchase', 'orders'], mock.orders)
+// 발주 목록 · 입고는 화면 사이에 바뀌므로(입고 확정 → 상태 변경) 목업 API(api/purchase.js)를 거친다
+export const useOrders = () => {
+  const storeId = useStoreSelection((s) => s.storeId)
+  return useQuery({ queryKey: ['purchase', 'orders', storeId], queryFn: () => getOrders(storeId), initialData: mock.orders, initialDataUpdatedAt: 0 })
+}
+
+/** 오늘 도착해서 아직 다 확인하지 않은 입고 줄 */
+export const useDeliveries = () => {
+  const storeId = useStoreSelection((s) => s.storeId)
+  return useQuery({ queryKey: ['purchase', 'deliveries', storeId], queryFn: () => getDeliveries(storeId) })
+}
+
+/** 입고 확정 — 끝나면 재고 · 발주 목록 · 입고 줄을 다시 불러온다 */
+export const useConfirmDelivery = () => {
+  const storeId = useStoreSelection((s) => s.storeId)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ requestId, lines }) => confirmDelivery(storeId, requestId, lines),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'inventory', storeId] })
+      queryClient.invalidateQueries({ queryKey: ['purchase', 'orders', storeId] })
+      queryClient.invalidateQueries({ queryKey: ['purchase', 'deliveries', storeId] })
+    },
+  })
+}
 export const usePriceCompare = (itemId) =>
   useMockQuery(['purchase', 'priceCompare', itemId], mock.priceCompare[itemId] ?? null)
 export const useAgentOrderSettings = () => useMockQuery(['purchase', 'agentOrderSettings'], mock.agentOrderSettings)

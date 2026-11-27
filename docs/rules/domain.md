@@ -39,7 +39,10 @@
 | 메뉴 | `MenuService.resolve(storeId, posMenuCode, List<String> optionCodes)` | 코드 → `menuId` 와 옵션별 `menuId` (못 찾으면 null) |
 | 메뉴 | `RecipeService.usageOf(menuId, List<OptionQty> options, at)` | **메뉴 1개 기준** 품목별 사용량 `Map<itemId, BigDecimal>` |
 | 재고 | `InventoryService.deductForSale(orderItemId)` | `resolve` → `usageOf` × 차감 수량 → 장부 기록 → `deduct_status` 변경 |
+| 재고 | `InventoryItemService.validateSameStore(storeId, Collection<Long> itemIds)` | 품목이 하나라도 없거나 다른 매장 것이면 400. 사용 중지 여부는 보지 않는다 |
+| 재고 | `InventoryItemService.getItemsByIds(storeId, Collection<Long> itemIds)` | `Map<itemId, InventoryItemResponse>` (이름 · 단위 등). 없거나 다른 매장 품목은 빠진다 |
 
+- 재고의 품목 메서드는 부르는 쪽이 `checkOwner` 를 이미 했다고 보고 매장 권한을 다시 확인하지 않는다.
 - `usageOf` 는 메뉴 1개 기준만 돌려준다. **수량을 곱하는 일은 `deductForSale` 이 맡는다.** 취소 · 부분 취소가 생겨도 `usageOf` 는 바꾸지 않는다.
 
 ## 판매 → 재고 차감
@@ -114,13 +117,20 @@
 - 승인되지 않은 쿠폰 · 메뉴로 예상한 수요는 시나리오로 따로 표시한다. 확정 수요나 구매 허가로 쓰지 않는다.
 - 부족한 재료를 더 소모하는 쿠폰은 조정하거나 보류한다.
 
+## 사업자 진위확인
+
+- 가입 화면의 사업자 확인은 사업자번호·대표자명·개업일자 일치와 계속사업자 상태를 함께 확인한다. 불일치·휴업·폐업·조회 실패를 등록 가능으로 처리하지 않는다.
+- 최종 가입 시 서버에서 사업자 목록 전체를 재확인하고 회원 1개와 사업자별 매장을 한 트랜잭션으로 저장한다. 중복 아이디·사업자번호, 진위 불일치·휴업·폐업, 인증 증명 오류에는 가입을 거절한다. 사업자번호는 다른 계정에도 중복 등록할 수 없다.
+- 회원 인증 도메인은 매장 저장·소유권 검사를 `StoreService`로 호출한다. 주기적인 사업자 상태 갱신은 별도 기능이다.
+- API 계약은 [백엔드 규칙](backend.md#국세청-사업자-진위확인), 화면의 연결 범위는 [프론트 규칙](frontend.md#회원가입의-사업자-진위확인)을 따른다.
+
 ## 현재 범위 밖
 
 요청이 없으면 만들지 않습니다. 화면이 필요하면 프론트 목업으로 대신합니다. 범위가 바뀌면 이 목록을 같은 PR에서 고칩니다.
 
 | 기능 | 비고 |
 |---|---|
-| 운영 일정 (`schedule` 표) · 알림 설정 · 사업자 진위확인 | 화면은 목업만 |
+| 운영 일정 (`schedule` 표) · 알림 설정 | 화면은 목업만 |
 | 콤보 · 세트 메뉴 | 판매로 들어오면 `NEEDS_FIX` 로 둔다 |
 | 포괄 위임 주문 (한도 · 품목 · 주기 위임, 패스키 위임장) | 주문은 건별 승인만 |
 | 자동 취소 · 반품 | — |

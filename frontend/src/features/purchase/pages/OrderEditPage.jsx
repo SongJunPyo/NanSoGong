@@ -50,7 +50,7 @@ export default function OrderEditPage() {
         <H2>다시 계산한 발주안</H2>
         <KV label="총액 (배송비 포함)" value={total == null ? '—' : `${won(total)}원`} tone="deep" />
         <KV label="도착 예정" value={item.arrive} />
-        <KV label="예상 소진" value="11.21 오후" />
+        <KV label="예상 소진" value="내일 오전" />
       </Card>
       {qtyError ? (
         <button

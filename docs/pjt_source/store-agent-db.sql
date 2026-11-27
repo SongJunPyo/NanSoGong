@@ -88,17 +88,18 @@ CREATE TABLE store (
   onboarding_status   JSONB,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (member_id, biz_reg_no)
+  UNIQUE (member_id, biz_reg_no),
+  CONSTRAINT uq_store_biz_reg_no UNIQUE (biz_reg_no)
 );
 
 COMMENT ON TABLE store IS '매장 (사업자등록 1건 = 매장 1개)';
 COMMENT ON COLUMN store.store_id IS '매장 ID';
 COMMENT ON COLUMN store.member_id IS '소유 계정';
-COMMENT ON COLUMN store.biz_reg_no IS '사업자등록번호 숫자 10자리 (member_id와 묶어서 UQ). 사업자등록 1건 = 매장 1개';
+COMMENT ON COLUMN store.biz_reg_no IS '사업자등록번호 숫자 10자리. 모든 계정에서 UQ. 사업자등록 1건 = 매장 1개';
 COMMENT ON COLUMN store.biz_name IS '상호 (사업자등록상). 매장명을 정하기 전 기본 표시명';
 COMMENT ON COLUMN store.owner_name IS '대표자명 (공백만 입력 불가)';
 COMMENT ON COLUMN store.business_opened_on IS '사업자등록상 개업일자';
-COMMENT ON COLUMN store.verify_status IS 'UNVERIFIED 미확인 / VERIFIED 정상사업자 / CLOSED 휴·폐업 / FAILED 확인실패. 국세청 사업자 상태조회 결과 (진위확인은 3주차)';
+COMMENT ON COLUMN store.verify_status IS 'UNVERIFIED 미확인 / VERIFIED 진위 일치·계속사업자 / CLOSED 휴·폐업 / FAILED 확인실패';
 COMMENT ON COLUMN store.verified_at IS '진위·상태 확인 시각';
 COMMENT ON COLUMN store.name IS '매장명. 가입 때 상호가 있으면 미리 채우고 첫 매장 설정(UF-02)에서 확정';
 COMMENT ON COLUMN store.category IS '업종 (카페, 분식 등). 첫 매장 설정(UF-02)에서 입력';

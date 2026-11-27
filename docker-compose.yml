@@ -66,15 +66,25 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # 회원 인증: 실제 값은 환경변수/Secrets에서만 전달한다.
+      VERIFICATION_MODE: ${VERIFICATION_MODE:-mock}
+      SENS_SERVICE_ID: ${SENS_SERVICE_ID:-}
+      SENS_ACCESS_KEY: ${SENS_ACCESS_KEY:-}
+      SENS_SECRET_KEY: ${SENS_SECRET_KEY:-}
+      SENS_FROM: ${SENS_FROM:-}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_COOKIE_SAME_SITE: ${AUTH_COOKIE_SAME_SITE:-Lax}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
       # .env 에 DB_URL 이 있으면 그 DB(팀 공용 온프레미스 DB 등)에 붙는다. bootRun 과 같은 DB 를 쓴다
-      # 없으면 같은 compose 의 postgres 컨테이너에 붙는다 (AWS dev EC2 는 .env 에 DB_URL 을 넣지 않으므로 항상 이쪽)
+      # 없으면 같은 compose 의 postgres 컨테이너에 붙는다. AWS dev EC2 가 어느 DB 에 붙는지는 docker-compose.dev.yml 을 본다
       # 컨테이너끼리는 서비스 이름으로 부른다 (localhost 가 아니다). 🚨 .env 의 DB_URL 에 localhost 를 쓰면 컨테이너 안에서는 연결되지 않는다
       DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/${DB_NAME:-nansogong}}
       DB_USER: ${DB_USER:-dev}
       DB_PASSWORD: ${DB_PASSWORD:-dev}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      NTS_BASE_URL: http://mock:8080/nts/v1
+      NTS_BASE_URL: ${NTS_BASE_URL:-http://mock:8080/nts/v1}
+      DATA_GO_KR_SERVICE_KEY: ${DATA_GO_KR_SERVICE_KEY:-mock-key}
       KMA_BASE_URL: http://mock:8080/kma
       HOLIDAY_BASE_URL: http://mock:8080/holiday
       NAVER_DATALAB_BASE_URL: http://mock:8080/naver/v1/datalab
