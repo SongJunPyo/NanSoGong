@@ -43,7 +43,7 @@ public class RecipeService {
     public RecipeResponse getRecipe(Long memberId, Long storeId, Long menuId) {
         storeService.checkOwner(memberId, storeId);
         findMenu(storeId, menuId);
-        return toResponse(memberId, storeId, menuId, recipeItemRepository.findByMenuIdAndValidToIsNull(menuId));
+        return toResponse(storeId, menuId, recipeItemRepository.findByMenuIdAndValidToIsNull(menuId));
     }
 
     /**
@@ -69,8 +69,9 @@ public class RecipeService {
                         menu.isOption() ? "옵션 사용량은 0 일 수 없습니다" : "메뉴 사용량은 0 보다 커야 합니다");
             }
         }
-        for (Long itemId : itemIds) {
-            InventoryItemResponse item = inventoryItemService.getItem(memberId, storeId, itemId);   // 다른 매장 · 없는 품목이면 404
+        inventoryItemService.validateSameStore(storeId, itemIds);   // 없거나 다른 매장 품목이면 400 (쿼리 1번)
+        Map<Long, InventoryItemResponse> items = inventoryItemService.getItemsByIds(storeId, itemIds);
+        for (InventoryItemResponse item : items.values()) {
             if (!item.active()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "사용 중지된 품목은 레시피에 넣을 수 없습니다: " + item.name());
             }
@@ -83,7 +84,7 @@ public class RecipeService {
                         line.appliesTo() == null ? RecipeAppliesTo.ALL : line.appliesTo(), RecipeSource.OWNER, now))
                 .toList();
         recipeItemRepository.saveAll(created);
-        return toResponse(memberId, storeId, menuId, created);
+        return toResponse(menuId, created, items);
     }
 
 
@@ -139,11 +140,19 @@ public class RecipeService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "메뉴를 찾을 수 없습니다"));
     }
 
-    private RecipeResponse toResponse(Long memberId, Long storeId, Long menuId, List<RecipeItem> rows) {
+    /** 레시피 행에 품목 이름 · 단위를 붙인다. 품목은 한 번에 조회 (품목 수만큼 쿼리하지 않게) */
+    private RecipeResponse toResponse(Long storeId, Long menuId, List<RecipeItem> rows) {
+        Set<Long> itemIds = new HashSet<>();
+        rows.forEach(r -> itemIds.add(r.getItemId()));
+        return toResponse(menuId, rows, inventoryItemService.getItemsByIds(storeId, itemIds));
+    }
+
+    private RecipeResponse toResponse(Long menuId, List<RecipeItem> rows, Map<Long, InventoryItemResponse> items) {
         List<RecipeResponse.Line> lines = rows.stream()
                 .map(r -> {
-                    InventoryItemResponse item = inventoryItemService.getItem(memberId, storeId, r.getItemId());
-                    return new RecipeResponse.Line(r.getId(), r.getItemId(), item.name(), item.unit(),
+                    InventoryItemResponse item = items.get(r.getItemId());
+                    return new RecipeResponse.Line(r.getId(), r.getItemId(),
+                            item == null ? null : item.name(), item == null ? null : item.unit(),
                             r.getQuantity(), r.getAppliesTo(), r.getSource(), r.getValidFrom());
                 })
                 .toList();

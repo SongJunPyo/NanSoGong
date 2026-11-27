@@ -50,25 +50,28 @@ public class MenuCostService {
                     Status.NO_RECIPE, List.of(), List.of(), asOf);
         }
 
+        Map<Long, InventoryItemResponse> items = inventoryItemService.getItemsByIds(storeId, usage.keySet());   // 품목은 한 번에 조회
         List<Line> lines = new ArrayList<>();
         List<Long> missing = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
         for (Map.Entry<Long, BigDecimal> e : usage.entrySet()) {
             Long itemId = e.getKey();
             BigDecimal qty = e.getValue();
-            InventoryItemResponse item = inventoryItemService.getItem(memberId, storeId, itemId);
+            InventoryItemResponse item = items.get(itemId);
+            String itemName = item == null ? null : item.name();
+            var itemUnit = item == null ? null : item.unit();
             BigDecimal unitCost = itemCostRepository
                     .findFirstByItemIdAndEffectiveFromLessThanEqualOrderByEffectiveFromDesc(itemId, asOf)
                     .map(ItemCost::getUnitCost)
                     .orElse(null);
             if (unitCost == null) {
                 missing.add(itemId);
-                lines.add(new Line(itemId, item.name(), item.unit(), qty, null, null));
+                lines.add(new Line(itemId, itemName, itemUnit, qty, null, null));
                 continue;
             }
             BigDecimal lineCost = qty.multiply(unitCost);
             total = total.add(lineCost);
-            lines.add(new Line(itemId, item.name(), item.unit(), qty, unitCost, lineCost.setScale(2, RoundingMode.HALF_UP)));
+            lines.add(new Line(itemId, itemName, itemUnit, qty, unitCost, lineCost.setScale(2, RoundingMode.HALF_UP)));
         }
 
         if (!missing.isEmpty()) {
