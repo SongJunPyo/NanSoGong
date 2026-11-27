@@ -131,6 +131,13 @@ export const orders = [
   { id: 'o6', title: '우유 1L × 12', sub: '11.10 · ○○유통 · 11.11 입고', status: '입고 완료', tone: 'ok', to: '/orders/o1', group: 'done' },
 ]
 
+// 27 입고 확인 — 오늘 도착한 발주 줄 (orderId = 위 orders, itemId = inventory/mock 의 품목 · incoming 과 같은 값)
+//   expiresAt: null 이면 소비기한이 없는 품목. 받은 수량(received)은 api/purchase.js 가 매장별로 관리한다
+export const deliveries = [
+  { id: 'd-o7', orderId: 'o7', itemId: 'lid', name: '뚜껑', ordered: 300, expiresAt: null },
+  { id: 'd-o4', orderId: 'o4', itemId: 'financier', name: '휘낭시에', ordered: 20, expiresAt: '2026-12-01' },
+]
+
 // 24-6 ~ 24-10 AI 대신 주문 (UF-13 2C) — 11.23 실제 쿠팡 테스트 화면을 바탕으로 만든 예시
 // 실제 서비스에서는 사장님 휴대폰의 에이전트가 쇼핑몰 화면을 조작하고, 단계가 끝날 때마다 서버로 상태를 보낸다
 // 🚨 로그인 · 결제 비밀번호 · 카드 정보는 앱 서버로 보내지 않는다 (사장님 기기에만 둔다)

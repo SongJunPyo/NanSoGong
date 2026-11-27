@@ -6,7 +6,7 @@ import { Button, ButtonRow, Card, Eyebrow, H2, KV } from '@/components/common/ui
 import StockBar from '@/features/inventory/components/StockBar'
 import { useInventory } from '@/features/inventory/queries'
 import { ITEM_UNITS } from '@/features/inventory/mock'
-import { STATES, emptyText, incomingText, qtyText, reasonText, stockInfo } from '@/features/inventory/stock'
+import { STATES, emptyText, incomingText, isExpiredLot, qtyText, reasonText, stockInfo } from '@/features/inventory/stock'
 import { won } from '@/lib/format'
 
 const shortDate = (iso) => iso?.slice(5).replace('-', '.')
@@ -34,7 +34,6 @@ export default function ItemDetailPage() {
   const info = stockInfo(item)
   const unit = ITEM_UNITS.find((u) => u.value === item.unit)?.label ?? ''
   const low = info.state === 'low'
-  const todayKey = '2026-11-26' // 목업 기준일 (stock.js 의 TODAY 와 같은 날)
   const lots = [...(item.lots ?? [])].filter((lot) => lot.qty > 0).sort((a, b) => (a.expiresAt ?? '9').localeCompare(b.expiresAt ?? '9'))
 
   return (
@@ -88,7 +87,7 @@ export default function ItemDetailPage() {
             입고분별 남은 양 · 소비기한 빠른 순
           </h2>
           {lots.map((lot) => {
-            const expired = lot.expiresAt && lot.expiresAt < todayKey
+            const expired = isExpiredLot(lot)
             const first = lot.id === info.expiringLot?.id
             return (
               <div key={lot.id} className={`flex items-center gap-2 rounded-lg ${first || expired ? '-mx-2 px-2 py-1.5' : ''} ${expired ? 'bg-danger-bg' : first ? 'bg-warning-bg' : ''}`}>

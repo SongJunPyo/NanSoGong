@@ -2,7 +2,10 @@
 // 가정: 실제 API 에서는 서버가 계산해서 내려준다. 지금은 목업 lots · safeStock · dailyUse · incoming 으로 계산
 
 // 목업 기준일 · 데이터 시각 (다른 목업과 같은 날)
-export const TODAY = new Date('2026-11-26T00:00:00')
+export const TODAY_KEY = '2026-11-26'
+export const TODAY = new Date(`${TODAY_KEY}T00:00:00`)
+/** 소비기한이 지난 입고분인가 — 재고 카드 · 실사 · 폐기 · 저장 함수가 모두 이 기준 하나를 쓴다 */
+export const isExpiredLot = (lot) => Boolean(lot.expiresAt) && lot.expiresAt < TODAY_KEY
 export const DATA_AT = 'POS 기준 16:50'
 export const NOW_TEXT = '2026.11.26 16:50' // 실사 · 폐기 기본 시각 (목업 기준일)
 const DAY = 24 * 60 * 60 * 1000
@@ -45,7 +48,7 @@ export function stockInfo(item) {
   const daysTo = (iso) => Math.round((new Date(`${iso}T00:00:00`) - today) / DAY)
   const all = (item.lots ?? []).filter((lot) => lot.qty > 0)
   // 소비기한이 지난 입고분은 남은 양에서 빼고 따로 센다 (쓸 수 없는 재고를 '있다'고 보여 주지 않게)
-  const expiredLots = all.filter((lot) => lot.expiresAt && daysTo(lot.expiresAt) < 0)
+  const expiredLots = all.filter(isExpiredLot)
   const lots = all.filter((lot) => !expiredLots.includes(lot))
   const size = item.packSize || 1
   const left = lots.reduce((sum, lot) => sum + lot.qty, 0)

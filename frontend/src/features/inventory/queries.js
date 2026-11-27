@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { adjustInventoryItem, getInventory, receiveInventoryItem, saveInventoryItem } from '@/api/inventory'
+import { adjustInventoryItem, getInventory, saveInventoryItem } from '@/api/inventory'
 import { useStoreSelection } from '@/store/useStoreSelection'
 import * as mock from './mock'
 
@@ -23,8 +23,7 @@ const useInventoryMutation = (fn) => {
 
 export const useSaveInventoryItem = () => useInventoryMutation((storeId, { id, patch }) => saveInventoryItem(storeId, id, patch))
 
-export const useReceiveInventoryItem = () =>
-  useInventoryMutation((storeId, { id, ...lot }) => receiveInventoryItem(storeId, id, lot))
+// 입고 반영은 features/purchase/queries 의 useConfirmDelivery 로만 한다 (같은 입고 중복 반영 방지)
 
 export const useAdjustInventoryItem = () =>
   useInventoryMutation((storeId, { id, counted, countedAt }) => adjustInventoryItem(storeId, id, counted, countedAt))

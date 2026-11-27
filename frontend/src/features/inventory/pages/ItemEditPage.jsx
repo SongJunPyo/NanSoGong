@@ -19,7 +19,22 @@ const PACK_LABELS = ['팩', '봉', '병', '박스', '개']
 
 const inputCls =
   'h-[52px] w-full min-w-0 rounded-input bg-surface-muted px-4 text-body font-medium text-ink outline-none placeholder:font-normal placeholder:text-ink-mute focus:ring-2 focus:ring-woori-blue'
-const digits = (v) => String(v).replace(/[^\d]/g, '')
+// 숫자 칸 입력 정리 — 숫자와 소수점 하나만 남긴다. 소수점을 몰래 지우지 않는다 (0.5 → 5 가 되지 않게)
+//   정수만 받는 칸은 화면이 검사해서 오류를 보여 준다 (isWhole)
+const cleanNumber = (v) => {
+  const [head, ...rest] = String(v).replace(/[^\d.]/g, '').split('.')
+  return rest.length ? `${head}.${rest.join('')}` : head
+}
+const isWhole = (v) => /^\d+$/.test(v)
+const isDecimal = (v) => /^\d+(\.\d{1,3})?$/.test(v) // 관리 단위 수량은 소수 셋째 자리까지 (DECIMAL(19,3))
+// 보여 줄 때만 정수 부분에 쉼표 (입력 중인 '0.' 도 그대로 보인다)
+const showNumber = (v) => {
+  if (v === '') return ''
+  const [head, tail] = String(v).split('.')
+  return `${head === '' ? '' : won(Number(head))}${tail !== undefined ? `.${tail}` : ''}`
+}
+const PACK_ERROR_ID = 'pack-size-error'
+const PRICE_ERROR_ID = 'pack-price-error'
 const unitLabelOf = (unit) => ITEM_UNITS.find((u) => u.value === unit)?.label ?? ''
 const shortDate = (key) => (key ? `${Number(key.slice(5, 7))}.${key.slice(8, 10)}` : '')
 
@@ -43,18 +58,19 @@ function SelectField({ label, value, onChange, options }) {
 }
 
 /** 숫자 칸 — 쉼표를 붙여 보여 주고 오른쪽에 단위를 둔다 */
-function NumberField({ label, value, onChange, suffix, placeholder, id, invalid }) {
+function NumberField({ label, value, onChange, suffix, placeholder, id, invalid, errorId }) {
   return (
     <label className="flex flex-col gap-2">
       {label && <Label>{label}</Label>}
       <span className="relative">
         <input
           id={id}
-          inputMode="numeric"
-          value={value === '' ? '' : won(Number(value))}
-          onChange={(e) => onChange(digits(e.target.value))}
+          inputMode="decimal"
+          value={showNumber(value)}
+          onChange={(e) => onChange(cleanNumber(e.target.value))}
           placeholder={placeholder}
           aria-invalid={invalid || undefined}
+          aria-describedby={invalid && errorId ? errorId : undefined}
           className={`${inputCls} pr-12 ${invalid ? 'ring-[1.5px] ring-danger' : ''}`}
         />
         <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-body text-ink-sub">{suffix}</span>
@@ -81,17 +97,20 @@ export default function ItemEditPage() {
   const [triedSave, setTriedSave] = useState(false)
   const itemNameError = triedSave && !itemName.trim() ? '품목명을 입력해 주세요' : ''
   const unitLabel = unitLabelOf(unit)
-  const size = Number(packSize) || 0
+  const size = isDecimal(packSize) ? Number(packSize) : 0
+  // 포장 규격은 0보다 큰 수 — 잘못된 값을 1 같은 기본값으로 바꿔 저장하지 않는다
+  const packSizeError = packSize === '' ? '포장 규격을 입력해 주세요' : !isDecimal(packSize) || size <= 0 ? '0보다 큰 수로 입력해 주세요 (소수는 셋째 자리까지)' : ''
+  const packPriceError = packPrice !== '' && !isWhole(packPrice) ? '구매 단가는 원 단위 정수로 입력해 주세요' : ''
   // 관리 단위 1당 단가 (item.unit_cost, 소수 넷째 자리까지) — 저장은 서버가 계산한다
   const unitCost = size > 0 && packPrice !== '' ? Math.round((Number(packPrice) / size) * 10000) / 10000 : null
 
   const saveItem = () => {
     setTriedSave(true)
-    if (!itemName.trim()) return
+    if (!itemName.trim() || packSizeError || packPriceError) return
     save.mutate(
       {
         id,
-        patch: { name: itemName.trim(), category, unit, packLabel, packSize: size || 1, packPrice: packPrice === '' ? null : Number(packPrice), lots },
+        patch: { name: itemName.trim(), category, unit, packLabel, packSize: size, packPrice: packPrice === '' ? null : Number(packPrice), lots },
       },
       {
         onSuccess: () => {
@@ -132,18 +151,23 @@ export default function ItemEditPage() {
   const [lotOpen, setLotOpen] = useState(false)
   const [lotDraft, setLotDraft] = useState(emptyLot)
   const [lotTried, setLotTried] = useState(false)
-  const lotError = !lotTried
-    ? ''
-    : !lotDraft.receivedAt
+  // 입고분 수량은 구매 단위(팩 · 봉) 개수라 정수만 — 소수를 넣으면 다른 숫자로 바꾸지 않고 알려 준다
+  const lotProblem = (d) =>
+    !d.receivedAt
       ? '입고일을 골라 주세요'
-      : !Number(lotDraft.qty)
+      : d.qty === ''
         ? '수량을 입력해 주세요'
-        : lotDraft.amount === ''
-          ? '구매 금액을 입력해 주세요'
-          : lotDraft.expiresAt && lotDraft.expiresAt < lotDraft.receivedAt
-            ? '소비기한이 입고일보다 빨라요'
-            : ''
-  const suggestedAmount = packPrice !== '' && Number(lotDraft.qty) ? Number(lotDraft.qty) * Number(packPrice) : null
+        : !isWhole(d.qty) || Number(d.qty) <= 0
+          ? `수량은 1 이상의 정수로 입력해 주세요 (${packLabel} 단위)`
+          : d.amount === ''
+            ? '구매 금액을 입력해 주세요'
+            : !isWhole(d.amount)
+              ? '구매 금액은 원 단위 정수로 입력해 주세요'
+              : d.expiresAt && d.expiresAt < d.receivedAt
+                ? '소비기한이 입고일보다 빨라요'
+                : ''
+  const lotError = lotTried ? lotProblem(lotDraft) : ''
+  const suggestedAmount = isWhole(packPrice) && isWhole(lotDraft.qty) && Number(lotDraft.qty) > 0 ? Number(lotDraft.qty) * Number(packPrice) : null
 
   const openLot = () => {
     setLotDraft(emptyLot)
@@ -153,7 +177,7 @@ export default function ItemEditPage() {
   const addLot = () => {
     setLotTried(true)
     const d = lotDraft
-    if (!d.receivedAt || !Number(d.qty) || d.amount === '' || (d.expiresAt && d.expiresAt < d.receivedAt)) return
+    if (lotProblem(d)) return
     setLots((list) => [
       ...list,
       { id: `lot-${Date.now()}`, receivedAt: d.receivedAt, qty: Number(d.qty), amount: Number(d.amount), expiresAt: d.expiresAt || null },
@@ -212,13 +236,30 @@ export default function ItemEditPage() {
           </span>
           <span className="text-body font-bold text-ink">=</span>
           <div className="min-w-0 flex-1">
-            <NumberField value={packSize} onChange={setPackSize} suffix={unitLabel} placeholder="1000" />
+            <NumberField
+              value={packSize}
+              onChange={setPackSize}
+              suffix={unitLabel}
+              placeholder="1000"
+              invalid={triedSave && !!packSizeError}
+              errorId={PACK_ERROR_ID}
+            />
           </div>
         </div>
+        <InlineError id={PACK_ERROR_ID}>{triedSave ? packSizeError : ''}</InlineError>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <NumberField label={`구매 단가 · 1${packLabel}`} value={packPrice} onChange={setPackPrice} suffix="원" placeholder="예: 2800" />
+        <NumberField
+          label={`구매 단가 · 1${packLabel}`}
+          value={packPrice}
+          onChange={setPackPrice}
+          suffix="원"
+          placeholder="예: 2800"
+          invalid={!!packPriceError}
+          errorId={PRICE_ERROR_ID}
+        />
+        <InlineError id={PRICE_ERROR_ID}>{packPriceError}</InlineError>
         {unitCost != null && (
           <p className="text-caption text-ink-sub">
             {unitLabel === '개' ? '1개' : `1${unitLabel}`}당 {unitCost.toLocaleString('ko-KR', { maximumFractionDigits: 4 })}원으로 원가를 계산해요
