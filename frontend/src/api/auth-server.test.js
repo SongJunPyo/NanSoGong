@@ -1,0 +1,111 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { createAuthApi } from './auth-server.js'
+
+test('실제 중복 확인 응답을 화면의 available로 변환한다', async () => {
+  const paths = []
+  const api = createAuthApi(async (path) => { paths.push(path); return { exists: true } })
+  assert.deepEqual(await api.checkLoginId('taken_owner'), { loginId: 'taken_owner', available: false })
+  assert.deepEqual(paths, ['/auth/login-id/exists?loginId=taken_owner'])
+})
+
+test('가입은 서버 인증 증명과 사업자 입력만 보내고 가짜 확인 결과·소유자를 보내지 않는다', async () => {
+  const calls = []
+  const api = createAuthApi(async (path, options) => { calls.push({ path, body: JSON.parse(options.body) }); return { businessCount: 1 } })
+  await api.signup({ loginId: 'testowner', password: 'Owner123!', name: '테스트사장', phone: '01000000000', phoneVerificationToken: 'server-proof',
+    memberId: 999, stores: [{ bizRegNo: '1234567890', ownerName: '테스트대표', openingDate: '20000101', bizName: '테스트 매장', verificationToken: 'forged', verifyStatus: 'VERIFIED', memberId: 999 }] })
+  assert.equal(calls[0].path, '/auth/signup')
+  assert.equal(calls[0].body.phoneVerificationToken, 'server-proof')
+  assert.deepEqual(calls[0].body.stores, [{ bizRegNo: '1234567890', ownerName: '테스트대표', openingDate: '20000101', bizName: '테스트 매장' }])
+  assert.equal(calls[0].body.memberId, undefined)
+})
+
+test('휴대전화 요청·확인과 사업자 진위확인이 서버 경로를 사용한다', async () => {
+  const calls = []
+  const api = createAuthApi(async (path, options) => { calls.push({ path, body: JSON.parse(options.body) }); return {} })
+  await api.requestPhoneCode({ name: '테스트사장', phone: '01000000000' })
+  await api.verifyPhoneCode({ challengeId: 'server-challenge', name: '테스트사장', phone: '01000000000', code: '000000' })
+  await api.verifyBusiness({ bizRegNo: '1234567890', ownerName: '테스트대표', openingDate: '20000101', bizName: '보내지 않는 상호' })
+  assert.deepEqual(calls.map((call) => call.path), ['/auth/phone-verifications', '/auth/phone-verifications/server-challenge/confirmations', '/auth/business-verifications'])
+  assert.deepEqual(calls[2].body, { bizRegNo: '1234567890', ownerName: '테스트대표', openingDate: '20000101' })
+})
+
+test('로그인 직후 받은 토큰으로 내 정보·매장을 조회하고 모든 페이지를 읽는다', async () => {
+  const calls = []
+  const api = createAuthApi(async (path, options) => {
+    calls.push({ path, options })
+    if (path === '/me') return { id: 7, loginId: 'testowner' }
+    return { content: [{ storeId: path.includes('page=0') ? 11 : 12 }], page: { totalPages: 2 } }
+  }, () => 'old-token')
+  assert.equal((await api.getCurrentUser('new-token')).memberId, 7)
+  assert.deepEqual(await api.getMyStores('new-token'), [{ storeId: 11 }, { storeId: 12 }])
+  assert.equal(calls.length, 3)
+  for (const call of calls) assert.equal(call.options.headers.Authorization, 'Bearer new-token')
+})
+
+test('회원정보 수정은 허용된 필드와 현재 세션 토큰만 보내고 저장 결과를 반환한다', async () => {
+  const calls = []
+  const api = createAuthApi(async (path, options) => {
+    calls.push({ path, options, body: JSON.parse(options.body) })
+    return { id: 7, loginId: 'testowner', name: '수정한 이름', phone: '01000000000' }
+  }, () => 'session-token')
+  const member = await api.updateCurrentUser({ name: '수정한 이름', memberId: 999, loginId: 'other', phone: '01000000001', status: 'WITHDRAWN' })
+  assert.equal(calls[0].path, '/me')
+  assert.equal(calls[0].options.method, 'PATCH')
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer session-token')
+  assert.deepEqual(calls[0].body, { name: '수정한 이름' })
+  assert.equal(member.memberId, 7)
+  assert.equal(member.name, '수정한 이름')
+  await api.updateCurrentUser({ name: '수정한 이름', currentPassword: 'OldTest123!', password: 'NewTest456!', passwordConfirm: 'NewTest456!' }, 'captured-session-token')
+  assert.deepEqual(calls[1].body, { name: '수정한 이름', currentPassword: 'OldTest123!', password: 'NewTest456!', passwordConfirm: 'NewTest456!' })
+  assert.equal(calls[1].options.headers.Authorization, 'Bearer captured-session-token')
+})
+
+test('회원정보 수정 실패를 성공으로 대체하지 않는다', async () => {
+  const error = new Error('현재 비밀번호가 올바르지 않아요')
+  const api = createAuthApi(async () => { throw error })
+  await assert.rejects(api.updateCurrentUser({ name: '입력 유지' }), (received) => received === error)
+})
+
+test('서버 실패를 가짜 가입·로그인 성공으로 대체하지 않는다', async () => {
+  const failure = new Error('사업자정보를 다시 확인해 주세요')
+  const api = createAuthApi(async () => { throw failure })
+  await assert.rejects(api.signup({ stores: [] }), (error) => error === failure)
+  await assert.rejects(api.login({ loginId: 'testowner', password: 'Owner123!' }), (error) => error === failure)
+})
+
+
+test('비밀번호 재설정은 익명 API에 필요한 필드만 보내고 서버 오류를 그대로 전달한다', async () => {
+  const calls = []
+  const api = createAuthApi(async (path, options) => { calls.push({ path, options, body: JSON.parse(options.body) }); return {} }, () => 'expired-token')
+  await api.requestPasswordReset({ loginId: 'demo-office', phone: '01000009001', memberId: 999 })
+  await api.verifyPasswordReset({ challengeId: 'test-id', loginId: 'demo-office', phone: '01000009001', code: '000000', verified: true })
+  await api.resetPassword({ resetToken: 'reset-only-proof', password: 'NewTest456!', passwordConfirm: 'NewTest456!', memberId: 999 })
+  assert.deepEqual(calls.map((call) => call.path), ['/auth/password-resets', '/auth/password-resets/test-id/confirmations', '/auth/password-resets/completions'])
+  assert.deepEqual(calls[0].body, { loginId: 'demo-office', phone: '01000009001' })
+  assert.deepEqual(calls[1].body, { loginId: 'demo-office', phone: '01000009001', code: '000000' })
+  assert.deepEqual(calls[2].body, { resetToken: 'reset-only-proof', password: 'NewTest456!', passwordConfirm: 'NewTest456!' })
+  for (const call of calls) assert.equal(call.options.headers.Authorization, '')
+  const fail = createAuthApi(async () => { throw new Error('인증 시간이 만료됐어요') })
+  await assert.rejects(fail.resetPassword({}), /인증 시간이 만료/)
+})
+
+test('로그인 유지 선택과 서버 갱신·로그아웃 경로를 전달한다', async () => {
+  const calls=[]
+  const api=createAuthApi(async(path, options)=>{calls.push({path,options});return {accessToken:'server-access'}})
+  await api.login({loginId:'testowner',password:'Owner123!',rememberMe:true})
+  await api.refreshSession(); await api.logout(); await api.getCapabilities()
+  assert.deepEqual(JSON.parse(calls[0].options.body),{loginId:'testowner',password:'Owner123!',rememberMe:true})
+  assert.deepEqual(calls.map(call=>call.path),['/auth/login','/auth/refresh','/auth/logout','/auth/capabilities'])
+  assert.equal(calls[2].options.method,'POST')
+})
+
+test('전화번호 변경은 JWT 주인의 현재 비밀번호·새 번호·용도별 증명만 보낸다', async () => {
+  const calls=[]
+  const api=createAuthApi(async(path,options)=>{calls.push({path,body:JSON.parse(options.body)});return {id:7,phone:'01000003003'}})
+  await api.requestPhoneChange({phone:'01000003003',currentPassword:'Owner123!',memberId:999})
+  await api.confirmPhoneChange({challengeId:'phone-challenge',phone:'01000003003',code:'654321',memberId:999})
+  const member=await api.updatePhone({phone:'01000003003',verificationToken:'phone-only-proof',memberId:999,status:'WITHDRAWN'})
+  assert.deepEqual(calls,[{path:'/me/phone-verifications',body:{phone:'01000003003',currentPassword:'Owner123!'}},{path:'/me/phone-verifications/phone-challenge/confirmations',body:{phone:'01000003003',code:'654321'}},{path:'/me/phone',body:{phone:'01000003003',verificationToken:'phone-only-proof'}}])
+  assert.equal(member.memberId,7)
+})

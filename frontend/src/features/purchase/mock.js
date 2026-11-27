@@ -11,7 +11,7 @@ export const orderRecommendation = {
       unit: '개',
       supplier: '○○유통',
       channel: 'partner',
-      arrive: '11.20',
+      arrive: '11.27',
       price: 33600,
     },
     {
@@ -21,7 +21,7 @@ export const orderRecommendation = {
       unit: '개',
       supplier: '△△로스터리',
       channel: 'partner',
-      arrive: '11.21',
+      arrive: '11.28',
       price: 58000,
     },
     {
@@ -32,7 +32,7 @@ export const orderRecommendation = {
       supplier: '쿠팡',
       channel: 'coupang',
       searchQuery: '테이크아웃 컵 16oz 500개',
-      arrive: '11.22',
+      arrive: '11.27',
       price: 51200,
     },
   ],
@@ -105,7 +105,8 @@ export const priceCompare = {
 // 26-0 발주 목록
 //   group : 탭 분류 — progress(진행 중) | done(완료) | issue(실패·확인 필요: 사장님이 손써야 함)
 export const orders = [
-  { id: 'o1', title: '우유 1L × 10', sub: '11.19 · ○○유통', status: '배송 중', tone: 'blue', to: '/orders/o1', group: 'progress' },
+  // 진행 중 발주는 inventory/mock 의 incoming 과 맞춘다 (재고 카드가 '입고 예정'으로 보여 중복 주문을 막는다)
+  { id: 'o7', title: '뚜껑 × 300', sub: '11.25 · ○○유통 · 오늘 도착', status: '배송 중', tone: 'blue', to: '/orders/o1', group: 'progress' },
   {
     id: 'o2',
     title: '원두 1kg × 2',
@@ -124,9 +125,17 @@ export const orders = [
     to: '/orders/o1',
     group: 'issue',
   },
-  { id: 'o4', title: '휘낭시에 생지 × 40', sub: '11.17 · ○○유통', status: '부분 입고', tone: 'blue', to: '/orders/o1', group: 'progress' },
+  { id: 'o4', title: '휘낭시에 생지 × 40', sub: '11.24 · ○○유통 · 20개 오늘 도착', status: '부분 입고', tone: 'blue', to: '/orders/o1', group: 'progress' },
+  { id: 'o1', title: '우유 1L × 10', sub: '11.19 · ○○유통 · 11.20 입고', status: '입고 완료', tone: 'ok', to: '/orders/o1', group: 'done' },
   { id: 'o5', title: '원두 1kg × 2', sub: '11.12 · △△로스터리 · 11.14 입고', status: '입고 완료', tone: 'ok', to: '/orders/o1', group: 'done' },
   { id: 'o6', title: '우유 1L × 12', sub: '11.10 · ○○유통 · 11.11 입고', status: '입고 완료', tone: 'ok', to: '/orders/o1', group: 'done' },
+]
+
+// 27 입고 확인 — 오늘 도착한 발주 줄 (orderId = 위 orders, itemId = inventory/mock 의 품목 · incoming 과 같은 값)
+//   expiresAt: null 이면 소비기한이 없는 품목. 받은 수량(received)은 api/purchase.js 가 매장별로 관리한다
+export const deliveries = [
+  { id: 'd-o7', orderId: 'o7', itemId: 'lid', name: '뚜껑', ordered: 300, expiresAt: null },
+  { id: 'd-o4', orderId: 'o4', itemId: 'financier', name: '휘낭시에', ordered: 20, expiresAt: '2026-12-01' },
 ]
 
 // 24-6 ~ 24-10 AI 대신 주문 (UF-13 2C) — 11.23 실제 쿠팡 테스트 화면을 바탕으로 만든 예시

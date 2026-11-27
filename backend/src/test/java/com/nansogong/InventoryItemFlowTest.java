@@ -63,7 +63,7 @@ class InventoryItemFlowTest {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
         Member member = memberRepository.save(
                 Member.create("t" + UUID.randomUUID().toString().substring(0, 20), "hash", "테스트", "010-0000-0000"));
-        Store store = storeRepository.save(Store.create(member.getId(), "1234567890", "테스트카페", "테스트", LocalDate.of(2026, 1, 1)));
+        Store store = storeRepository.save(Store.create(member.getId(), "%09d1".formatted(member.getId()), "테스트카페", "테스트", LocalDate.of(2026, 1, 1)));
         memberId = member.getId();
         storeId = store.getId();
         baseUrl = "/api/stores/" + storeId + "/inventory-items";
@@ -168,7 +168,7 @@ class InventoryItemFlowTest {
 
         // 다른 매장 품목을 내 매장 주소로 부르면 → 404 (다른 매장 품목은 보이지 않는다)
         Long itemId = createItem("시럽");
-        Store otherStore = storeRepository.save(Store.create(memberId, "9876543210", "다른카페", "테스트", LocalDate.of(2026, 1, 1)));
+        Store otherStore = storeRepository.save(Store.create(memberId, "%09d2".formatted(memberId), "다른카페", "테스트", LocalDate.of(2026, 1, 1)));
         call(get("/api/stores/" + otherStore.getId() + "/inventory-items/" + itemId)).andExpect(status().isNotFound());
 
         // 토큰 없음 → 401
@@ -179,7 +179,7 @@ class InventoryItemFlowTest {
     void 남의_매장이면_403이고_아무것도_바뀌지_않는다() throws Exception {
         Member stranger = memberRepository.save(
                 Member.create("s" + UUID.randomUUID().toString().substring(0, 20), "hash", "남", "010-1111-1111"));
-        Store theirStore = storeRepository.save(Store.create(stranger.getId(), "1111111111", "남의카페", "남", LocalDate.of(2026, 1, 1)));
+        Store theirStore = storeRepository.save(Store.create(stranger.getId(), "%09d1".formatted(stranger.getId()), "남의카페", "남", LocalDate.of(2026, 1, 1)));
         InventoryItem theirItem = inventoryItemRepository.save(
                 InventoryItem.create(theirStore.getId(), "남의 우유", ItemType.INGREDIENT, null, ItemUnit.ML, null, null));
         String theirUrl = "/api/stores/" + theirStore.getId() + "/inventory-items";

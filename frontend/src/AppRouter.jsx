@@ -1,5 +1,5 @@
-import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { Suspense } from 'react'
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigationType } from 'react-router-dom'
+import { Suspense, useEffect } from 'react'
 import App from '@/App'
 import { DesktopNav } from '@/components/common/layout'
 import { ROUTES } from '@/routes'
@@ -49,11 +49,22 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <div className="min-h-dvh bg-[#f2f3f5]">
+        <ScrollToTop />
         <AppLayout />
       </div>
       <Toaster />   {/* toast() 가 그려지는 자리 — 웹: 오른쪽 위 / 앱: 아래 스낵바 */}
     </BrowserRouter>
   )
+}
+
+/** 새 화면으로 가면 맨 위부터 (탭을 옮겼는데 이전 화면의 스크롤 위치가 남지 않게). 뒤로 가기는 브라우저가 위치를 되살린다 */
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  const type = useNavigationType()
+  useEffect(() => {
+    if (type !== 'POP') window.scrollTo(0, 0)
+  }, [pathname, type])
+  return null
 }
 
 function AppLayout() {

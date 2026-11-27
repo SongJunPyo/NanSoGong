@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import AuthLayout from '@/components/auth/AuthLayout'
 import AuthField from '@/components/auth/AuthField'
 import AuthButton from '@/components/auth/AuthButton'
 import { useMyStores, myStoresKey, useLogout } from '@/hooks/useAuthSession'
-import { useAsyncAction } from '@/hooks/useAsyncAction'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useStoreSelection } from '@/store/useStoreSelection'
 import { updateStoreBasics } from '@/api/store'
@@ -36,36 +35,36 @@ function StoreForm({ store, stores, onNext }) {
   const firstHours = Object.values(store.openHours ?? {})[0] ?? ['', '']
   const [form, setForm] = useState(() => ({ name: store.name || store.bizName || '', category: store.category || '', address: store.address || '', openTime: firstHours[0], closeTime: firstHours[1], closedDays: store.closedDays ?? [] }))
   const [errors, setErrors] = useState({})
-  const task = useAsyncAction()
+  const task = useMutation({ mutationKey: ['store', 'basics', store.storeId], mutationFn: (input) => updateStoreBasics(store.storeId, input), retry: false, gcTime: 0 })
   const cache = useQueryClient()
   const navigate = useNavigate()
   const memberId = useAuthStore((state) => state.user?.memberId)
-  function change(key, value) { setForm((previous) => ({ ...previous, [key]: value })); setErrors((previous) => ({ ...previous, [key]: '' })); task.clearError() }
-  async function save(event) {
+  function change(key, value) { setForm((previous) => ({ ...previous, [key]: value })); setErrors((previous) => ({ ...previous, [key]: '' })); task.reset() }
+  function save(event) {
     event.preventDefault()
     const invalid = validateStore(form)
     setErrors(invalid)
     if (Object.keys(invalid).length) return
-    const updated = await task.run(() => updateStoreBasics(store.storeId, form))
-    if (!updated) return
-    const nextStores = stores.map((item) => item.storeId === updated.storeId ? updated : item)
-    cache.setQueryData(myStoresKey(memberId), nextStores)
-    useStoreSelection.getState().selectStore(updated.storeId)
-    const remaining = firstIncompleteStore(nextStores)
-    if (remaining) onNext(remaining)
-    else navigate('/', { replace: true })
+    task.mutate(form, { onSuccess: (updated) => {
+      const nextStores = stores.map((item) => item.storeId === updated.storeId ? updated : item)
+      cache.setQueryData(myStoresKey(memberId), nextStores)
+      useStoreSelection.getState().selectStore(updated.storeId)
+      const remaining = firstIncompleteStore(nextStores)
+      if (remaining) onNext(remaining)
+      else navigate('/', { replace: true })
+    } })
   }
   if (!store) return <Navigate to="/login" replace />
   return (
     <form noValidate onSubmit={save} className="space-y-4">
       <p className="text-caption text-ink-sub">사업자등록번호 {formatBusinessNumber(store.bizRegNo)}</p>
-      <AuthField label="매장명" name="storeName" autoComplete="organization" value={form.name} disabled={task.pending} onChange={(event) => change('name', event.target.value)} error={errors.name} />
-      <AuthField label="업종" name="category" placeholder="예: 카페, 분식" value={form.category} disabled={task.pending} onChange={(event) => change('category', event.target.value)} error={errors.category} />
-      <AuthField label="주소" name="address" autoComplete="street-address" value={form.address} disabled={task.pending} onChange={(event) => change('address', event.target.value)} error={errors.address} />
-      <fieldset className="space-y-2"><legend className="text-label font-bold text-ink">영업시간 (선택)</legend><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><AuthField label="시작 시간" name="openTime" type="time" value={form.openTime} disabled={task.pending} onChange={(event) => change('openTime', event.target.value)} /><AuthField label="마감 시간" name="closeTime" type="time" value={form.closeTime} disabled={task.pending} onChange={(event) => change('closeTime', event.target.value)} /></div><p className="text-caption text-ink-sub">휴무일을 제외한 요일에 같은 시간을 적용해요. 마감이 더 이르면 다음 날 마감이에요.</p>{errors.openHours && <p role="alert" className="text-caption text-danger">{errors.openHours}</p>}</fieldset>
-      <fieldset><legend className="mb-2 text-label font-bold text-ink">정기 휴무일 (선택)</legend><div className="flex flex-wrap gap-2">{WEEK_DAYS.map(([value, label]) => <label key={value} className="inline-flex items-center gap-1 rounded-lg bg-surface-muted px-2 py-2 text-caption"><input type="checkbox" value={value} checked={form.closedDays.includes(value)} disabled={task.pending} onChange={(event) => change('closedDays', event.target.checked ? [...form.closedDays, value] : form.closedDays.filter((day) => day !== value))} />{label}</label>)}</div></fieldset>
+      <AuthField label="매장명" name="storeName" autoComplete="organization" value={form.name} disabled={task.isPending} onChange={(event) => change('name', event.target.value)} error={errors.name} />
+      <AuthField label="업종" name="category" placeholder="예: 카페, 분식" value={form.category} disabled={task.isPending} onChange={(event) => change('category', event.target.value)} error={errors.category} />
+      <AuthField label="주소" name="address" autoComplete="street-address" value={form.address} disabled={task.isPending} onChange={(event) => change('address', event.target.value)} error={errors.address} />
+      <fieldset className="space-y-2"><legend className="text-label font-bold text-ink">영업시간 (선택)</legend><div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><AuthField label="시작 시간" name="openTime" type="time" value={form.openTime} disabled={task.isPending} onChange={(event) => change('openTime', event.target.value)} /><AuthField label="마감 시간" name="closeTime" type="time" value={form.closeTime} disabled={task.isPending} onChange={(event) => change('closeTime', event.target.value)} /></div><p className="text-caption text-ink-sub">휴무일을 제외한 요일에 같은 시간을 적용해요. 마감이 더 이르면 다음 날 마감이에요.</p>{errors.openHours && <p role="alert" className="text-caption text-danger">{errors.openHours}</p>}</fieldset>
+      <fieldset><legend className="mb-2 text-label font-bold text-ink">정기 휴무일 (선택)</legend><div className="flex flex-wrap gap-2">{WEEK_DAYS.map(([value, label]) => <label key={value} className="inline-flex items-center gap-1 rounded-lg bg-surface-muted px-2 py-2 text-caption"><input type="checkbox" value={value} checked={form.closedDays.includes(value)} disabled={task.isPending} onChange={(event) => change('closedDays', event.target.checked ? [...form.closedDays, value] : form.closedDays.filter((day) => day !== value))} />{label}</label>)}</div></fieldset>
       {task.error && <p role="alert" className="text-label text-danger">{task.error.message}</p>}
-      <AuthButton type="submit" busy={task.pending}>{task.pending ? '저장 중…' : '매장 기본정보 저장'}</AuthButton>
+      <AuthButton type="submit" busy={task.isPending}>{task.isPending ? '저장 중…' : '매장 기본정보 저장'}</AuthButton>
     </form>
   )
 }

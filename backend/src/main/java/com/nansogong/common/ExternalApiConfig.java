@@ -15,10 +15,12 @@ import org.springframework.web.client.RestClient;
 public class ExternalApiConfig {
 
     private final AppProperties.External ext;
+    private final AppProperties.Sens sens;
     private final RestClient.Builder builder;
 
     public ExternalApiConfig(AppProperties props, RestClient.Builder builder) {
         this.ext = props.external();
+        this.sens = props.sens();
         // 연결 3초 · 응답 10초가 넘으면 예외 → 호출한 쪽에서 '결과 확인 중' 으로 처리한다 (구현-6-6)
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(ext.connectTimeout());
@@ -29,6 +31,11 @@ public class ExternalApiConfig {
     @Bean       // 국세청 사업자 진위확인 · 상태조회 (구현-1-2)
     RestClient ntsRestClient() {
         return builder.clone().baseUrl(ext.ntsBaseUrl()).build();
+    }
+
+    @Bean
+    RestClient sensRestClient() {
+        return builder.clone().baseUrl(sens.baseUrl()).build();
     }
 
     @Bean       // 기상청 단기예보 (구현-1-13)

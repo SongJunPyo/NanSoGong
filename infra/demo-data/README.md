@@ -9,7 +9,8 @@ prod 를 다시 만들어도(스택 삭제 → 재생성) 명령 한 줄로 같�
 
 | 어디에 | 명령 |
 |---|---|
-| 내 PC · dev EC2 (docker compose) | `bash infra/demo-data/load.sh local` |
+| 내 PC (docker compose 의 postgres) | `bash infra/demo-data/load.sh local` |
+| dev 서버 (팀 공용 온프레미스 DB) | `load.sh` 를 쓰지 않는다. 팀 전체가 같이 쓰는 DB 라 `00_reset.sql` 이 모두의 데모 데이터를 지운다 → 넣을 때는 팀과 먼저 맞춘다 |
 | prod | SSM Session Manager 로 prod 서버 EC2 한 대에 접속 → `sudo bash /opt/nansogong/deploy/demo-data/load.sh aws` |
 
 prod 서버에는 CodeDeploy 가 배포할 때마다 이 폴더를 함께 깔아 둡니다 (`.github/workflows/backend.yml`). 그래서 SQL 을 고친 뒤 `main` 에 머지 · 배포해야 prod 에서 새 SQL 을 쓸 수 있습니다.

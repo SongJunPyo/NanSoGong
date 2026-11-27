@@ -29,7 +29,7 @@ export default function StoreLine() {
         {state.label}
       </span>
       {store.hours && (
-        <span className="text-label text-ink-mute">
+        <span className="text-label text-[#4B5563]">
           {store.hours.open}–{store.hours.close}
         </span>
       )}

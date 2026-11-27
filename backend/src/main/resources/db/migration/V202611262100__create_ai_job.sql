@@ -1,6 +1,6 @@
 -- ----------------------------------------------------------------------
 -- ai_job: AI 작업 기준 기록 (Spring 이 시작 때 만들고, Python 보고로 갱신)
---   도메인: 제안·승인·실행 · 담당: 미정 (#34 ②)
+--   도메인: 제안·승인·실행
 --   사용 규칙(보고 순번 · 거절 · 만료 · 중복 방지)은 docs/rules/db.md "AI 작업 기록 (ai_job)" 에만 적는다
 -- ----------------------------------------------------------------------
 CREATE TABLE ai_job (
@@ -29,8 +29,10 @@ CREATE TABLE ai_job (
   CHECK (status <> 'FAILED' OR error_code IS NOT NULL)
 );
 
--- 같은 매장 · 같은 작업 종류는 진행 중인 작업이 하나만 있을 수 있다
-CREATE UNIQUE INDEX uq_ai_job_active_store_type ON ai_job (store_id, job_type) WHERE status IN ('PENDING', 'RUNNING', 'WAITING_AUTH');
+-- 발주 실행은 매장당 진행 중인 작업이 하나만 있을 수 있다 (실행기가 한 번에 주문 하나만 처리)
+CREATE UNIQUE INDEX uq_ai_job_active_execute ON ai_job (store_id) WHERE job_type = 'PURCHASE_EXECUTE' AND status IN ('PENDING', 'RUNNING', 'WAITING_AUTH');
+-- 나머지 제안 · 분석은 같은 업무(workflow_key)마다 진행 중인 작업이 하나만 있을 수 있다 (다른 메뉴 초안은 동시에 가능)
+CREATE UNIQUE INDEX uq_ai_job_active_workflow ON ai_job (store_id, job_type, workflow_key) WHERE job_type <> 'PURCHASE_EXECUTE' AND status IN ('PENDING', 'RUNNING', 'WAITING_AUTH');
 -- 만료 스케줄러: 진행 중이면서 expires_at 이 지난 작업 찾기
 CREATE INDEX idx_ai_job_active_expires ON ai_job (expires_at) WHERE status IN ('PENDING', 'RUNNING', 'WAITING_AUTH');
 -- 매장별 최근 작업 조회
