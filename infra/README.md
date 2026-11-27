@@ -2,11 +2,11 @@
 
 | | dev (작게) | prod |
 |---|---|---|
-| 구성 | EC2 t4g.small **1대**에서 docker compose (화면 nginx · 서버 · PostgreSQL · Redis · 목업) | CloudFront · S3 · ALB · WAF · ASG(Graviton 2대) · RDS Multi-AZ · ElastiCache 2노드 · NAT 2개 |
+| 구성 | EC2 t4g.small **1대**에서 docker compose (화면 nginx · 서버 · Redis · 목업 · AI 서비스) + DB 는 팀 공용 온프레미스 PostgreSQL 17 | CloudFront · S3 · ALB · WAF · ASG(Graviton 2대) · RDS Multi-AZ · ElastiCache 2노드 · NAT 2개 |
 | 템플릿 (스택) | `cloudformation/dev.yml` (`nansogong-dev`) | `cloudformation/prod.yml` (`nansogong-prod`, 스택 하나) |
 | 배포 시점 | `dev` 머지 | `main` 머지 + 승인 |
 | 배포 방식 | Actions → SSM Run Command → `dev/update.sh` (ECR 이미지로 compose 갱신) | Actions → CodeDeploy (`codedeploy/appspec.yml`, 한 대씩 교체 · 실패 시 자동 롤백) |
-| Spring 프로필 | `dev` (DB · Redis 가 같은 EC2 의 컨테이너) | `aws,prod` |
+| Spring 프로필 | `dev` (Redis 는 같은 EC2 의 컨테이너, DB 는 온프레미스) | `aws,prod` |
 | 비밀값 (Secrets Manager) | `nansogong/dev` | `nansogong/prod` + `nansogong/prod/db`(prod 스택이 자동 생성) |
 | 접속 | `http://<고정 IP>` (팀원 IP 만 허용) | `https://<도메인>` |
 | 하루 비용(대략) | $0.7 | $8.8 |
@@ -64,15 +64,17 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
 
 ## dev 만들기 (약 1시간)
 
-1. 비밀값 `nansogong/dev`: [`secrets/README.md`](secrets/README.md) 대로 콘솔에서 (`secrets/dev.example.json` 붙여넣기)
+1. 비밀값 `nansogong/dev`: [`secrets/README.md`](secrets/README.md) 대로 콘솔에서 (`secrets/dev.example.json` 붙여넣기). 온프레미스 DB 의 `DB_URL` · `DB_USER` · `DB_PASSWORD` 포함
 2. 스택 `nansogong-dev` (`dev.yml`)
    - `VpcId`: 기본 VPC / `SubnetId`: 기본 VPC 의 서브넷 아무거나 / `AllowedCidr`: `<내 IP>/32` (https://checkip.amazonaws.com)
    - IAM 승인 체크
    - 팀원 IP 는 EC2 > 보안 그룹 `nansogong-dev` > 인바운드 규칙 편집에서 HTTP 80 으로 한 줄씩 추가
 3. 스택 출력을 GitHub Environment `dev` 의 Variables 에: `DeployRoleArn` → `AWS_DEPLOY_ROLE_ARN`, `InstanceId` → `DEV_INSTANCE_ID`
+   온프레미스 DB 방화벽에 스택 출력 `Url` 의 고정 IP 를 `/32` 로 허용한다 (그 IP 하나만)
 4. EC2 > 인스턴스 > `nansogong-dev` > 연결 > **Session Manager** 로 접속해서
    ```bash
    sudo -iu ec2-user
+   docker run --rm postgres:17-alpine pg_isready -h <DB 주소> -p <포트>   # "accepting connections" 면 DB 에 닿는다
    git clone -b dev https://github.com/SongJunPyo/NanSoGong.git /opt/nansogong
    ```
    (저장소가 private 이면 읽기 전용 fine-grained 토큰으로 clone: `https://<토큰>@github.com/...`)
@@ -81,7 +83,7 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
    AI 서비스(FastAPI)는 `ai` 워크플로를 같은 방법으로 실행하면 함께 뜬다. 이미지가 없으면 건너뛰므로 서버 · 화면 배포에는 영향이 없다
    (확인: EC2 에서 `cd /opt/nansogong && docker compose -f docker-compose.yml -f docker-compose.dev.yml exec app wget -qO- http://ai-api:8000/health`)
 6. 스택 출력 `Url`(`http://<고정 IP>`) 에서 화면, `http://<고정 IP>/api/ping` 에서 연결 확인. 이후 `dev` 머지마다 자동 갱신
-7. 데모 데이터: `bash /opt/nansogong/infra/demo-data/load.sh local`
+7. 데모 데이터: dev 는 팀 공용 온프레미스 DB 라 `load.sh` 를 쓰지 않는다 ([`demo-data/README.md`](demo-data/README.md))
 
 ## prod 만들기 (약 1~2시간)
 

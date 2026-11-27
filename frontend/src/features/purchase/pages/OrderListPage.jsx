@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Screen } from '@/components/common/layout'
+import InventoryTabs from '@/features/inventory/components/InventoryTabs'
 import { Card, HeadRow, P, Pill } from '@/components/common/ui'
 import { useOrders } from '@/features/purchase/queries'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -18,7 +19,8 @@ export default function OrderListPage() {
   const shown = orders.filter((o) => o.group === tab)
 
   return (
-    <Screen title="발주 목록">
+    <Screen title="재고" back={false} tab wide>
+      <InventoryTabs />
       <div role="tablist" aria-label="발주 상태" className="flex flex-wrap gap-2">
         {TABS.map((t) => {
           const on = tab === t.id

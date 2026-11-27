@@ -1,5 +1,16 @@
 # 🧪 AWS 개발 서버 (dev EC2 의 docker-compose.dev.yml 이 SPRING_PROFILES_ACTIVE=dev 로 켠다). dev 브랜치에 머지되면 배포된다
 # aws 공통 설정 위에 "디버깅하기 쉽게" 만 덮어쓴다. 데이터는 진짜 고객 데이터가 아닌 테스트 데이터만 쓴다
+spring:
+  # 🗂️ dev 서버는 팀 공용 온프레미스 DB 를 쓴다 (docs/rules/db.md 의 Flyway 절)
+  #    다른 브랜치가 머지 전에 공용 DB 에 먼저 적용한 마이그레이션(= 이 코드에 없는 기록) 때문에 서버가 멈추지 않게 그 기록만 무시한다
+  #    dev 에 머지된 새 마이그레이션은 그대로 적용하고, 파일이 바뀐 것(체크섬 불일치) 같은 진짜 문제는 그대로 막는다
+  #    future = Flyway 기본값 (DB 가 코드보다 버전이 높은 기록) / missing = 그보다 낮은 버전인데 코드에 없는 기록
+  #    🚨 이 값은 기본값을 통째로 바꾼다 → missing 만 적으면 future 가 다시 오류가 되므로 둘 다 적는다
+  flyway:
+    ignore-migration-patterns:
+      - "*:future"
+      - "*:missing"
+
 springdoc:
   api-docs:
     enabled: true             # 프론트 팀원 · QA 가 dev 서버 Swagger 로 API 를 확인한다

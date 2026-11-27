@@ -55,7 +55,12 @@ export default function HomeNotifications({ notifications, unreadCount, onRead, 
       >
         <Bell size={24} strokeWidth={1.8} aria-hidden="true" className="transition-transform duration-150 group-hover:scale-115 group-focus-visible:scale-115" />
         {!open && <span aria-hidden="true" className="pointer-events-none absolute top-full left-1/2 z-40 mt-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-0.5 text-[11px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">알림</span>}
-        {unreadCount > 0 && <span aria-hidden="true" data-unread-indicator className="absolute top-2 right-2 size-2 rounded-full bg-danger ring-2 ring-white" />}
+        {/* 읽지 않은 알림 수 — 빨간 원 안에 숫자 (10개 이상은 9+) */}
+        {unreadCount > 0 && (
+          <span aria-hidden="true" data-unread-indicator className="num absolute top-0.5 right-0.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-danger px-1 text-[11px] leading-none font-bold text-white ring-2 ring-white">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
       </button>
       {open && (
         <div
