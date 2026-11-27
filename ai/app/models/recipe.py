@@ -1,11 +1,18 @@
 """레시피 초안 흐름에서 주고받는 데이터 모양 (#35 초안 계약).
 
-Spring 쪽 API 가 아직 없으므로 칸 이름 · 모양은 #35 협의 결과에 따라 바뀔 수 있다.
+Spring 담당과 맞춘 것 (예시 JSON: contracts/recipe-draft/, 양쪽 계약 테스트가 같은 파일을 읽는다)
+- 사용량 칸 이름은 Java 레시피(recipe_item.quantity · RecipeSaveRequest)와 같은 quantity
+- 검증 결과 reason · reasons 는 사람이 읽는 문장이 아니라 코드값(RecipeReason). 프롬프트 문장은 Python 이 만든다
+- missingCosts 는 단가가 확인되지 않은 등록 품목의 itemId 목록
+- 매장 품목에 없는 새 재료(itemId 없음 + 이름으로도 못 찾음)는 ok=true, reason=NEW_ITEM 으로 통과한다
+  (valid 는 막지 않고 totalCost 만 비운다. 실제 저장은 품목을 등록한 뒤에만 된다)
+- Java 가 더 주는 칸(items.costSource, menus.category · price · recipe)은 받지 않고 무시한다
 금액 · 수량은 Decimal (부동소수 오차 방지).
 """
 
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import Field
@@ -44,7 +51,7 @@ class RecipeLineDraft(CamelModel):
         default=None, description="매장 품목 목록에서 고른 품목의 itemId. 목록에 없는 재료면 null"
     )
     item_name: str = Field(min_length=1, description="재료 이름")
-    qty: Decimal = Field(gt=0, description="메뉴 1잔(1개) 기준 사용량")
+    quantity: Decimal = Field(gt=0, description="메뉴 1잔(1개) 기준 사용량")
     unit: Unit = Field(
         description="사용량 단위. G(그램) · ML(밀리리터) · EA(개) 중 하나. 매장 품목이면 그 품목의 단위를 그대로 쓴다"
     )
@@ -66,9 +73,23 @@ class RecipeDraft(CamelModel):
 # ---------- Spring → Python: 초안 검증 결과 ----------
 
 
+class RecipeReason(StrEnum):
+    """Spring 검증이 돌려주는 줄 단위 코드. 코드가 늘면 graphs/recipe.py 의 안내 문장도 함께 추가한다."""
+
+    ITEM_NOT_FOUND = "ITEM_NOT_FOUND"           # itemId 가 없거나 다른 매장 품목
+    ITEM_INACTIVE = "ITEM_INACTIVE"             # 사용 중지된 품목
+    ITEM_AMBIGUOUS = "ITEM_AMBIGUOUS"           # itemId 없이 적은 이름과 같은 품목이 여러 개
+    DUPLICATE_ITEM = "DUPLICATE_ITEM"           # 같은 품목이 앞줄에 이미 있음 (두 번째 줄에 붙는다)
+    UNKNOWN_UNIT = "UNKNOWN_UNIT"               # 모르는 단위
+    UNIT_MISMATCH = "UNIT_MISMATCH"             # 품목 관리 단위로 바꿀 수 없음. 이때 unit 에 품목 단위가 온다
+    INVALID_QTY = "INVALID_QTY"                 # 소수 3자리 반올림 후 0 이하
+    NEW_ITEM = "NEW_ITEM"                       # 매장에 없는 새 재료. ok=true 로 온다 (문제가 아니라 표시)
+
+
 class RecipeLineCheck(CamelModel):
     ok: bool
-    reason: str | None = None                   # 문제가 있으면 그 이유 (예: 단위가 품목 관리 단위와 다름)
+    # RecipeReason 코드. 모르는 코드가 와도 검증 결과 전체를 버리지 않도록 str 로 받는다
+    reason: str | None = None
     item_id: int | None = None
     normalized_qty: Decimal | None = None       # 관리 단위로 바꾼 수량
     unit: str | None = None
@@ -76,13 +97,14 @@ class RecipeLineCheck(CamelModel):
 
 
 class RecipeValidation(CamelModel):
-    """lines 는 초안의 lines 와 같은 순서 · 같은 개수로 온다 (#35 계약에 명시할 것)."""
+    """lines 는 초안의 lines 와 같은 순서 · 같은 개수로 온다 (#35 계약)."""
 
     valid: bool
     lines: list[RecipeLineCheck]
-    reasons: list[str] = []                     # 재료 하나가 아니라 초안 전체의 문제 (예: 재료가 너무 많음)
+    reasons: list[str] = []                     # 재료 하나가 아니라 초안 전체의 문제 코드 (지금 정한 규칙은 없음)
     total_cost: Decimal | None = None
-    missing_costs: list[str] = []               # 단가가 확인되지 않은 재료 이름 (AI 가 채우지 않는다)
+    # 단가가 확인되지 않은 등록 품목의 itemId (AI 가 채우지 않는다). 새 재료(NEW_ITEM)는 itemId 가 없어 들어가지 않는다
+    missing_costs: list[int] = []
 
 
 # ---------- Python → Spring: 제안을 만든 과정 (suggestion.generation_context) ----------

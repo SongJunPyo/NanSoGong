@@ -23,12 +23,18 @@ from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
 from app.clients.spring import SpringClient
-from app.models.recipe import RecipeContext, RecipeDraft, RecipeGenerationContext, RecipeValidation
+from app.models.recipe import (
+    RecipeContext,
+    RecipeDraft,
+    RecipeGenerationContext,
+    RecipeReason,
+    RecipeValidation,
+)
 from app.models.suggestion import SuggestionSave
 from app.prompts import render
 
 MAX_REVISIONS = 2
-GRAPH_VERSION = "recipe-draft/1"
+GRAPH_VERSION = "recipe-draft/2"                # 2: 초안 사용량 칸 qty → quantity (#35 계약)
 
 
 class RecipeOutcome(StrEnum):
@@ -73,16 +79,37 @@ class DraftWriter(Protocol):
     ) -> RecipeDraft: ...
 
 
+# Spring 검증 코드 → LLM 이 무엇을 고칠지 알 수 있는 문장. NEW_ITEM 은 ok 줄에만 와서 여기에 없다
+REASON_MESSAGES: dict[str, str] = {
+    RecipeReason.ITEM_NOT_FOUND: "itemId 가 매장 품목 목록에 없습니다. 목록의 itemId 를 쓰거나, 목록에 없는 재료면 itemId 를 비우세요",
+    RecipeReason.ITEM_INACTIVE: "사용 중지된 품목입니다. 매장 품목 목록에 있는 품목을 쓰세요",
+    RecipeReason.ITEM_AMBIGUOUS: "같은 이름의 품목이 여러 개입니다. 매장 품목 목록에서 itemId 를 골라 적으세요",
+    RecipeReason.DUPLICATE_ITEM: "같은 품목이 앞줄에 이미 있습니다. 한 줄로 합치세요",
+    RecipeReason.UNKNOWN_UNIT: "알 수 없는 단위입니다. G · ML · EA 중 하나로 적으세요",
+    RecipeReason.UNIT_MISMATCH: "단위가 품목 관리 단위와 다릅니다. 품목의 단위로 바꿔 적으세요",
+    RecipeReason.INVALID_QTY: "사용량이 0 이하입니다. 소수 셋째 자리까지 적어도 0 보다 큰 값으로 적으세요",
+}
+
+
+def reason_text(code: str | None, unit: str | None = None) -> str:
+    """검증 코드를 문장으로 바꾼다. 모르는 코드는 그대로 둔다 (코드가 늘어도 수정 흐름이 멈추지 않게)."""
+    if code is None:
+        return "사유 없음"
+    if code == RecipeReason.UNIT_MISMATCH and unit:
+        return f"단위가 품목 관리 단위와 다릅니다. {unit} 단위로 바꿔 적으세요"
+    return REASON_MESSAGES.get(code, code)
+
+
 def describe_problems(previous: RecipeDraft, validation: RecipeValidation) -> list[str]:
     """검증 결과를 LLM 이 고칠 수 있는 문장 목록으로 바꾼다."""
-    problems = list(validation.reasons)
+    problems = [reason_text(code) for code in validation.reasons]
     # 검증 결과는 초안과 같은 순서 · 같은 개수로 온다는 약속. 개수가 다르면 재료 이름을 붙이지 않는다
     same_shape = len(validation.lines) == len(previous.lines)
     for index, check in enumerate(validation.lines):
         if check.ok:
             continue
         name = previous.lines[index].item_name if same_shape else f"{index + 1}번째 검증 항목"
-        problems.append(f"{name}: {check.reason or '사유 없음'}")
+        problems.append(f"{name}: {reason_text(check.reason, check.unit)}")
     return problems or ["(구체적인 사유 없음)"]
 
 

@@ -3,12 +3,12 @@
 import pytest
 from pydantic import ValidationError
 
-from app.models.recipe import RecipeDraft, RecipeValidation
+from app.models.recipe import RecipeContext, RecipeDraft, RecipeReason, RecipeValidation
 
 
 def test_draft_is_read_from_and_written_as_camel_case():
     draft = RecipeDraft.model_validate(
-        {"menuName": "딸기라떼", "lines": [{"itemId": 1, "itemName": "딸기청", "qty": "40", "unit": "G"}]}
+        {"menuName": "딸기라떼", "lines": [{"itemId": 1, "itemName": "딸기청", "quantity": "40", "unit": "G"}]}
     )
 
     dumped = draft.model_dump(mode="json")
@@ -20,19 +20,40 @@ def test_draft_is_read_from_and_written_as_camel_case():
 
 def test_validation_result_is_read_from_camel_case():
     validation = RecipeValidation.model_validate(
-        {"valid": False, "lines": [{"ok": False, "reason": "단위 불일치"}], "missingCosts": ["바닐라시럽"]}
+        {"valid": False, "lines": [{"ok": False, "reason": "UNIT_MISMATCH", "unit": "G"}], "missingCosts": [7]}
     )
 
-    assert validation.missing_costs == ["바닐라시럽"]
+    assert validation.lines[0].reason == RecipeReason.UNIT_MISMATCH
+    assert validation.missing_costs == [7]                  # 단가 없는 품목은 이름이 아니라 itemId 로 온다
+
+
+def test_context_ignores_extra_fields_from_spring():
+    context = RecipeContext.model_validate(
+        {
+            "items": [{"itemId": 1, "name": "우유", "unit": "ML", "unitCost": None, "costSource": None}],
+            "menus": [
+                {
+                    "menuId": 10,
+                    "name": "카페라떼",
+                    "category": "커피",
+                    "price": 4500,
+                    "recipe": [{"itemId": 1, "itemName": "우유", "unit": "ML", "quantity": 200, "appliesTo": "ALL"}],
+                }
+            ],
+        }
+    )
+
+    assert context.items[0].unit_cost is None
+    assert context.menus[0].name == "카페라떼"
 
 
 @pytest.mark.parametrize(
     "lines",
     [
         [],                                                                  # 재료가 하나도 없음
-        [{"itemName": "우유", "qty": "0", "unit": "ML"}],                     # 사용량 0
-        [{"itemName": "우유", "qty": "-5", "unit": "ML"}],                    # 사용량 음수
-        [{"itemName": "", "qty": "200", "unit": "ML"}],                      # 재료 이름 없음
+        [{"itemName": "우유", "quantity": "0", "unit": "ML"}],                # 사용량 0
+        [{"itemName": "우유", "quantity": "-5", "unit": "ML"}],               # 사용량 음수
+        [{"itemName": "", "quantity": "200", "unit": "ML"}],                 # 재료 이름 없음
     ],
 )
 def test_invalid_llm_output_is_rejected(lines):
@@ -44,7 +65,7 @@ def test_invalid_llm_output_is_rejected(lines):
 def test_unit_outside_management_units_is_rejected(unit):
     with pytest.raises(ValidationError):
         RecipeDraft.model_validate(
-            {"menuName": "딸기라떼", "lines": [{"itemName": "우유", "qty": "200", "unit": unit}]}
+            {"menuName": "딸기라떼", "lines": [{"itemName": "우유", "quantity": "200", "unit": unit}]}
         )
 
 
@@ -53,7 +74,7 @@ def test_unit_outside_management_units_is_rejected(unit):
     [("menuName", "가" * 101), ("description", "가" * 501)],              # DB 칸 길이(100 · 500)를 넘음
 )
 def test_text_longer_than_db_column_is_rejected(field, value):
-    data = {"menuName": "딸기라떼", "lines": [{"itemName": "우유", "qty": "200", "unit": "ML"}], field: value}
+    data = {"menuName": "딸기라떼", "lines": [{"itemName": "우유", "quantity": "200", "unit": "ML"}], field: value}
 
     with pytest.raises(ValidationError):
         RecipeDraft.model_validate(data)

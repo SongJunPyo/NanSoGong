@@ -8,14 +8,16 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from app.graphs.recipe import (
     MAX_REVISIONS,
+    REASON_MESSAGES,
     ClaudeDraftWriter,
     DraftGenerationError,
     RecipeOutcome,
     build_prompt,
     build_recipe_graph,
     describe_problems,
+    reason_text,
 )
-from app.models.recipe import RecipeLineCheck, RecipeValidation
+from app.models.recipe import RecipeLineCheck, RecipeReason, RecipeValidation
 from tests.fakes import BAD_DRAFT, CONTEXT, GOOD_DRAFT, INVALID, VALID, FakeSpring, FakeWriter
 
 START_INPUT = {"job_id": "job-1", "workflow_key": "MENU:job-1", "menu_name": "딸기라떼"}
@@ -145,24 +147,60 @@ def test_revise_prompt_contains_validation_problems():
     prompt = build_prompt("딸기라떼", CONTEXT, previous=BAD_DRAFT, validation=INVALID)
 
     assert "이전 초안" in prompt
-    assert "딸기청: 단위 ML 이 품목 관리 단위 G 와 다름" in prompt
+    assert "딸기청: 단위가 품목 관리 단위와 다릅니다. G 단위로 바꿔 적으세요" in prompt   # 코드 + 품목 단위 → 문장
+    assert "UNIT_MISMATCH" not in prompt                   # 코드값을 그대로 LLM 에 보내지 않는다
     assert "우유:" not in prompt                            # 문제없는 재료는 문제 목록에 넣지 않는다
+
+
+@pytest.mark.parametrize("code", [c for c in RecipeReason if c != RecipeReason.NEW_ITEM])
+def test_every_failure_code_has_a_sentence(code):
+    assert reason_text(code) == REASON_MESSAGES[code]
+
+
+def test_unknown_code_is_passed_as_is():
+    assert reason_text("TOO_MANY_LINES") == "TOO_MANY_LINES"   # Spring 이 코드를 늘려도 수정 흐름은 계속된다
 
 
 def test_whole_draft_reasons_are_included():
     validation = RecipeValidation(
-        valid=False, lines=[RecipeLineCheck(ok=True), RecipeLineCheck(ok=True)], reasons=["재료가 너무 많습니다"]
+        valid=False, lines=[RecipeLineCheck(ok=True), RecipeLineCheck(ok=True)], reasons=["TOO_MANY_LINES"]
     )
 
-    assert describe_problems(BAD_DRAFT, validation) == ["재료가 너무 많습니다"]
+    assert describe_problems(BAD_DRAFT, validation) == ["TOO_MANY_LINES"]
+
+
+def test_new_item_line_is_not_a_problem():
+    validation = RecipeValidation(
+        valid=False,
+        lines=[
+            RecipeLineCheck(ok=True, reason="NEW_ITEM"),          # 새 재료는 표시일 뿐 고칠 대상이 아니다
+            RecipeLineCheck(ok=False, reason="INVALID_QTY"),
+        ],
+    )
+
+    assert describe_problems(BAD_DRAFT, validation) == ["우유: " + REASON_MESSAGES[RecipeReason.INVALID_QTY]]
+
+
+def test_draft_with_new_item_is_saved():
+    with_new_item = RecipeValidation(
+        valid=True,
+        lines=[RecipeLineCheck(ok=True, item_id=1), RecipeLineCheck(ok=True, reason="NEW_ITEM")],
+        total_cost=None,                                        # 새 재료가 있으면 원가는 비어 있다
+    )
+    spring = FakeSpring([with_new_item])
+
+    result = run(spring, FakeWriter([GOOD_DRAFT]))
+
+    assert result["outcome"] == RecipeOutcome.SAVED
+    assert spring.saved[0].evidence["lines"][1]["reason"] == "NEW_ITEM"   # 미리보기에서 '새 품목 등록 필요' 표시용
 
 
 def test_mismatched_check_count_does_not_guess_ingredient_names():
-    validation = RecipeValidation(valid=False, lines=[RecipeLineCheck(ok=False, reason="품목 없음")])
+    validation = RecipeValidation(valid=False, lines=[RecipeLineCheck(ok=False, reason="ITEM_NOT_FOUND")])
 
     problems = describe_problems(BAD_DRAFT, validation)       # 초안 재료 2개, 검증 결과 1개
 
-    assert problems == ["1번째 검증 항목: 품목 없음"]
+    assert problems == ["1번째 검증 항목: " + REASON_MESSAGES[RecipeReason.ITEM_NOT_FOUND]]
 
 
 # ---------- 실제 Claude 연결부 (모델은 가짜) ----------

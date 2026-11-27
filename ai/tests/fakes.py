@@ -24,8 +24,8 @@ CONTEXT = RecipeContext(
 GOOD_DRAFT = RecipeDraft(
     menu_name="딸기라떼",
     lines=[
-        RecipeLineDraft(item_id=1, item_name="딸기청", qty=Decimal("40"), unit="G"),
-        RecipeLineDraft(item_id=2, item_name="우유", qty=Decimal("200"), unit="ML"),
+        RecipeLineDraft(item_id=1, item_name="딸기청", quantity=Decimal("40"), unit="G"),
+        RecipeLineDraft(item_id=2, item_name="우유", quantity=Decimal("200"), unit="ML"),
     ],
     description="딸기청과 우유로 만드는 기본 딸기라떼",
 )
@@ -33,8 +33,8 @@ GOOD_DRAFT = RecipeDraft(
 BAD_DRAFT = RecipeDraft(
     menu_name="딸기라떼",
     lines=[
-        RecipeLineDraft(item_id=1, item_name="딸기청", qty=Decimal("40"), unit="ML"),
-        RecipeLineDraft(item_id=2, item_name="우유", qty=Decimal("200"), unit="ML"),
+        RecipeLineDraft(item_id=1, item_name="딸기청", quantity=Decimal("40"), unit="ML"),
+        RecipeLineDraft(item_id=2, item_name="우유", quantity=Decimal("200"), unit="ML"),
     ],
 )
 
@@ -46,7 +46,7 @@ VALID = RecipeValidation(
 
 INVALID = RecipeValidation(
     valid=False,
-    lines=[RecipeLineCheck(ok=False, reason="단위 ML 이 품목 관리 단위 G 와 다름"), RecipeLineCheck(ok=True)],
+    lines=[RecipeLineCheck(ok=False, reason="UNIT_MISMATCH", item_id=1, unit="G"), RecipeLineCheck(ok=True)],
 )
 
 
