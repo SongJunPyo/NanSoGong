@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.clients.spring import ReportRejected
+from app.clients.spring import SpringRejected
 from app.jobs.handlers import JobStart, RecipeDraftHandler
 from app.jobs.worker import LEASE, MAX_ATTEMPTS, Worker
 from app.models.job import JobAccept, JobErrorCode, JobStatus, JobType, ReportStatus
@@ -109,6 +109,20 @@ def test_error_is_retried_from_the_failed_step(registry, checkpointer, pool):
     assert len(spring.saved) == 1
 
 
+def test_spring_rejection_ends_job_without_retry(registry, checkpointer):
+    accept(registry)
+    spring = FakeSpring([SpringRejected("409 끝난 작업")])
+    writer = FakeWriter([GOOD_DRAFT])
+    worker = make_worker(registry, checkpointer, spring, writer)
+
+    worker.run_once()
+
+    job = registry.get(1)
+    assert job.status == JobStatus.FAILED and job.error_code == JobErrorCode.SPRING_REJECTED
+    assert job.attempts == 1                                   # 다시 받지 않았다
+    assert spring.saved == []
+
+
 def test_repeated_errors_end_job_after_max_attempts(registry, checkpointer, pool):
     accept(registry)
     spring = FakeSpring([ConnectionError("Spring 503")] * MAX_ATTEMPTS)
@@ -204,7 +218,7 @@ def test_failed_report_is_resent_in_order(registry, checkpointer):
 def test_rejected_report_is_not_resent(registry, checkpointer):
     accept(registry)
     spring = FakeSpring([VALID])
-    spring.report_errors = [ReportRejected("끝난 작업")]
+    spring.report_errors = [SpringRejected("끝난 작업")]
     worker = make_worker(registry, checkpointer, spring, FakeWriter([GOOD_DRAFT]))
 
     worker.run_once()

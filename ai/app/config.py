@@ -19,6 +19,15 @@ class Settings(BaseSettings):
     # 예: postgresql://ai_app:비밀번호@postgres:5432/nansogong. 비어 있으면 작업 API 가 503 을 돌려준다
     ai_database_url: SecretStr = SecretStr("")
 
+    # ---------- 워커 (python -m app.worker) ----------
+    # Spring 주소 (같은 docker 네트워크). 예: http://app:8080
+    spring_base_url: str = ""
+    # Python → Spring 내부 호출 토큰 (X-Internal-Token). Spring app.internal.token 과 같은 환경변수 · 같은 값
+    internal_api_token: SecretStr = SecretStr("")
+    # Claude. 이름은 Spring 설정(application.yml)과 같은 환경변수를 쓴다
+    anthropic_api_key: SecretStr = SecretStr("")
+    ai_model: str = "claude-haiku-5-5"          # 개발 중 기본 모델 (docs/rules/ai.md). 운영 모델은 환경변수로 바꾼다
+
 
 @lru_cache
 def get_settings() -> Settings:

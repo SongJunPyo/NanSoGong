@@ -2,7 +2,7 @@
 
 AI 작업(LangGraph 그래프 · 모델 호출 · 도구 · 프롬프트 · 수요 예측)을 만들 때 지킬 규칙입니다. 구성 요소와 Spring · Python 경계는 [아키텍처](architecture.md), 발주 · 쿠폰 · 메뉴의 업무 규칙은 [도메인 규칙](domain.md)에 있습니다.
 
-> **AI 흐름은 Python · LangGraph로 만듭니다** (최상위 `ai/`). 지금은 작업 접수 · 워커 · 레시피 초안 흐름까지 있고, Spring 내부 API · 실제 모델 연결은 아직입니다. 백엔드의 `ai/` 패키지와 Spring AI 의존성 · 설정은 비어 있는 틀로만 남아 있습니다. 같은 업무의 AI 호출을 Java와 Python 양쪽에 만들지 않습니다.
+> **AI 흐름은 Python · LangGraph로 만듭니다** (최상위 `ai/`). 지금은 작업 접수 · 워커 · 레시피 초안 흐름과 Spring 내부 API 클라이언트까지 있고, 실제 Spring · 모델과 이어서 돌려 보는 것은 아직입니다. 백엔드의 `ai/` 패키지와 Spring AI 의존성 · 설정은 비어 있는 틀로만 남아 있습니다. 같은 업무의 AI 호출을 Java와 Python 양쪽에 만들지 않습니다.
 
 ## 기본 원칙
 

@@ -1,5 +1,4 @@
 # 🧪 테스트용 (이미지에는 넣지 않는다). CI 와 내 PC 에서만 설치
 -r requirements.txt
 pytest~=8.3.0
-httpx~=0.28.0
 testcontainers[postgres]~=4.15.0  # 작업 등록부 · 체크포인트 테스트가 Postgres 17 컨테이너를 띄운다 (Docker 필요)

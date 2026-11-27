@@ -44,6 +44,7 @@ class JobErrorCode(StrEnum):
     VALIDATION_FAILED = "VALIDATION_FAILED"     # 수정 한도까지 고쳐도 Spring 검증 실패
     GENERATION_FAILED = "GENERATION_FAILED"     # LLM 이 형식에 맞는 결과를 주지 못함
     RETRY_EXHAUSTED = "RETRY_EXHAUSTED"         # 오류 · 워커 중단이 반복돼 시도 한도(MAX_ATTEMPTS)를 다 씀
+    SPRING_REJECTED = "SPRING_REJECTED"         # Spring 이 400 · 404 · 409 로 거절 (끝난 작업 등). 재시도하지 않음
 
 
 class ReportStatus(StrEnum):

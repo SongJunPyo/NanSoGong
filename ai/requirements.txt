@@ -6,6 +6,7 @@ uvicorn[standard]~=0.34.0
 prometheus-fastapi-instrumentator~=7.1.0
 pydantic~=2.14.0                 # 2.11 이상 필요: camelCase 내보내기(serialize_by_alias, app/models/base.py)
 pydantic-settings~=2.16.0        # 환경변수 → 설정 (app/config.py)
+httpx~=0.28.0                    # Python → Spring 내부 API 호출 (app/clients/spring_http.py)
 # AI 흐름 (app/graphs/). 설치해서 가짜 모델로 테스트한 버전. 실제 Claude 연결 확인은 #36 PR 전에 한다
 langgraph~=1.2.24
 langchain-core~=1.8.5

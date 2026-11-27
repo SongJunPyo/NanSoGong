@@ -1,7 +1,24 @@
 # ai — AI 서비스 (Python · FastAPI)
 
 Spring 이 부르는 **내부용 AI 서버**입니다. Spring 이 작업(`jobId`)을 넘기면 접수만 하고 바로 답하고, 워커가 LangGraph 그래프를 돌려 진행 · 결과를 Spring 에 보고합니다.
-지금 붙어 있는 작업은 레시피 초안(`RECIPE_DRAFT`) 하나입니다. Spring 내부 API(#35) · 실제 Claude 연결 · 워커 실행 명령 · docker-compose 연결은 아직 없습니다 (테스트는 가짜 Spring · 가짜 LLM).
+지금 붙어 있는 작업은 레시피 초안(`RECIPE_DRAFT`) 하나입니다. 실제 Spring(PR #56) · 실제 Claude 와 이어서 돌려 본 적은 아직 없고, docker-compose 에도 아직 연결하지 않았습니다 (테스트는 가짜 Spring · 가짜 LLM).
+
+## 워커 실행
+
+```bash
+python -m app.db.migrate      # 배포할 때 한 번: ai 스키마 표 만들기 · 올리기
+python -m app.worker          # 작업을 받아 처리. 종료 신호(SIGTERM · Ctrl+C)를 받으면 지금 작업을 끝내고 멈춤
+```
+
+| 환경변수 | 쓰는 곳 | 뜻 |
+|---|---|---|
+| `AI_SERVICE_TOKEN` | API 서버 | Spring → Python 호출 토큰 (`X-Internal-Token`) |
+| `AI_DATABASE_URL` | API 서버 · 워커 · migrate | ai 스키마 접속 주소 (Python 전용 계정) |
+| `SPRING_BASE_URL` | 워커 | Spring 주소 (예: `http://app:8080`) |
+| `INTERNAL_API_TOKEN` | 워커 | Python → Spring 호출 토큰. Spring `app.internal.token` 과 같은 환경변수 · 같은 값 |
+| `ANTHROPIC_API_KEY` · `AI_MODEL` | 워커 | Claude 키 · 모델 (기본 `claude-haiku-5-5`). Spring 설정과 같은 이름 |
+
+워커는 필수 환경변수가 하나라도 없으면 이름만 알려 주고 바로 끝난다. Spring 이 400 · 404 · 409 로 거절하면 다시 시도하지 않고 `SPRING_REJECTED` 로 끝내고, 401 · 5xx · 연결 오류는 나중에 다시 시도한다.
 
 | 항목 | 값 |
 |---|---|

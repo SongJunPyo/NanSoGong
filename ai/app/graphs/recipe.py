@@ -142,7 +142,9 @@ class ClaudeDraftWriter:
     """
 
     def __init__(self, chat_model: BaseChatModel):
-        self._structured = chat_model.with_structured_output(RecipeDraft)
+        # json_schema: 도구 호출을 강제하지 않고 Claude 구조화 출력(output_config.format)으로 받는다.
+        # 도구 강제 방식은 thinking 이 켜진 모델에서 막힌다. 받은 결과는 RecipeDraft 가 다시 검사한다
+        self._structured = chat_model.with_structured_output(RecipeDraft, method="json_schema")
 
     def write(self, menu_name, context, previous=None, validation=None) -> RecipeDraft:
         try:

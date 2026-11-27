@@ -212,7 +212,8 @@ class _FakeChatModel:
     def __init__(self, result):
         self._result = result
 
-    def with_structured_output(self, schema):
+    def with_structured_output(self, schema, method=None):
+        self.method = method
         return self
 
     def invoke(self, prompt):
@@ -227,6 +228,14 @@ def test_claude_writer_turns_bad_output_into_generation_error(result):
 
     with pytest.raises(DraftGenerationError):
         writer.write("딸기라떼", CONTEXT)
+
+
+def test_claude_writer_uses_structured_output_not_forced_tool():
+    model = _FakeChatModel(GOOD_DRAFT)
+
+    ClaudeDraftWriter(model)
+
+    assert model.method == "json_schema"                   # thinking 이 켜진 모델에서도 쓸 수 있는 방식
 
 
 def test_claude_writer_lets_network_errors_through_for_retry():

@@ -15,7 +15,7 @@ from datetime import timedelta
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from app.clients.spring import ReportRejected, SpringClient
+from app.clients.spring import SpringClient, SpringRejected
 from app.jobs.handlers import JobHandler, JobStart
 from app.jobs.registry import JobRecord, JobRegistry, LeaseLost
 from app.models.job import JobErrorCode, JobStatus, JobType
@@ -75,7 +75,7 @@ class Worker:
                 continue
             try:
                 self._spring.report(pending.job_id, pending.report)
-            except ReportRejected:
+            except SpringRejected:
                 # 끝난 작업 · 순서 역전 등: 다시 보내도 같은 답이라 보낸 것으로 친다
                 logger.warning("작업 %s 보고 %s: Spring 이 거절", pending.job_id, pending.report.seq)
             except Exception:
@@ -121,6 +121,11 @@ class Worker:
             return
         except LeaseLost:
             raise
+        except SpringRejected:
+            # 끝난 작업 · 잘못된 요청: 다시 해도 같은 답이라 재시도(LLM 재호출)하지 않고 끝낸다
+            logger.warning("작업 %s: %s 단계에서 Spring 이 거절해 실패로 끝냄", job.job_id, step, exc_info=True)
+            self._registry.finish(job.job_id, self._owner, JobStatus.FAILED, step, JobErrorCode.SPRING_REJECTED.value)
+            return
         except Exception:
             self._fail_or_retry(job, step)
             return
