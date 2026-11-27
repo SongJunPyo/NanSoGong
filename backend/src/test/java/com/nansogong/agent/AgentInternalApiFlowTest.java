@@ -170,9 +170,32 @@ class AgentInternalApiFlowTest {
         report(jobId, 1, "FAILED", "").andExpect(status().isBadRequest());                     // errorCode 없음
         report(jobId, 1, "PENDING", "").andExpect(status().isBadRequest());                    // Python 이 보낼 수 없는 상태
 
+        saveSuggestion(jobId, "recipe:1", "MENU").andExpect(status().isOk());
         report(jobId, 1, "SUCCEEDED", "").andExpect(status().isOk());
         assertThat(agentJobRepository.findById(jobId).orElseThrow().getFinishedAt()).isNotNull();
         report(jobId, 2, "RUNNING", "").andExpect(status().isConflict());                      // 늦게 온 보고가 끝난 작업을 살리지 않음
+    }
+
+    @Test
+    void 끝난_작업에_마지막_보고가_다시_오면_중복으로_돌려준다() throws Exception {
+        Long jobId = job(AgentJobType.RECIPE_DRAFT, "recipe:1");
+        saveSuggestion(jobId, "recipe:1", "MENU").andExpect(status().isOk());
+        report(jobId, 5, "SUCCEEDED", "").andExpect(status().isOk()).andExpect(jsonPath("$.applied").value(true));
+
+        // 응답이 사라져 Python 이 같은 순번을 다시 보냄 → 409 가 아니라 중복
+        report(jobId, 5, "SUCCEEDED", "").andExpect(status().isOk())
+                .andExpect(jsonPath("$.applied").value(false))
+                .andExpect(jsonPath("$.status").value("SUCCEEDED"));
+    }
+
+    @Test
+    void 제안을_만드는_작업은_제안_없이_완료할_수_없다() throws Exception {
+        Long recipe = job(AgentJobType.RECIPE_DRAFT, "recipe:1");
+        report(recipe, 1, "SUCCEEDED", "").andExpect(status().isConflict());
+        assertThat(agentJobRepository.findById(recipe).orElseThrow().isActive()).isTrue();   // 그대로 진행 중 → 제안 저장 가능
+
+        Long analysis = job(AgentJobType.OPERATIONS_ANALYSIS, "analysis:1");                 // 제안을 만들지 않는 작업은 그냥 완료
+        report(analysis, 1, "SUCCEEDED", "").andExpect(status().isOk());
     }
 
     // ---- 제안 저장 ----
@@ -212,6 +235,21 @@ class AgentInternalApiFlowTest {
     }
 
     @Test
+    void 다른_매장이_같은_업무_키로_저장해도_각자_버전_1이다() throws Exception {
+        Long otherMember = memberRepository.save(Member.create("internal-owner-2", "hash", "사장2", "010-0000-0001")).getId();
+        Long otherStore = storeRepository.save(Store.create(otherMember, "1230000094", "옆카페", "사장2", LocalDate.of(2023, 1, 1))).getId();
+
+        Long mine = job(AgentJobType.RECIPE_DRAFT, "MENU:딸기라떼");
+        Long theirs = job(otherStore, otherMember, AgentJobType.RECIPE_DRAFT, "MENU:딸기라떼");
+        saveSuggestion(mine, "MENU:딸기라떼", "MENU").andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
+        saveSuggestion(theirs, "MENU:딸기라떼", "MENU").andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
+        suggestionRepository.flush();   // 유일 제약을 실제로 검사하게 DB 로 보낸다
+
+        Suggestion a = suggestionRepository.findById(agentJobRepository.findById(mine).orElseThrow().getSuggestionId()).orElseThrow();
+        assertThat(a.getStatus()).isEqualTo(SuggestionStatus.PENDING);   // 다른 매장 제안이 내 제안을 대체하지 않음
+    }
+
+    @Test
     void 작업과_맞지_않는_유형이나_업무_키는_400() throws Exception {
         Long jobId = job(AgentJobType.RECIPE_DRAFT, "recipe:1");
         saveSuggestion(jobId, "recipe:1", "COUPON").andExpect(status().isBadRequest());
@@ -222,7 +260,11 @@ class AgentInternalApiFlowTest {
     // ---- 도우미 ----
 
     private Long job(AgentJobType type, String workflowKey) {
-        return agentJobRepository.save(AgentJob.create(storeId, memberId, type, workflowKey, Map.of("menuId", menuId),
+        return job(storeId, memberId, type, workflowKey);
+    }
+
+    private Long job(Long store, Long member, AgentJobType type, String workflowKey) {
+        return agentJobRepository.save(AgentJob.create(store, member, type, workflowKey, Map.of("menuId", menuId),
                 Instant.now().plus(Duration.ofMinutes(5)))).getId();
     }
 
