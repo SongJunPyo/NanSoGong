@@ -5,7 +5,11 @@
 -- 📌 같은 내용이 두 곳에 있습니다 (두 파일은 항상 같아야 합니다)
 --    - docs/pjt_source/store-agent-db.sql                                              설계 문서
 --    - backend/src/main/resources/db/migration/V202611241000__create_store_agent_schema.sql  Flyway 마이그레이션
---      그 뒤에 추가한 마이그레이션은 이 파일 맨 아래 "이후 추가 마이그레이션" 에 같은 내용을 붙인다 (예: ai_job)
+--      그 뒤 마이그레이션도 이 파일에 반영해 현재 스키마를 한눈에 보게 한다: 기존 표가 바뀌면 그 표 안에 바로 고치고, 새 표는 파일 끝에 추가한다
+--
+-- 📋 이후 마이그레이션 (V202611241000 뒤. 추가할 때마다 이 목록에도 적는다)
+--    - V202611261001__enforce_unique_store_business_number.sql  store.biz_reg_no 전체 UQ   → store 표 안에 반영
+--    - V202611262100__create_ai_job.sql                         ai_job 표 추가             → 파일 끝
 -- 🚨 마이그레이션은 머지 후 절대 고치지 않습니다. 표를 바꿀 때는 새 마이그레이션 파일을 추가하고, 이 설계 문서에도 같은 변경을 반영합니다.
 --
 -- 11/24 계약 적용 내용
@@ -1096,13 +1100,13 @@ COMMENT ON COLUMN demand_forecast.drivers IS '주요 영향 요인과 예측에 
 COMMENT ON COLUMN demand_forecast.created_at IS '생성 시각';
 
 -- ======================================================================
--- 이후 추가 마이그레이션 (위 V202611241000 이후에 만든 표 · 칸. 마이그레이션 파일과 같은 내용)
+-- 이후 마이그레이션으로 추가한 표 (머리말 "이후 마이그레이션" 목록 참고. 마이그레이션 파일과 같은 내용)
 -- ======================================================================
 
 -- V202611262100__create_ai_job.sql
 -- ----------------------------------------------------------------------
 -- ai_job: AI 작업 기준 기록 (Spring 이 시작 때 만들고, Python 보고로 갱신)
---   도메인: 제안·승인·실행 · 담당: 미정 (#34 ②)
+--   도메인: 제안·승인·실행
 --   사용 규칙(보고 순번 · 거절 · 만료 · 중복 방지)은 docs/rules/db.md "AI 작업 기록 (ai_job)" 에만 적는다
 -- ----------------------------------------------------------------------
 CREATE TABLE ai_job (
@@ -1131,8 +1135,10 @@ CREATE TABLE ai_job (
   CHECK (status <> 'FAILED' OR error_code IS NOT NULL)
 );
 
--- 같은 매장 · 같은 작업 종류는 진행 중인 작업이 하나만 있을 수 있다
-CREATE UNIQUE INDEX uq_ai_job_active_store_type ON ai_job (store_id, job_type) WHERE status IN ('PENDING', 'RUNNING', 'WAITING_AUTH');
+-- 발주 실행은 매장당 진행 중인 작업이 하나만 있을 수 있다 (실행기가 한 번에 주문 하나만 처리)
+CREATE UNIQUE INDEX uq_ai_job_active_execute ON ai_job (store_id) WHERE job_type = 'PURCHASE_EXECUTE' AND status IN ('PENDING', 'RUNNING', 'WAITING_AUTH');
+-- 나머지 제안 · 분석은 같은 업무(workflow_key)마다 진행 중인 작업이 하나만 있을 수 있다 (다른 메뉴 초안은 동시에 가능)
+CREATE UNIQUE INDEX uq_ai_job_active_workflow ON ai_job (store_id, job_type, workflow_key) WHERE job_type <> 'PURCHASE_EXECUTE' AND status IN ('PENDING', 'RUNNING', 'WAITING_AUTH');
 -- 만료 스케줄러: 진행 중이면서 expires_at 이 지난 작업 찾기
 CREATE INDEX idx_ai_job_active_expires ON ai_job (expires_at) WHERE status IN ('PENDING', 'RUNNING', 'WAITING_AUTH');
 -- 매장별 최근 작업 조회
