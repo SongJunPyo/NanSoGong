@@ -1,164 +1,107 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarDays, Info, Ticket } from 'lucide-react'
 import { Screen } from '@/components/common/layout'
-import { BarChart, Card, Chips, H2, HeadRow, KV, ListRow, P, Pill } from '@/components/common/ui'
+import { Card, H2, Pill } from '@/components/common/ui'
 import { won } from '@/lib/format'
 import { formatCalendarDate } from '@/utils/format'
 import { useCouponDraft } from '@/features/coupon/useCouponDraft'
 import { useEndPromotion, usePromotions } from '@/features/coupon/queries'
-import { SegmentedControl } from '@/components/ui/segmented-control'
+import { useSalesPromotionPerformance } from '@/features/sales/queries'
+import { numberOfDays } from '@/features/menu/menuLogic'
+import { salesDateRangeLabel } from '@/features/sales/analytics'
+import SalesTabs from '@/features/sales/components/SalesTabs'
+import SalesViewControl from '@/features/sales/components/SalesViewControl'
 import { Modal } from '@/components/ui/modal'
 import { EmptyState } from '@/components/ui/empty-state'
 import { SkeletonCard } from '@/components/ui/loading'
 import { toast } from '@/components/ui/toast'
 
-// ⚠️ 가정: 운영을 종료하면 오늘 이 시각부터 POS에서 내린다 (POS 반영 시각은 백엔드와 맞출 것)
-const POS_OFF_TIME = '18:00'
-
-const TABS = [
-  { value: 'running', label: '진행 중' },
-  { value: 'ended', label: '종료' },
-]
-
 const periodText = (p) => `${formatCalendarDate(p.startDate)} – ${formatCalendarDate(p.endDate)}`
 
-/** 44 프로모션 성과 (UF-08) — 진행 중 · 종료 목록, 진행 중인 프로모션 운영 종료 */
+/** 매출 안에서 사용 현황과 성과를 함께 확인한다. 기존 쿠폰 조회·종료 계약은 유지한다. */
 export default function PromotionPerformancePage() {
   const draftName = useCouponDraft((s) => s.promotionName)
-  const { data: promotions = [], isPending } = usePromotions()
+  const { data: promotions = [], isPending, error, refetch } = usePromotions()
+  const { data: comparisons } = useSalesPromotionPerformance()
   const endMutation = useEndPromotion()
   const [tab, setTab] = useState('running')
-  const [confirm, setConfirm] = useState(null) // 종료 확인 창에 띄울 프로모션
-
-  // 라떼 세트는 조건 수정 화면에서 바꾼 이름을 쓴다
-  const nameOf = (p) => (p.id === 'latte-set' ? draftName : p.name)
+  const [selectedId, setSelectedId] = useState(null)
+  const [confirm, setConfirm] = useState(null)
+  const comparisonPanel = useRef(null)
+  const nameOf = (p) => p.id === 'latte-set' ? draftName : p.name
   const list = promotions.filter((p) => p.status === tab)
-
+  const selected = list.find((p) => p.id === selectedId) ?? list[0]
+  // 비교 표본의 프로모션 ID가 일치할 때만 연결한다. 다른 프로모션에 표본을 돌려 쓰지 않는다.
+  const comparison = selected && comparisons.find((p) => p.id === selected.id)
+  const showComparison = (id) => {
+    setSelectedId(id)
+    if (!window.matchMedia('(min-width: 1280px)').matches) requestAnimationFrame(() => {
+      comparisonPanel.current?.focus({ preventScroll: true })
+      comparisonPanel.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' })
+    })
+  }
   const end = () => {
     endMutation.mutate(confirm.id, {
-      onSuccess: () => {
-        setConfirm(null)
-        setTab('ended')
-        toast('운영을 종료했어요')
-      },
+      onSuccess: () => { setConfirm(null); setTab('ended'); toast('시연 목록의 운영 상태를 종료로 바꿨어요.') },
       onError: (err) => toast(err.message, { tone: 'error' }),
     })
   }
 
   return (
-    <Screen title="프로모션 성과">
-      <SegmentedControl
-        label="프로모션 상태"
-        value={tab}
-        onChange={setTab}
-        items={TABS.map((t) => ({ ...t, label: `${t.label} ${promotions.filter((p) => p.status === t.value).length}` }))}
-      />
-
-      {isPending ? (
-        <SkeletonCard lines={4} />
-      ) : list.length === 0 ? (
-        <EmptyState
-          kind={tab === 'running' ? 'first' : 'no-filter'}
-          compact
-          title={tab === 'running' ? '운영 중인 프로모션이 없어요' : '종료한 프로모션이 없어요'}
-          description={tab === 'running' ? 'AI가 프로모션을 추천하면 홈 브리핑에서 알려 드려요.' : undefined}
-        />
-      ) : (
-        list.map((p) =>
-          tab === 'running' ? (
-            <RunningCard key={p.id} p={p} name={nameOf(p)} onEnd={() => setConfirm(p)} />
-          ) : (
-            <EndedCard key={p.id} p={p} name={nameOf(p)} />
-          ),
-        )
-      )}
-
-      {tab === 'running' && list.some((p) => p.id === 'latte-set') && <LatteEffect />}
-
-      {/* 운영 종료 확인 — POS에서 내리는 건 되돌리기 어려워서 확인 창으로 받는다 (취소 · 종료하기 같은 크기) */}
-      <Modal
-        open={!!confirm}
-        onOpenChange={(open) => !open && setConfirm(null)}
-        title={confirm ? `${nameOf(confirm)} 운영을 종료할까요?` : ''}
-        description={confirm ? `오늘 ${POS_OFF_TIME}부터 POS에서 내려요. 이미 쓴 ${confirm.used}건은 그대로 집계돼요.` : ''}
-        confirmLabel="종료하기"
-        confirmLoading={endMutation.isPending}
-        confirmLoadingText="종료하고 있어요"
-        onConfirm={end}
-        tone="danger"
-      />
+    <Screen title="매출" back={false} tab wide compact>
+      <SalesTabs />
+      <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-h2 font-bold text-ink">프로모션 성과</h2><p className="mt-1 text-label text-ink-sub">사용 실적과 운영 전후 변화를 함께 확인해요.</p></div><span className="rounded-md bg-surface-muted px-2.5 py-1.5 text-caption font-bold text-ink-sub">시연 데이터</span></div>
+      <div className="max-w-sm"><SalesViewControl label="프로모션 상태" value={tab} onChange={(value) => { setTab(value); setSelectedId(null) }} items={[{ value: 'running', label: `진행 중 ${promotions.filter((p) => p.status === 'running').length}` }, { value: 'ended', label: `종료 ${promotions.filter((p) => p.status === 'ended').length}` }]} /></div>
+      {isPending ? <SkeletonCard lines={5} /> : error ? <Card tone="warn"><p role="alert" className="text-label text-danger">{error.message}</p><button type="button" onClick={() => refetch()} className="min-h-11 rounded-input bg-white px-4 text-label font-bold text-woori-deep">다시 불러오기</button></Card> : list.length === 0 ? <EmptyState kind={tab === 'running' ? 'first' : 'no-filter'} compact title={tab === 'running' ? '운영 중인 프로모션이 없어요' : '종료한 프로모션이 없어요'} /> : <div className="grid min-w-0 items-start gap-4 xl:grid-cols-2">
+        <div className="flex min-w-0 flex-col gap-4">
+          <H2><span className="flex items-center gap-2"><Ticket size={19} aria-hidden="true" className="text-woori-deep" />사용 현황 <span className="text-caption font-medium text-ink-sub">{list.length}개</span></span></H2>
+          {list.map((p) => <UsageCard key={p.id} p={p} name={nameOf(p)} selected={selected.id === p.id} onSelect={() => showComparison(p.id)} onEnd={() => setConfirm(p)} />)}
+        </div>
+        <div ref={comparisonPanel} tabIndex={-1} role="region" aria-label={`${nameOf(selected)} 성과 비교`} className="flex min-w-0 scroll-mt-40 flex-col gap-4 rounded-card outline-none focus-visible:ring-2 focus-visible:ring-woori-blue xl:sticky xl:top-40">
+          <H2><span className="flex items-center gap-2"><BarChart3 size={19} aria-hidden="true" className="text-woori-deep" />프로모션 전후 비교</span></H2>
+          <ComparisonCard name={nameOf(selected)} comparison={comparison} />
+        </div>
+      </div>}
+      <p className="text-caption leading-relaxed text-ink-sub">시연 모드 · 사용 내역과 비교 수치는 예시예요. 운영 종료도 시연 상태에만 반영되며 실제 POS에는 반영되지 않아요.</p>
+      <Modal open={Boolean(confirm)} onOpenChange={(open) => !open && setConfirm(null)} title={confirm ? `${nameOf(confirm)} 운영을 종료할까요?` : ''} description={confirm ? `시연 목록의 운영 상태를 종료로 바꿔요. 사용 실적 ${confirm.used}건은 유지해요. 실제 POS에는 반영되지 않아요.` : ''} confirmLabel="시연 운영 종료" confirmLoading={endMutation.isPending} confirmLoadingText="처리 중" onConfirm={end} tone="danger" />
     </Screen>
   )
 }
 
-function RunningCard({ p, name, onEnd }) {
+function UsageCard({ p, name, selected, onSelect, onEnd }) {
+  const usage = p.limit > 0 ? Math.round(p.used / p.limit * 100) : null
   return (
-    <Card>
-      <HeadRow title={name} size="text-base">
-        <Pill tone="ok">POS 반영 완료</Pill>
-      </HeadRow>
-      <KV label="승인" value={p.approvedAt} />
-      <KV label="운영 기간" value={periodText(p)} />
-      <KV label="사용 건수" value={`${p.used}건`} />
-      <KV label={`사용률 (사용 한도 ${p.limit}장 기준)`} value={`${Math.round((p.used / p.limit) * 100)}%`} tone="deep" />
-      <div className="flex items-center gap-2">
-        <span className="text-label text-ink-sub">발행량</span>
-        <span className="ml-auto">
-          <Pill tone="amber">확인 불가 · POS 미제공</Pill>
-        </span>
-      </div>
-      <KV label="누적 할인액" value={`${won(p.discount)}원`} />
-      <KV label="프로모션 적용 매출" value={`${won(p.sales)}원`} />
-      <P tone="mute" small>
-        최근 수집 {p.lastSync}
-      </P>
-      <button
-        type="button"
-        onClick={onEnd}
-        className="mt-1 h-11 w-full rounded-button border border-danger/30 bg-white text-label font-bold text-danger hover:bg-danger-bg"
-      >
-        운영 종료
-      </button>
+    <Card tone="line" pad="p-4 sm:p-5" gap="gap-4" className={selected ? 'border-woori-deep' : undefined}>
+      <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="min-w-0 text-body font-bold leading-relaxed text-ink">{name}</h3><Pill tone={p.status === 'running' ? 'deep' : 'gray'}>{p.status === 'running' ? '진행 중' : p.endedBy === 'owner' ? '직접 종료' : '기간 종료'}</Pill></div>
+      <dl className="flex flex-col gap-2 text-caption"><div className="flex flex-wrap justify-between gap-2"><dt className="text-ink-sub">승인일</dt><dd className="font-medium text-ink">{p.approvedAt}</dd></div><div className="flex flex-wrap justify-between gap-2"><dt className="flex items-center gap-1 text-ink-sub"><CalendarDays size={13} aria-hidden="true" />운영 기간</dt><dd className="font-medium text-ink">{periodText(p)}</dd></div></dl>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-5 rounded-input bg-woori-tint p-4">
+        {[['사용 건수', `${won(p.used)}건`], ['사용률', usage === null ? '집계 없음' : `${usage}%`], ['누적 할인액', `${won(p.discount)}원`], ['적용 매출', `${won(p.sales)}원`]].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-caption text-ink-sub">{label}</dt><dd className="num mt-1 text-xl font-bold text-woori-deep">{value}</dd></div>)}
+      </dl>
+      <div><div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-surface-muted"><div className="h-full rounded-full bg-woori-deep" style={{ width: `${Math.min(usage ?? 0, 100)}%` }} /></div><p className="mt-2 text-caption text-ink-sub">사용률은 사용 한도 {won(p.limit)}장 기준이에요. 발행량은 POS 미제공으로 확인할 수 없어요.</p></div>
+      <p className="text-caption text-ink-sub">최근 수집 {p.lastSync}</p>
+      <div className="flex flex-wrap gap-2 border-t border-line pt-3"><button type="button" aria-pressed={selected} onClick={onSelect} className={`min-h-11 flex-1 rounded-input px-3 text-label font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-woori-blue ${selected ? 'bg-woori-deep text-white' : 'border border-line text-woori-deep hover:bg-woori-tint'}`}>성과 비교 보기</button>{p.status === 'running' && <button type="button" onClick={onEnd} className="min-h-11 rounded-input border border-line px-3 text-label text-danger focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger">운영 종료</button>}</div>
     </Card>
   )
 }
 
-function EndedCard({ p, name }) {
+function ComparisonCard({ name, comparison }) {
+  if (!comparison) return <Card tone="line" pad="p-5" gap="gap-3"><p className="text-body font-bold text-ink">{name}</p><p role="status" className="text-label leading-relaxed text-ink-sub">이 프로모션은 전후 비교 자료가 없어요. 사용 현황에서 실적을 확인해 주세요.</p></Card>
+  const { before, after, expectedLift } = comparison
+  const lift = after.orders - before.orders
+  const change = before.orders > 0 ? lift / before.orders * 100 : null
+  const menuChange = before.menuSales > 0 ? (after.menuSales - before.menuSales) / before.menuSales * 100 : null
+  const max = Math.max(before.orders, after.orders, 1)
+  const signed = (value) => `${value > 0 ? '+' : ''}${won(value)}`
+  const Direction = lift < 0 ? ArrowDownRight : ArrowUpRight
   return (
-    <Card tone="line">
-      <HeadRow title={name} size="text-base">
-        <Pill tone="gray">{p.endedBy === 'owner' ? '사장님이 종료' : '기간 만료'}</Pill>
-      </HeadRow>
-      <KV label="운영 기간" value={periodText(p)} />
-      <KV label="사용 건수" value={`${p.used}건 · 한도 ${p.limit}장`} />
-      <KV label="누적 할인액" value={`${won(p.discount)}원`} />
-      <KV label="프로모션 적용 매출" value={`${won(p.sales)}원`} tone="deep" />
-      <P tone="mute" small>
-        최근 수집 {p.lastSync}
-      </P>
+    <Card tone="line" pad="p-4 sm:p-5" gap="gap-5">
+      <div><p className="text-body font-bold text-ink">{name}</p><p className="mt-1 text-caption text-ink-sub">평일 오후 · 하루 평균 주문 비교</p></div>
+      <div className="rounded-input bg-woori-tint p-4"><p className="text-caption text-ink-sub">프로모션 전 대비 관측 변화</p><p className="num mt-2 flex flex-wrap items-center gap-2 text-[26px] leading-tight font-bold text-woori-deep"><Direction size={23} aria-hidden="true" />{signed(lift)}건/일 <span className="text-body">{change === null ? '비교율 없음' : `(${change > 0 ? '+' : ''}${change.toFixed(1)}%)`}</span></p></div>
+      <dl className="flex flex-col gap-5">
+        {[['프로모션 전', before, 'bg-[#b2d3e9]'], ['프로모션 후', after, 'bg-woori-deep']].map(([label, data, color]) => <div key={label}><div className="flex items-baseline justify-between gap-2"><dt className="text-label font-bold text-ink">{label}</dt><dd className="num text-xl font-bold text-ink">{data.orders}<span className="ml-1 text-caption font-medium text-ink-sub">건/일</span></dd></div><div aria-hidden="true" className="mt-2 h-7 overflow-hidden rounded-lg bg-surface-muted"><div className={`h-full rounded-lg ${color}`} style={{ width: `${data.orders / max * 100}%` }} /></div><p className="mt-2 text-caption text-ink-sub">{salesDateRangeLabel(data)} · {numberOfDays(data.from, data.to)}일 관측</p></div>)}
+      </dl>
+      <dl className="grid grid-cols-2 gap-3 border-t border-line pt-4"><div><dt className="text-caption text-ink-sub">바닐라 라떼 판매 변화</dt><dd className="num mt-1 text-lg font-bold text-woori-deep">{menuChange === null ? '자료 없음' : `${signed(Math.round(menuChange))}%`}</dd></div><div><dt className="text-caption text-ink-sub">추천 당시 예상 증가</dt><dd className="num mt-1 text-lg font-bold text-ink">{signed(expectedLift)}건/일</dd></div></dl>
+      <p className="flex items-start gap-2 rounded-input bg-surface-muted p-3 text-caption leading-relaxed text-ink-sub"><Info size={16} aria-hidden="true" className="mt-0.5 shrink-0" />운영 전후 관측 기간이 달라요. 날씨 등 다른 요인도 영향을 주므로 이 변화를 프로모션만의 효과로 단정할 수 없어요.</p>
     </Card>
-  )
-}
-
-/** 라떼 세트 효과 비교 · 사용 내역 (목업 예시) */
-function LatteEffect() {
-  return (
-    <>
-      <Card tone="line">
-        <H2>효과 비교</H2>
-        <Chips items={['운영 기간 vs 직전 2주', '지난주 같은 요일']} />
-        <BarChart values={[9, 14]} highlight={1} labels={['직전 2주', '운영 기간']} />
-        <KV label="평일 오후 주문" value="하루 9건 → 14건" tone="deep" />
-        <KV label="바닐라 라떼 판매" value="24% ↑" tone="deep" />
-        <KV label="추천 때 예상" value="하루 +6건" />
-        <P tone="mute" small>
-          관측된 변화예요. 날씨 등 다른 요인도 있어서 전부 프로모션 효과라고 보긴 어려워요.
-        </P>
-      </Card>
-      <Card tone="line" gap="gap-0" pad="px-4 py-1">
-        <ListRow title="11.20 14:32 · 주문 #2041" value="사용" />
-        <ListRow title="11.20 15:10 · 주문 #2057" value="사용" />
-        <ListRow title="11.20 16:05 · 주문 #2063" value="취소" />
-      </Card>
-    </>
   )
 }

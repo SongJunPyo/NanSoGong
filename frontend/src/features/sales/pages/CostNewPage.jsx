@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Screen } from '@/components/common/layout'
 import { InlineError } from '@/components/ui/inline-error'
 import { Button, ButtonRow, Card, Chips, HeadRow, KV2, Label, P, Pill } from '@/components/common/ui'
+import SalesTabs from '@/features/sales/components/SalesTabs'
 
 function FieldRow({ label, value }) {
   return (
@@ -45,7 +46,10 @@ export default function CostNewPage() {
   }
 
   return (
-    <Screen title="비용 추가">
+    <Screen title="매출" tab wide compact>
+      <SalesTabs />
+      <div><h2 className="text-h2 font-bold text-ink">비용 추가</h2><p className="mt-1 text-label text-ink-sub">항목과 금액, 적용 기간을 순서대로 확인해요.</p></div>
+      <p className="rounded-input bg-woori-tint p-3 text-label text-woori-deep">시연 입력 화면이에요. 입력한 비용은 아직 DB나 운영 비용 목록에 저장되지 않아요.</p>
       <Label>항목</Label>
       <Chips items={CATEGORIES} defaultIndex={category} onChange={setCategory} />
       {isOther && (
@@ -85,7 +89,7 @@ export default function CostNewPage() {
           <Button variant="outline">다른 비용이에요</Button>
         </ButtonRow>
       </Card>
-      <Button onClick={save}>저장</Button>
+      <Button onClick={save}>시연 입력 마치기</Button>
     </Screen>
   )
 }

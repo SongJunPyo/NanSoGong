@@ -1,26 +1,25 @@
 import { useId, useState } from 'react'
 import { Clock3, TrendingUp } from 'lucide-react'
 import { Card, H2, Pill } from '@/components/common/ui'
-import { SegmentedControl } from '@/components/ui/segmented-control'
 import { won } from '@/lib/format'
 import { formatSalesDate, salesDateRangeLabel, smoothSalesPath } from '@/features/sales/analytics'
 import SalesDateRange from '@/features/sales/components/SalesDateRange'
+import SalesViewControl from '@/features/sales/components/SalesViewControl'
 
-function HourlySales({ hours }) {
-  const [metric, setMetric] = useState('amount')
+function HourlySales({ hours, metric, onMetricChange }) {
   const peak = hours.reduce((best, hour) => hour[metric] > best[metric] ? hour : best, hours[0])
   const maximum = Math.max(...hours.map((hour) => hour[metric]), 1)
   const unit = metric === 'amount' ? '원' : '건'
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-input bg-woori-tint p-4">
         <div>
           <p className="mb-1 flex items-center gap-1.5 text-caption text-ink-sub"><Clock3 size={14} aria-hidden="true" />가장 바쁜 시간</p>
           <p className="text-body font-bold text-woori-deep">{peak.hour}시 <span className="mx-1 text-ink-mute">·</span> 평균 {won(peak[metric])}{unit}</p>
         </div>
         <div className="w-36">
-          <SegmentedControl label="시간대 매출 표시 기준" size="sm" value={metric} onChange={setMetric} items={[{ value: 'amount', label: '금액' }, { value: 'orders', label: '건수' }]} />
+          <SalesViewControl label="시간대 매출 표시 기준" value={metric} onChange={onMetricChange} items={[{ value: 'amount', label: '금액' }, { value: 'orders', label: '건수' }]} />
         </div>
       </div>
       <div className="flex items-center justify-between text-caption text-ink-sub">
@@ -31,7 +30,7 @@ function HourlySales({ hours }) {
           <li key={hour.hour} className="grid grid-cols-[2rem_1fr_5rem] items-center gap-3 sm:grid-cols-[2.5rem_1fr_6rem]">
             <span className={`text-caption ${hour.hour === peak.hour ? 'font-bold text-woori-deep' : 'text-ink-sub'}`}>{hour.hour}시</span>
             <div className="h-5 overflow-hidden rounded-md bg-surface-muted" aria-hidden="true">
-              <div className={`h-full rounded-md transition-[width] duration-300 ${hour.hour === peak.hour ? 'bg-woori-deep' : 'bg-[#a9d4ef]'}`} style={{ width: `${hour[metric] / maximum * 100}%` }} />
+              <div className={`h-full rounded-md motion-safe:transition-[width] motion-safe:duration-300 ${hour.hour === peak.hour ? 'bg-woori-deep' : 'bg-[#93c6e7]'}`} style={{ width: `${hour[metric] / maximum * 100}%` }} />
             </div>
             <span className={`num text-right text-caption sm:text-label ${hour.hour === peak.hour ? 'font-bold text-woori-deep' : 'text-ink'}`}>{won(hour[metric])}{unit}</span>
           </li>
@@ -114,7 +113,7 @@ function DailySales({ days }) {
         </div>
         <div aria-hidden="true" className="flex justify-between text-[11px] text-ink-sub">{labels.map((index) => <span key={index}>{formatSalesDate(days[index].date)}</span>)}</div>
       </div>
-      <p className="text-caption text-ink-sub">그래프에 마우스를 올리거나 터치하면 날짜별 매출을 확인할 수 있어요.</p>
+      <p className="text-caption leading-relaxed text-ink-sub">마우스·터치로 날짜별 매출을 확인해요. 키보드는 그래프에 초점을 두고 ← → 키로 이동하세요.</p>
       <table className="sr-only"><caption>날짜별 매장(POS) 매출</caption><thead><tr><th>날짜</th><th>매출</th></tr></thead><tbody>{days.map((day) => <tr key={day.date}><td>{day.date}</td><td>{won(day.amount)}원</td></tr>)}</tbody></table>
     </div>
   )
@@ -122,18 +121,19 @@ function DailySales({ days }) {
 
 export default function SalesTrend({ analytics, summary, range, onRangeChange }) {
   const [view, setView] = useState('hour')
+  const [metric, setMetric] = useState('amount')
   return (
-    <Card tone="line" gap="gap-5" pad="p-4 sm:p-6">
+    <Card tone="line" gap="gap-4" pad="p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><H2><span className="flex items-center gap-2"><TrendingUp size={19} className="text-woori-blue" aria-hidden="true" />매출 추이</span></H2><p className="mt-1 text-caption text-ink-sub">{salesDateRangeLabel(range)} · 매장 판매 기준</p></div>
         <SalesDateRange range={range} onChange={onRangeChange} availableFrom={analytics.availableFrom} availableTo={analytics.availableTo} />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="w-48"><SegmentedControl label="매출 추이 보기" value={view} onChange={setView} items={[{ value: 'hour', label: '시간대' }, { value: 'date', label: '날짜' }]} /></div>
+        <div className="w-48"><SalesViewControl label="매출 추이 보기" value={view} onChange={setView} items={[{ value: 'hour', label: '시간대' }, { value: 'date', label: '날짜' }]} /></div>
         <Pill tone="gray">수집된 {summary.days.length}일 기준</Pill>
       </div>
       {summary.days.length === 0 ? <p role="status" className="py-16 text-center text-label text-ink-sub">선택한 기간에 수집된 매출 자료가 없어요.</p>
-        : view === 'hour' ? <HourlySales key={`${range.from}-${range.to}`} hours={summary.hours} />
+        : view === 'hour' ? <HourlySales hours={summary.hours} metric={metric} onMetricChange={setMetric} />
           : <DailySales key={`${range.from}-${range.to}`} days={summary.days} />}
       <p className="border-t border-line pt-3 text-caption text-ink-sub">POS 결제 금액에서 프로모션 할인을 뺀 실제 매장 매출이에요. 시간대는 수집된 날짜의 하루 평균을 보여줘요.</p>
     </Card>
