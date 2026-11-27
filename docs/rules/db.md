@@ -1,6 +1,6 @@
 # DB 규칙
 
-PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추측하지 말고 [전체 표 구조](../pjt_source/store-agent-db.sql)를 봅니다. 27개 표를 만드는 SQL에 이후 마이그레이션까지 반영한 현재 스키마입니다. 설명은 [표 설계 설명](../pjt_source/store-agent-db-desc.md)에 있습니다.
+PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추측하지 말고 [전체 표 구조](../pjt_source/store-agent-db.sql)를 봅니다. 28개 표의 현재 스키마입니다. 처음 27개 표는 `V202611241000__create_store_agent_schema.sql`, 그 뒤 변경은 이후 마이그레이션(`V202611261001` 사업자번호 UQ, `V202611262100` `ai_job`)에 있습니다. 설명은 [표 설계 설명](../pjt_source/store-agent-db-desc.md)에 있습니다.
 
 - 업무 규칙(차감 계산 · 결제 상태 전이 등)은 [도메인 규칙](domain.md)에 씁니다.
 - AI 작업 상태 저장 방식은 [AI 규칙](ai.md#상태-저장--재개)에 씁니다.
@@ -137,14 +137,46 @@ POS 원본 JSON은 `sales_order.raw_payload` (JSONB)에 **주문 단위로 통�
   | AI 추적 | `langsmith_trace_id` |
 
 - **미결제면 `paid_amount` · `paid_at` 이 둘 다 NULL이어야 한다.** 지금 DB `CHECK` 는 둘 중 하나만 채운 경우를 막지 못한다. 그래서 서비스에서 검증하고, 새 마이그레이션으로 제약을 보완해야 한다.
-- `suggestion.status` 에는 아직 "생성 중" · "생성 실패" 코드가 없다. `payload` · `evidence` 는 NOT NULL이다. 생성 상태 코드가 필요하면 새 마이그레이션으로 추가한다. 이때 `PENDING`(검토 대기)을 "생성 중"으로 같이 쓰지 않는다.
+- `suggestion.status` 에는 "생성 중" · "생성 실패" 코드가 없다. `payload` · `evidence` 는 NOT NULL이라 결과 전에는 행을 만들 수 없다. **생성 중 · 실패 상태는 `ai_job.status` 로 본다** ([AI 작업 기록](#ai-작업-기록-ai_job)). `PENDING`(검토 대기)을 "생성 중"으로 같이 쓰지 않는다.
 - `execution.approval_id` 는 필수다. 생성 작업을 넣으려고 가짜 승인을 만들지 않는다.
-- `lease_owner` · `lease_expires_at` 칸은 지금 없다. 여러 워커 처리 · 장애 후 자동 인계를 만들 때만 따로 검토한다. 없는 칸을 있다고 가정하지 않는다.
+- `suggestion` · `execution` 에는 `lease_owner` · `lease_expires_at` 칸이 없다. 여러 워커 처리 · 장애 후 자동 인계를 만들 때만 따로 검토한다. 없는 칸을 있다고 가정하지 않는다. AI 작업 단위의 처리 기한은 `ai_job.expires_at` 이 맡는다 ([AI 작업 기록](#ai-작업-기록-ai_job)).
 - Java 코드에는 `EXPIRED` · `WAITING_AUTH` · `CHECKING` 이 아직 없다. 구현할 때 이 이름을 그대로 쓴다.
+
+## AI 작업 기록 (`ai_job`)
+
+AI 작업의 **기준 기록**은 Spring 업무 DB의 `ai_job` 표다. 칸은 [표 설계 설명](../pjt_source/store-agent-db-desc.md#ai_job)에 있다.
+
+**시작 · 기준**
+
+- Spring이 작업을 시작할 때 행을 먼저 만들고, `ai_job_id` 를 Python에 `jobId` 로 넘긴다.
+- Python의 보고 · 내부 호출에서 매장 · 사용자는 **이 행으로 정한다.** 요청 본문 · 경로의 `storeId` 를 쓰지 않는다.
+- 진행 중(`PENDING` · `RUNNING` · `WAITING_AUTH`)인 작업은 조건부 유일 인덱스로 겹치지 않게 막는다.
+  - 발주 실행(`PURCHASE_EXECUTE`): **매장당 하나** ([아키텍처 배포 범위](architecture.md#배포-범위): 매장당 실행기 변경 명령 1개).
+  - 나머지 제안 · 분석: **같은 매장 · `job_type` · `workflow_key` 마다 하나.** 다른 메뉴의 레시피 초안처럼 업무가 다르면 동시에 진행한다.
+- `workflow_key` 는 같은 대상이면 같은 값이 되게 만든다 (예: 레시피 초안은 메뉴 기준). 작업 ID처럼 요청마다 달라지는 값을 넣지 않는다. 그래야 버튼을 두 번 눌러도 작업이 두 개 생기지 않는다. 정확한 형식은 작업 접수 API를 만들 때 정한다.
+- 같은 업무가 이미 진행 중이면 새 작업을 만들지 않고 **진행 중인 작업을 그대로 돌려준다.** 화면은 그 작업의 진행 상황을 보여 준다. 동시에 들어온 요청은 유일 인덱스가 하나만 남기므로, 행 저장이 유일 인덱스에 막히면 진행 중인 행을 다시 조회해 돌려준다.
+- 발주 실행만 예외로, **다른** 발주(`workflow_key` 가 다름)의 실행이 진행 중이면 409로 거절하고 앞 발주가 끝난 뒤 다시 요청하도록 안내한다. 다른 발주의 작업을 돌려주지 않는다.
+- 화면은 이 표만 본다. Python 작업 등록부 · 체크포인트를 화면이 직접 보지 않는다.
+
+**보고**
+
+- 보고 순번은 `last_report_seq` 와 비교한다. 같으면 중복이라 무시하고, 작으면 순서가 뒤바뀐 것이라 거절하고, 크면 반영한다.
+- **끝난 작업(`SUCCEEDED` · `FAILED` · `CANCELED` · `SUPERSEDED`)의 보고는 모두 거절한다.** 늦게 온 보고가 끝난 작업을 되살리지 않게 한다.
+- 보고 반영과 만료 처리는 조건부로 갱신한다 (`WHERE status IN (진행 중) AND last_report_seq < :seq`). 스케줄러와 늦은 보고가 동시에 와도 한쪽만 반영된다.
+- 작업에 이미 `suggestion_id` 가 있으면, 같은 작업의 제안 저장 요청은 새 버전을 만들지 않고 기존 제안을 돌려준다 (응답 유실 후 재시도로 제안이 두 번 생기는 것을 막는다).
+- `suggestion_id` · `execution_id` 를 연결할 때 그 행의 `store_id` 가 `ai_job.store_id` 와 같은지 서비스에서 확인한다. DB FK는 매장까지 확인하지 않는다.
+
+**기한 (`expires_at`)**
+
+- Spring은 작업을 만들 때 `expires_at` 을 작업 종류별 제한 시간으로 채우고, 보고가 오면 연장한다.
+- 보고로 `WAITING_AUTH` 가 되면 `expires_at` 을 인증 대기 기한으로 다시 정한다. 대기 중에는 보고가 오지 않기 때문이다.
+- 기한이 지난 작업은 스케줄러가 정리한다. Python 장애로 `RUNNING` 에 멈춰 있지 않게 한다.
+  - 제안 · 분석 작업: `FAILED`(`error_code` `TIMED_OUT`)로 끝낸다.
+  - **발주 실행(`PURCHASE_EXECUTE`)은 시간 초과로 `FAILED` 처리하지 않는다.** 주문이 이미 나갔을 수 있으므로 연결된 `execution` 을 `CHECKING` 으로 두고 외부 주문 내역부터 확인한다 ([도메인 규칙 주문 · 결제 · 입고 결과](domain.md#주문--결제--입고-결과)). 이때 `ai_job.expires_at` 을 결과 확인 기한으로 다시 정한다. 그러지 않으면 만료 스케줄러가 같은 작업을 계속 다시 집는다. `ai_job` 은 확인 결과가 나온 뒤 닫는다.
 
 ## AI 작업 저장소 (설계 예정)
 
 - Python 작업 등록부와 LangGraph 체크포인트는 업무 표와 **스키마 · DB 계정을 나눠** 둔다. 초기에는 같은 PostgreSQL 인스턴스를 쓴다.
 - Python 계정에는 업무 표 쓰기 권한을 주지 않는다. 업무 데이터는 Spring 내부 API로만 바꾼다.
 - 체크포인트 표의 생성 · 업그레이드는 버전을 고정한 뒤 배포 절차로 관리한다. 애플리케이션이 실행 중에 업무 스키마에 표를 만들지 않는다.
-- 작업 등록부 · 기기 등록 · 명령 기록 표는 아직 설계 전이다. 칸 이름을 추측해서 만들지 않는다.
+- Python 작업 등록부 · 기기 등록 · 명령 기록 표는 아직 설계 전이다. 칸 이름을 추측해서 만들지 않는다.
