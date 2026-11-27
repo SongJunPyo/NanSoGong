@@ -1,8 +1,9 @@
 #!/bin/bash
 # 🎬 발표용 데모 데이터(매장 · 메뉴 · 매출 등)를 한 번에 넣는다. 이 폴더의 *.sql 을 이름 순서대로 실행
 #
-#   내 PC · dev EC2 (docker compose 의 postgres):
+#   내 PC (docker compose 의 postgres):
 #     bash infra/demo-data/load.sh local
+#     (dev 서버는 팀 공용 온프레미스 DB 를 쓰고 postgres 컨테이너가 없어서 이 방법을 쓰지 않는다: README.md)
 #   prod (CodeDeploy 가 서버 EC2 의 /opt/nansogong/deploy/demo-data 에 함께 깔아 둔다):
 #     SSM Session Manager 로 prod 서버 EC2 한 대에 접속 → sudo bash /opt/nansogong/deploy/demo-data/load.sh aws
 #     (DB 주소 · 계정은 서버가 쓰는 /etc/nansogong/app.env 에서 읽는다. RDS 는 private 이라 서버 EC2 에서만 닿는다)
