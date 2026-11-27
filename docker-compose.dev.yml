@@ -41,7 +41,6 @@ services:
       SENS_FROM: ${SENS_FROM:-}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       AUTH_COOKIE_SAME_SITE: ${AUTH_COOKIE_SAME_SITE:-Lax}
-      SPRING_PROFILES_ACTIVE: dev                 # application-dev.yml: Swagger 켜기 (DB · Redis 는 같은 EC2 의 컨테이너라 aws 프로필은 쓰지 않는다)
       SPRING_PROFILES_ACTIVE: dev                 # application-dev.yml: Swagger 켜기 (DB 는 온프레미스, Redis 는 같은 EC2 의 컨테이너라 aws 프로필은 쓰지 않는다)
       # 비어 있으면 로컬 기본값(postgres 컨테이너 · dev/dev)으로 조용히 붙으려다 실패하므로, 배포 단계에서 바로 멈추게 한다
       DB_URL: ${DB_URL:?nansogong/dev 비밀에 DB_URL 필요 (온프레미스 DB)}
