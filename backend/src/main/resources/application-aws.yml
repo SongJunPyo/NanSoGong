@@ -46,6 +46,10 @@ app:
     access-key: ${SENS_ACCESS_KEY:}
     secret-key: ${SENS_SECRET_KEY:}
     from: ${SENS_FROM:}
+  # 🤖 Python AI 워커 → Spring 내부 API(/internal/**) 토큰. 워커를 배포하기 전이라 비어 있어도 서버는 뜬다 (/internal/** 만 401)
+  #    워커를 AWS 에 배포할 때 Secrets Manager 에 넣고, 그때 기본값(:)을 빼서 빠지면 서버가 뜨지 않게 바꾼다
+  internal:
+    token: ${INTERNAL_API_TOKEN:}
   crypto:
     credential-key: ${CREDENTIAL_ENCRYPTION_KEY}
   external:
