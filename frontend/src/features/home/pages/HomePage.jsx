@@ -35,8 +35,10 @@ export default function HomePage() {
   const refreshSales = async () => {
     setRefreshing(true)
     try {
-      await Promise.all([home.refetch(), new Promise((resolve) => setTimeout(resolve, 600))])
-      toast('오늘 매출을 새로 불러왔어요')
+      // refetch 는 실패해도 throw 하지 않고 결과에 error 를 담아 돌려준다 → 결과를 보고 알림을 고른다
+      const [result] = await Promise.all([home.refetch(), new Promise((resolve) => setTimeout(resolve, 600))])
+      if (result.isError) toast(`오늘 매출을 불러오지 못했어요. ${result.error?.message ?? ''}`.trim(), { tone: 'error', undo: refreshSales, undoLabel: '다시 시도' })
+      else toast('오늘 매출을 새로 불러왔어요')
     } finally {
       setRefreshing(false)
     }
