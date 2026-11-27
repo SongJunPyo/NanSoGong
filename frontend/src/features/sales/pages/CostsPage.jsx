@@ -13,10 +13,11 @@ export default function CostsPage() {
   const profit = forecast.revenue - forecast.estimatedCost - forecast.operatingCost
 
   return (
-    <Screen title="매출" back={false} tab wide>
+    <Screen title="매출" back={false} tab wide compact>
       <SalesTabs />
+      <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="text-h2 font-bold text-ink">비용·예상 이익</h2><p className="mt-1 text-label text-ink-sub">남을 금액을 확인하고, 빠진 비용을 점검해요.</p></div><span className="rounded-md bg-surface-muted px-2.5 py-1.5 text-caption font-bold text-ink-sub">시연 데이터</span></div>
       <section aria-label="예상 이익 요약" className="bg-hero flex flex-wrap items-center justify-between gap-4 rounded-hero px-5 py-5 text-white lg:px-6">
-        <div><h2 className="text-caption text-white/80">{forecast.period} · 예상 이익</h2><p className="num mt-1 text-[32px] leading-tight font-bold">{won(profit)}<span className="ml-1 text-lg">원</span></p></div>
+        <div><h3 className="text-caption text-[#d9ebfa]">{forecast.period} · 예상 이익</h3><p className="num mt-1 text-[28px] leading-tight font-bold lg:text-[32px]">{won(profit)}<span className="ml-1 text-label">원</span></p></div>
         <div className="rounded-input bg-white/15 px-4 py-3"><p className="text-caption text-white/80">예상 이익률</p><p className="num mt-1 text-xl font-bold">{forecast.revenue ? (profit / forecast.revenue * 100).toFixed(1) : '—'}%</p></div>
       </section>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -32,7 +33,7 @@ export default function CostsPage() {
           <dl className="divide-y divide-line">
             {costs.map((cost) => (
               <div key={cost.title} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 py-4 first:pt-0 sm:grid-cols-[1fr_1.2fr_1fr]">
-                <dt className="text-body font-medium text-ink">{cost.title}</dt>
+                <dt className="text-body font-bold text-ink">{cost.title}</dt>
                 <dd className="col-start-1 row-start-2 text-caption text-ink-sub sm:col-start-2 sm:row-start-1">{cost.sub}</dd>
                 <dd className="num col-start-2 row-start-1 text-right text-body font-bold text-ink sm:col-start-3">{cost.value}</dd>
               </div>
@@ -62,7 +63,7 @@ export default function CostsPage() {
               <p className="flex-1 text-caption text-warning">포장재 단가 일부가 누락되어 있어요. 비용이 보완되면 예상 이익이 달라질 수 있어요.</p>
               <Link
                 to={`/sales/costs/new?category=${encodeURIComponent('포장재')}`}
-                className="inline-flex shrink-0 items-center gap-0.5 self-end rounded-md bg-white px-2.5 py-1.5 text-caption font-bold text-amber-700 hover:bg-white/70 sm:self-auto"
+                className="inline-flex min-h-11 shrink-0 items-center gap-0.5 self-end rounded-lg bg-white px-3 text-label font-bold text-amber-800 hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-woori-blue sm:self-auto"
               >
                 포장재 비용 입력
                 <ChevronRight size={14} aria-hidden="true" />
@@ -71,6 +72,7 @@ export default function CostsPage() {
           </Card>
         </div>
       </div>
+      <p className="text-caption text-ink-sub">시연 자료로 계산한 예상치예요. 실제 금융 내역이나 확정 이익이 아니에요.</p>
     </Screen>
   )
 }

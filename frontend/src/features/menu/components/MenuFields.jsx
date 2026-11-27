@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { won } from '@/lib/format'
 import { useMenuActions } from '@/features/menu/queries'
@@ -33,6 +33,7 @@ export function MenuPriceField({ label = '판매가', value, onChange, ...props 
 }
 
 export function CategoryCreator({ onAdded }) {
+  const panelId = useId()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [parent, setParent] = useState('DRINK')
@@ -49,11 +50,11 @@ export function CategoryCreator({ onAdded }) {
   }
   return (
     <div>
-      <button type="button" onClick={() => setOpen(!open)} className="inline-flex items-center gap-1 rounded-md py-1 text-caption font-bold text-woori-blue focus-visible:outline-2 focus-visible:outline-woori-blue"><Plus size={14} aria-hidden="true" />카테고리 추가</button>
-      {open && <div className="mt-2 flex flex-col gap-3 rounded-input border border-line bg-woori-tint p-3" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); save() } }}>
+      <button type="button" aria-expanded={open} aria-controls={open ? panelId : undefined} onClick={() => setOpen(!open)} className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-label font-bold text-woori-deep focus-visible:outline-2 focus-visible:outline-woori-blue"><Plus size={16} aria-hidden="true" />카테고리 추가</button>
+      {open && <div id={panelId} className="mt-2 flex flex-col gap-3 rounded-input border border-line bg-woori-tint p-3" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); save() } }}>
         <div className="grid grid-cols-2 gap-2"><MenuTextField label="새 카테고리명" value={name} maxLength={20} onChange={(event) => setName(event.target.value)} placeholder="예: 스무디" /><MenuSelect label="상위 분류" value={parent} onChange={(event) => setParent(event.target.value)}><option value="DRINK">음료</option><option value="FOOD">푸드</option></MenuSelect></div>
         {error && <p role="alert" className="text-caption text-danger">{error}</p>}
-        <div className="flex gap-2"><button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-input border border-line bg-white p-2 text-caption text-ink">취소</button><ButtonLoading className="h-10 flex-1 text-caption" full={false} loading={action.isPending} loadingText="등록 중..." onClick={save}>카테고리 등록</ButtonLoading></div>
+        <div className="flex gap-2"><button type="button" onClick={() => setOpen(false)} className="min-h-11 flex-1 rounded-input border border-line bg-white p-2 text-label text-ink">취소</button><ButtonLoading className="min-h-11 flex-1 text-label" full={false} loading={action.isPending} loadingText="등록 중..." onClick={save}>카테고리 등록</ButtonLoading></div>
       </div>}
     </div>
   )

@@ -5,7 +5,7 @@ import { WEEK } from '@/features/sales/constants'
 export const WeekHeader = () => (
   <div className="grid grid-cols-7">
     {WEEK.map((d) => (
-      <span key={d} className="text-center text-xs font-medium text-ink-mute">
+      <span key={d} className="text-center text-xs font-medium text-ink-sub">
         {d}
       </span>
     ))}

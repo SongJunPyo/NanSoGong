@@ -23,8 +23,8 @@ export default function MenuTabs() {
               to={t.to}
               replace
               aria-current={on ? 'page' : undefined}
-              className={`flex-1 rounded-[9px] py-[9px] text-center text-label ${
-                on ? 'bg-white font-bold text-woori-deep shadow-sm' : 'font-medium text-ink-sub'
+              className={`flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-[9px] px-1 text-center text-label focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-woori-blue ${
+                on ? 'bg-white font-bold text-woori-deep shadow-sm' : 'font-medium text-ink-sub hover:text-ink'
               }`}
             >
               {t.label}

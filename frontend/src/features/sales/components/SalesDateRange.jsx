@@ -24,7 +24,7 @@ export default function SalesDateRange({ range, onChange, availableFrom, availab
         type="button"
         aria-haspopup="dialog"
         onClick={() => changeOpen(true)}
-        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-input border border-line bg-white px-3 text-caption font-bold text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-woori-blue sm:text-label"
+        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-input border border-line bg-white px-3 text-label font-bold text-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-woori-blue"
       >
         <CalendarDays size={16} aria-hidden="true" />
         기간 지정 <span className="font-medium text-ink-sub">{salesDateRangeLabel(range)}</span>
