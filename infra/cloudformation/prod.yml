@@ -958,12 +958,20 @@ Resources:
           - Effect: Allow
             Principal: { Federated: !ImportValue nansogong-GitHubOidcProviderArn }
             Action: sts:AssumeRoleWithWebIdentity
+            # 🚨 브랜치가 아니라 Environment 이름으로 확인한다
+            #   GitHub sub 는 예전 모양(repo:소유자/저장소:...)과 새 모양(repo:소유자@ID/저장소@ID:...)이 있어서 둘 다 받는다 (shared.yml · dev.yml 과 같음)
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: !Sub
-                  - 'repo:${Repo}:environment:${Environment}'      # 🚨 브랜치가 아니라 Environment 이름으로 확인한다
-                  - { Repo: !ImportValue nansogong-GitHubRepository }
+              StringLike:
+                token.actions.githubusercontent.com:sub:
+                  - !Sub
+                    - 'repo:${Repo}:environment:${Environment}'
+                    - { Repo: !ImportValue nansogong-GitHubRepository }
+                  - !Sub
+                    - 'repo:${Owner}@*/${Name}@*:environment:${Environment}'
+                    - Owner: !Select [0, !Split ['/', !ImportValue nansogong-GitHubRepository]]
+                      Name: !Select [1, !Split ['/', !ImportValue nansogong-GitHubRepository]]
       Policies:
         - PolicyName: deploy-nansogong
           PolicyDocument:
