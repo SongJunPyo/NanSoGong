@@ -71,6 +71,10 @@ app:
     mode: ${VERIFICATION_MODE:mock}       # mock | real (real = SENS SMS 수신 확인)
     mock-code: "000000"
 
+  # 🤖 Python AI 워커 → Spring 내부 API(/internal/**) 토큰 (#34 ③). 비어 있으면 내부 API 는 모두 401
+  internal:
+    token: ${INTERNAL_API_TOKEN:}
+
   session:
     cookie-secure: ${AUTH_COOKIE_SECURE:false}  # 로컬 HTTP만 false. HTTPS에서는 true
     cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
