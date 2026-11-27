@@ -11,7 +11,10 @@ AI 작업 API(접수 · 조회 · 재개)와 LangGraph 워커는 내부 API 계�
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from app.errors import register_error_handlers
+
 app = FastAPI(title="nansogong-ai", version="0.1.0")
+register_error_handlers(app)        # 오류 응답을 { code, message } 로 맞춘다 (app/errors.py)
 
 # 📊 Prometheus 가 읽어 가는 지표 주소 (요청 수 · 지연 시간 · 오류 수). Spring 의 /actuator/prometheus 와 같은 역할
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
