@@ -1,0 +1,11 @@
+{
+  "valid": true,
+  "lines": [
+    { "ok": true, "reason": null, "itemId": 2, "normalizedQty": 200.000, "unit": "ML", "unitCost": 2.5 },
+    { "ok": true, "reason": null, "itemId": 3, "normalizedQty": 30.000, "unit": "ML", "unitCost": null },
+    { "ok": true, "reason": "NEW_ITEM", "itemId": null, "normalizedQty": 50.000, "unit": "G", "unitCost": null }
+  ],
+  "reasons": [],
+  "totalCost": null,
+  "missingCosts": [3]
+}
