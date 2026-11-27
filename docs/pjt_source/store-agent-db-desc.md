@@ -1,9 +1,9 @@
 # 매장 운영 에이전트 DB 설계 (PostgreSQL)
 
-2026-11-24 · v1.1 설계 + 11/24 계약 반영 · 9개 도메인 · 27개 표 · PostgreSQL 17 기준
+2026-11-24 · v1.1 설계 + 11/24 계약 반영 · 9개 도메인 · 28개 표 (27개 + `ai_job`) · PostgreSQL 17 기준
 
 > 📌 **기준은 SQL 입니다.** 이 문서는 [store-agent-db.sql](store-agent-db.sql) 을 사람이 읽기 쉽게 옮긴 것입니다.
-> 같은 SQL 이 Flyway 마이그레이션 [`V202611241000__create_store_agent_schema.sql`](../../backend/src/main/resources/db/migration/V202611241000__create_store_agent_schema.sql) 에 있습니다.
+> 같은 SQL 이 Flyway 마이그레이션 [`V202611241000__create_store_agent_schema.sql`](../../backend/src/main/resources/db/migration/V202611241000__create_store_agent_schema.sql)(27개 표)과 그 뒤 마이그레이션(`V202611261001__enforce_unique_store_business_number.sql` 사업자번호 UQ, `V202611262100__create_ai_job.sql` `ai_job`)에 나눠 있습니다.
 > 표를 바꿀 때는 **새 마이그레이션 → `store-agent-db.sql` → 이 문서** 순서로 같이 고칩니다 (머지된 마이그레이션은 고치지 않음).
 > v1.1 원본 설계(MySQL 8, 복수형 표 이름)는 git 기록에서 볼 수 있습니다.
 
@@ -112,6 +112,10 @@ erDiagram
   approval ||--o{ execution : "approval_id"
   purchase_order |o--o{ execution : "purchase_order_id"
   coupon |o--o{ execution : "coupon_id"
+  store ||--o{ ai_job : "store_id"
+  member |o--o{ ai_job : "requested_by_member_id"
+  suggestion |o--o{ ai_job : "suggestion_id"
+  execution |o--o{ ai_job : "execution_id"
   store ||--o{ coupon : "store_id"
   approval ||--o{ coupon : "approval_id"
   integration ||--o{ coupon : "integration_id"
@@ -268,6 +272,14 @@ erDiagram
     BIGINT coupon_id FK
     VARCHAR idempotency_key UK
   }
+  ai_job {
+    BIGINT ai_job_id PK
+    BIGINT store_id FK, UK
+    BIGINT requested_by_member_id FK
+    VARCHAR job_type UK
+    BIGINT suggestion_id FK
+    BIGINT execution_id FK
+  }
   coupon {
     BIGINT coupon_id PK
     BIGINT store_id FK
@@ -327,6 +339,7 @@ erDiagram
 | 제안·승인·실행 | [`suggestion`](#suggestion) | 발주·쿠폰·메뉴·재고 제안의 버전별 결과 |
 | 제안·승인·실행 | [`approval`](#approval) | 사용자의 승인·보류·반려 결정 |
 | 제안·승인·실행 | [`execution`](#execution) | 승인된 발주·쿠폰 요청의 외부 처리 상태 |
+| 제안·승인·실행 | [`ai_job`](#ai_job) | AI 작업 기준 기록 (Spring 이 만들고 Python 보고로 갱신) |
 | 쿠폰 | [`coupon`](#coupon) | 승인된 쿠폰과 POS 반영 상태 |
 | 쿠폰 | [`coupon_redemption`](#coupon_redemption) | POS 쿠폰 사용 내역 (사용·취소·환불 이벤트) |
 | 일정·수요 예측 | [`schedule`](#schedule) | 운영 일정 (행사 API 수집·사장님 직접 입력). 현재 범위 밖 |
@@ -338,7 +351,7 @@ erDiagram
 
 ### `member` — 사장님 계정 (v1.1 users)
 
-관계: store 1:N · approval 1:N (decided_by_member_id)
+관계: store 1:N · approval 1:N (decided_by_member_id) · ai_job 1:N (requested_by_member_id)
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
@@ -357,17 +370,17 @@ erDiagram
 
 ### `store` — 매장 (사업자등록 1건 = 매장 1개)
 
-관계: member N:1 · integration 1:N · menu 1:N · supplier 1:N · item 1:N · recipe_item 1:N · pos_menu_mapping 1:N · item_cost 1:N · sales_order 1:N · sales_order_item 1:N · suggestion 1:N · approval 1:N · purchase_order 1:N · purchase_order_item 1:N · receipt_item 1:N · inventory_transaction 1:N · stock_count 1:N · bank_account 1:N · bank_transaction 1:N · sales_payment 1:N · expense 1:N · coupon 1:N · execution 1:N · coupon_redemption 1:N · schedule 1:N · demand_forecast 1:N
+관계: member N:1 · integration 1:N · menu 1:N · supplier 1:N · item 1:N · recipe_item 1:N · pos_menu_mapping 1:N · item_cost 1:N · sales_order 1:N · sales_order_item 1:N · suggestion 1:N · approval 1:N · purchase_order 1:N · purchase_order_item 1:N · receipt_item 1:N · inventory_transaction 1:N · stock_count 1:N · bank_account 1:N · bank_transaction 1:N · sales_payment 1:N · expense 1:N · coupon 1:N · execution 1:N · coupon_redemption 1:N · schedule 1:N · demand_forecast 1:N · ai_job 1:N
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `store_id` | BIGINT | PK | N | 자동 증가 | 매장 ID |
 | `member_id` | BIGINT | FK→member, UQ* | N |  | 소유 계정 |
-| `biz_reg_no` | CHAR(10) | UQ* | N |  | 사업자등록번호 숫자 10자리 (member_id와 묶어서 UQ). 사업자등록 1건 = 매장 1개 |
+| `biz_reg_no` | CHAR(10) | UQ* | N |  | 사업자등록번호 숫자 10자리. 모든 계정에서 UQ. 사업자등록 1건 = 매장 1개 |
 | `biz_name` | VARCHAR(100) |  | Y |  | 상호 (사업자등록상). 매장명을 정하기 전 기본 표시명 |
 | `owner_name` | VARCHAR(50) |  | N |  | 대표자명 (공백만 입력 불가) |
 | `business_opened_on` | DATE |  | N |  | 사업자등록상 개업일자 |
-| `verify_status` | VARCHAR(20) |  | N | `'UNVERIFIED'` | UNVERIFIED 미확인 / VERIFIED 정상사업자 / CLOSED 휴·폐업 / FAILED 확인실패. 국세청 사업자 상태조회 결과 (진위확인은 현재 범위 밖) |
+| `verify_status` | VARCHAR(20) |  | N | `'UNVERIFIED'` | UNVERIFIED 미확인 / VERIFIED 진위 일치·계속사업자 / CLOSED 휴·폐업 / FAILED 확인실패 |
 | `verified_at` | TIMESTAMPTZ |  | Y |  | 진위·상태 확인 시각 |
 | `name` | VARCHAR(100) |  | Y |  | 매장명. 가입 때 상호가 있으면 미리 채우고 첫 매장 설정(UF-02)에서 확정 |
 | `category` | VARCHAR(50) |  | Y |  | 업종 (카페, 분식 등). 첫 매장 설정(UF-02)에서 입력 |
@@ -377,7 +390,7 @@ erDiagram
 | `coupon_settings` | JSONB |  | Y |  | 쿠폰 운영 설정: 목표, 월 예산, 제외 메뉴, 제외 시간대, 재조정 한도 (UF-07 1단계). 키는 camelCase |
 | `onboarding_status` | JSONB |  | Y |  | 초기 설정 단계별 완료 여부: 연동, 품목, 초기 재고, 레시피, 메뉴 연결. 로그인 후 다음 화면 안내에 사용. 키는 camelCase |
 
-제약: UQ(member_id, biz_reg_no) · CHECK(`btrim(owner_name) <> ''`) · 공통 칸: created_at, updated_at
+제약: UQ(biz_reg_no) · UQ(member_id, biz_reg_no) · CHECK(`btrim(owner_name) <> ''`) · 공통 칸: created_at, updated_at
 
 <a id="integration"></a>
 
@@ -824,7 +837,7 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 ### `suggestion` — 발주·쿠폰·메뉴·재고 제안의 버전별 결과
 
-관계: store N:1 · suggestion N:1 (parent_suggestion_id) · menu N:1 (added_menu_id) · suggestion 1:N (parent_suggestion_id) · approval 1:N
+관계: store N:1 · suggestion N:1 (parent_suggestion_id) · menu N:1 (added_menu_id) · suggestion 1:N (parent_suggestion_id) · approval 1:N · ai_job 1:N
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
@@ -873,7 +886,7 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 
 ### `execution` — 승인된 발주·쿠폰 요청의 외부 처리 상태
 
-관계: store N:1 · approval N:1 · purchase_order N:1 · coupon N:1
+관계: store N:1 · approval N:1 · purchase_order N:1 · coupon N:1 · ai_job 1:N
 
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
@@ -897,6 +910,38 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 | `resolved_at` | TIMESTAMPTZ |  | Y |  | 사장님이 부분성공·결과확인중 요청을 외부에서 확인하고 수동종료한 시각 |
 
 제약: UQ(idempotency_key) · 공통 칸: created_at, updated_at
+
+<a id="ai_job"></a>
+
+### `ai_job` — AI 작업 기준 기록 (Spring 이 만들고 Python 보고로 갱신)
+
+마이그레이션: `V202611262100__create_ai_job.sql`
+
+관계: store N:1 · member N:1 (requested_by_member_id) · suggestion N:1 · execution N:1
+
+| 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
+| --- | --- | --- | --- | --- | --- |
+| `ai_job_id` | BIGINT | PK | N | 자동 증가 | AI 작업 ID. Python 에 jobId 로 넘긴다 |
+| `store_id` | BIGINT | FK→store, UQ† | N |  | 매장. Python 보고 · 내부 호출의 매장 기준 (진행 중 작업 중복 방지 기준, 아래 제약) |
+| `requested_by_member_id` | BIGINT | FK→member | Y |  | 작업을 요청한 사용자. 정기 작업이면 NULL |
+| `job_type` | VARCHAR(30) | UQ† | N |  | RECIPE_DRAFT 레시피초안 / NEW_MENU_SUGGEST 신메뉴추천 / PURCHASE_SUGGEST 발주제안 / PURCHASE_EXECUTE 발주실행 / COUPON_SUGGEST 쿠폰제안 / OPERATIONS_ANALYSIS 운영분석 |
+| `workflow_key` | VARCHAR(64) | UQ† | N |  | 동일 업무의 안정적인 키 (suggestion.workflow_key 와 같은 값) |
+| `status` | VARCHAR(20) |  | N | `'PENDING'` | PENDING 접수 / RUNNING 진행중 / WAITING_AUTH 사용자 인증 대기 / SUCCEEDED 완료 / FAILED 실패 / CANCELED 취소 / SUPERSEDED 대체됨 |
+| `current_step` | VARCHAR(50) |  | Y |  | Python 이 마지막으로 보고한 단계 이름. 예: VALIDATE, SAVE |
+| `last_report_seq` | INTEGER |  | N | `0` | 마지막으로 반영한 보고 순번. 같으면 중복으로 무시, 작으면 순서 역전으로 거절 |
+| `request_params` | JSONB |  | N | `'{}'` | 작업 요청 조건 사본. 예: {"menuName":"딸기라떼"}. 키는 camelCase, 비밀값 · 개인정보는 넣지 않음 |
+| `suggestion_id` | BIGINT | FK→suggestion | Y |  | 작업 결과로 저장된 제안 버전. 제안을 만들지 않은 작업은 NULL |
+| `execution_id` | BIGINT | FK→execution | Y |  | 실행 작업(PURCHASE_EXECUTE)이 처리한 외부 실행. 다른 작업은 NULL |
+| `error_code` | VARCHAR(50) |  | Y |  | 실패 코드. 예: VALIDATION_FAILED, GENERATION_FAILED, TIMED_OUT |
+| `error_msg` | VARCHAR(500) |  | Y |  | 사용자 안내 오류 |
+| `langsmith_trace_id` | VARCHAR(64) |  | Y |  | AI 추적 연결값. 서비스 원본이나 FK가 아님 |
+| `started_at` | TIMESTAMPTZ |  | Y |  | Python 이 처리를 시작한 시각 |
+| `expires_at` | TIMESTAMPTZ |  | N |  | 처리 기한. 지나면 Spring 스케줄러가 정리한다 |
+| `finished_at` | TIMESTAMPTZ |  | Y |  | 완료 · 실패 · 취소 · 대체로 끝난 시각 |
+
+제약: UQ†(store_id) WHERE job_type = PURCHASE_EXECUTE AND status IN (PENDING, RUNNING, WAITING_AUTH) · UQ†(store_id, job_type, workflow_key) WHERE job_type ≠ PURCHASE_EXECUTE AND status IN (PENDING, RUNNING, WAITING_AUTH) · CHECK(`last_report_seq >= 0`) · CHECK(진행 중 ⇔ `finished_at` NULL) · CHECK(FAILED 면 `error_code` 필수) · 인덱스(expires_at) WHERE 진행 중 · 인덱스(store_id, created_at DESC) · 공통 칸: created_at, updated_at
+
+사용 규칙(작업 시작 순서 · 보고 순번 · 거절 · 만료 · 중복 방지)은 [DB 규칙 AI 작업 기록](../rules/db.md#ai-작업-기록-ai_job)에 있습니다.
 
 ## 쿠폰
 

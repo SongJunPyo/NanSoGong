@@ -51,8 +51,8 @@ class InventoryItemContractTest {
     void setUp() {
         Member member = memberRepository.save(
                 Member.create("t" + UUID.randomUUID().toString().substring(0, 20), "hash", "테스트", "010-0000-0000"));
-        storeId = storeRepository.save(Store.create(member.getId(), "1234567890", "내카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
-        Long otherStoreId = storeRepository.save(Store.create(member.getId(), "9876543210", "다른카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
+        storeId = storeRepository.save(Store.create(member.getId(), "%09d1".formatted(member.getId()), "내카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
+        Long otherStoreId = storeRepository.save(Store.create(member.getId(), "%09d2".formatted(member.getId()), "다른카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
         milkId = item(storeId, "우유", ItemUnit.ML).getId();
         beanId = item(storeId, "원두", ItemUnit.G).getId();
         otherStoreItemId = item(otherStoreId, "다른매장 우유", ItemUnit.ML).getId();
