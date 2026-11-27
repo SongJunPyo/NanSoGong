@@ -40,6 +40,7 @@ public class AgentSuggestionService {
      * - 매장 · 업무 키는 ai_job 행 기준 (요청 본문의 값은 작업과 같은지만 본다)
      * - 이 작업이 이미 제안을 저장했으면 새 버전을 만들지 않고 그 제안을 돌려준다 (응답 유실 후 재시도 대비)
      * - 같은 업무의 결정 전 버전은 대체됨(SUPERSEDED)으로 바꾼다
+     * - 버전은 매장 · 업무 키마다 센다. 셀 때 (store_id, workflow_key) 로 잠근다
      */
     @Transactional
     public AgentSuggestionSavedResponse saveFromJob(Long jobId, AgentSuggestionSaveRequest request) {
@@ -64,6 +65,7 @@ public class AgentSuggestionService {
 
         Long storeId = job.getStoreId();
         String workflowKey = job.getWorkflowKey();
+        suggestionRepository.lockWorkflow(storeId, workflowKey);   // 다른 작업이 같은 업무 키로 동시에 저장하면 버전이 겹친다
         Optional<Suggestion> latest = suggestionRepository.findFirstByStoreIdAndWorkflowKeyOrderByVersionDesc(storeId, workflowKey);
         suggestionRepository.findByStoreIdAndWorkflowKeyAndStatusIn(storeId, workflowKey,
                         EnumSet.of(SuggestionStatus.PENDING, SuggestionStatus.ON_HOLD, SuggestionStatus.NEEDS_FIX))

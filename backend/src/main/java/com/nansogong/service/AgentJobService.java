@@ -66,9 +66,10 @@ public class AgentJobService {
 
     /**
      * #34 ② 진행 · 결과 보고. 작업 행을 잠근 뒤 순번을 비교한다.
-     * - 끝난 작업(완료 · 실패 · 취소 · 대체)의 보고는 거절 (409)
-     * - 순번이 같으면 중복이라 반영하지 않고 그대로 돌려준다 (applied = false)
+     * - 순번이 같으면 중복이라 반영하지 않고 그대로 돌려준다 (applied = false). 끝난 작업이어도 같다 (마지막 보고의 응답 유실 후 재시도)
+     * - 끝난 작업(완료 · 실패 · 취소 · 대체)에 온 새 보고는 거절 (409)
      * - 순번이 작으면 순서가 뒤바뀐 보고라 거절 (409)
+     * - 제안을 만드는 작업은 제안을 저장하기 전에 완료(SUCCEEDED)로 끝낼 수 없다 (409)
      */
     @Transactional
     public AgentJobReportResponse report(Long jobId, AgentJobReportRequest request) {
@@ -80,15 +81,18 @@ public class AgentJobService {
         if (request.status() == AgentJobStatus.FAILED && (request.errorCode() == null || request.errorCode().isBlank())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "실패 보고에는 errorCode 가 필요합니다");
         }
+        int seq = request.seq();
+        if (seq == job.getLastReportSeq()) {
+            return toResponse(job, false);   // 재시도로 같은 보고가 다시 옴 (끝난 작업의 마지막 보고 포함)
+        }
         if (!job.isActive()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 끝난 작업입니다: " + job.getStatus());
         }
-        int seq = request.seq();
-        if (seq == job.getLastReportSeq()) {
-            return toResponse(job, false);   // 재시도로 같은 보고가 다시 옴
-        }
         if (seq < job.getLastReportSeq()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "순서가 뒤바뀐 보고입니다 (마지막 순번 " + job.getLastReportSeq() + ")");
+        }
+        if (request.status() == AgentJobStatus.SUCCEEDED && job.getJobType().suggestionType() != null && job.getSuggestionId() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "제안을 먼저 저장해 주세요 (제안 없이 완료할 수 없는 작업)");
         }
         Instant now = Instant.now();
         Duration extend = request.status() == AgentJobStatus.WAITING_AUTH ? AUTH_WAIT : timeoutOf(job.getJobType());

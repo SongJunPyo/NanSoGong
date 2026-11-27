@@ -3,7 +3,7 @@
 2026-11-24 · v1.1 설계 + 11/24 계약 반영 · 9개 도메인 · 28개 표 (27개 + `ai_job`) · PostgreSQL 17 기준
 
 > 📌 **기준은 SQL 입니다.** 이 문서는 [store-agent-db.sql](store-agent-db.sql) 을 사람이 읽기 쉽게 옮긴 것입니다.
-> 같은 SQL 이 Flyway 마이그레이션 [`V202611241000__create_store_agent_schema.sql`](../../backend/src/main/resources/db/migration/V202611241000__create_store_agent_schema.sql)(27개 표)과 그 뒤 마이그레이션(`V202611261001__enforce_unique_store_business_number.sql` 사업자번호 UQ, `V202611262100__create_ai_job.sql` `ai_job`)에 나눠 있습니다.
+> 같은 SQL 이 Flyway 마이그레이션 [`V202611241000__create_store_agent_schema.sql`](../../backend/src/main/resources/db/migration/V202611241000__create_store_agent_schema.sql)(27개 표)과 그 뒤 마이그레이션(`V202611261001__enforce_unique_store_business_number.sql` 사업자번호 UQ, `V202611262100__create_ai_job.sql` `ai_job`, `V202611271730__make_suggestion_version_unique_per_store.sql` 제안 버전 UQ)에 나눠 있습니다.
 > 표를 바꿀 때는 **새 마이그레이션 → `store-agent-db.sql` → 이 문서** 순서로 같이 고칩니다 (머지된 마이그레이션은 고치지 않음).
 > v1.1 원본 설계(MySQL 8, 복수형 표 이름)는 git 기록에서 볼 수 있습니다.
 
@@ -842,8 +842,8 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 | 칸 | 타입 | 키 | NULL | 기본값 | 설명 |
 | --- | --- | --- | --- | --- | --- |
 | `suggestion_id` | BIGINT | PK | N | 자동 증가 | 제안 버전 ID |
-| `store_id` | BIGINT | FK→store | N |  | 매장 |
-| `workflow_key` | VARCHAR(64) | UQ* | N |  | 동일 업무의 안정적인 키 (version과 묶어서 UQ) |
+| `store_id` | BIGINT | FK→store, UQ* | N |  | 매장 |
+| `workflow_key` | VARCHAR(64) | UQ* | N |  | 동일 업무의 안정적인 키 (store_id · version 과 묶어서 UQ) |
 | `version` | INTEGER | UQ* | N |  | 1부터 증가하는 버전 |
 | `parent_suggestion_id` | BIGINT | FK→suggestion | Y |  | 수정 전 버전. 처음이면 NULL |
 | `change_source` | VARCHAR(20) |  | N |  | AI_GENERATED AI생성 / OWNER_EDITED 사장님수정 / REGENERATE_REQUESTED 재생성요청 / REANALYZED 재분석. 이 버전을 만든 주체 |
@@ -861,7 +861,7 @@ v1.1 대비: pos_line_id → line_no, refunded_qty → canceled_quantity, invent
 | `langsmith_trace_id` | VARCHAR(64) |  | Y |  | AI 추적 연결값. 서비스 원본이나 FK가 아님 |
 | `added_menu_id` | BIGINT | FK→menu, UQ | Y |  | 메뉴 제안으로 추가한 기본 메뉴. 다른 유형은 NULL |
 
-제약: UQ(workflow_key, version) · UQ(added_menu_id) · CHECK(`version >= 1`) · 공통 칸: created_at, updated_at
+제약: UQ(store_id, workflow_key, version) · UQ(added_menu_id) · CHECK(`version >= 1`) · 공통 칸: created_at, updated_at
 
 <a id="approval"></a>
 
