@@ -27,3 +27,9 @@ management:
   tracing:
     sampling:
       probability: 1.0        # 요청 100% 추적
+
+# 현재 dev EC2는 HTTP다. HTTPS를 쓰는 환경은 AUTH_COOKIE_SECURE=true를 명시한다.
+app:
+  session:
+    cookie-secure: ${AUTH_COOKIE_SECURE:false}
+    cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Lax}

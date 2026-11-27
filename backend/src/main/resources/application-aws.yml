@@ -37,7 +37,15 @@ app:
   jwt:
     secret: ${JWT_SECRET}
   verification:
-    mode: ${VERIFICATION_MODE}            # MVP 는 dev · prod 모두 mock. 실연동 후 real
+    mode: ${VERIFICATION_MODE}
+  session:
+    cookie-secure: ${AUTH_COOKIE_SECURE:true}
+    cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+  sens:
+    service-id: ${SENS_SERVICE_ID:}
+    access-key: ${SENS_ACCESS_KEY:}
+    secret-key: ${SENS_SECRET_KEY:}
+    from: ${SENS_FROM:}
   crypto:
     credential-key: ${CREDENTIAL_ENCRYPTION_KEY}
   external:

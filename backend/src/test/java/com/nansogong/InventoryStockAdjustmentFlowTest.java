@@ -82,7 +82,7 @@ class InventoryStockAdjustmentFlowTest {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
         Member member = memberRepository.save(
                 Member.create("t" + UUID.randomUUID().toString().substring(0, 20), "hash", "테스트", "010-0000-0000"));
-        Store store = storeRepository.save(Store.create(member.getId(), "1234567890", "테스트카페", "테스트", LocalDate.of(2026, 1, 1)));
+        Store store = storeRepository.save(Store.create(member.getId(), "%09d1".formatted(member.getId()), "테스트카페", "테스트", LocalDate.of(2026, 1, 1)));
         memberId = member.getId();
         storeId = store.getId();
         itemId = newItem("우유").getId();
@@ -250,7 +250,7 @@ class InventoryStockAdjustmentFlowTest {
         postAdjustment(inactiveUrl, null, "LOSS", "10", later).andExpect(status().isBadRequest());
 
         // 다른 매장 품목 → 404
-        Store otherStore = storeRepository.save(Store.create(memberId, "9876543210", "다른카페", "테스트", LocalDate.of(2026, 1, 1)));
+        Store otherStore = storeRepository.save(Store.create(memberId, "%09d2".formatted(memberId), "다른카페", "테스트", LocalDate.of(2026, 1, 1)));
         String otherUrl = "/api/stores/" + otherStore.getId() + "/inventory-items/" + itemId;
         postCount(otherUrl, "/stock-counts", "100", later).andExpect(status().isNotFound());
         postAdjustment(otherUrl, null, "LOSS", "10", later).andExpect(status().isNotFound());
@@ -266,7 +266,7 @@ class InventoryStockAdjustmentFlowTest {
     void 남의_매장이면_403이고_실사_폐기가_남지_않는다() throws Exception {
         Member stranger = memberRepository.save(
                 Member.create("s" + UUID.randomUUID().toString().substring(0, 20), "hash", "남", "010-1111-1111"));
-        Store theirStore = storeRepository.save(Store.create(stranger.getId(), "1111111111", "남의카페", "남", LocalDate.of(2026, 1, 1)));
+        Store theirStore = storeRepository.save(Store.create(stranger.getId(), "%09d1".formatted(stranger.getId()), "남의카페", "남", LocalDate.of(2026, 1, 1)));
         InventoryItem theirItem = inventoryItemRepository.save(
                 InventoryItem.create(theirStore.getId(), "남의 우유", ItemType.INGREDIENT, null, ItemUnit.ML, null, null));
         // 초기 재고까지 있어서, 권한 확인이 없다면 아래 요청은 성공했을 상태

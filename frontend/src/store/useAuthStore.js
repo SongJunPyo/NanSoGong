@@ -6,7 +6,14 @@ export const useAuthStore = create((set) => ({
   accessToken: null,      // 메모리에만 보관 (localStorage 는 XSS 로 털릴 수 있다)
                           // 새로고침 · 앱 재실행 시에는 HttpOnly 쿠키의 refresh 토큰으로 다시 받아 온다 (자동 로그인, 구현-1-3)
   user: null,
+  sessionEpoch: 0,
+  ready: false,
 
-  login: (accessToken, user) => set({ accessToken, user }),
-  logout: () => set({ accessToken: null, user: null }),
+  login: (accessToken, user) => set((state) => ({ accessToken, user, ready: true, sessionEpoch: state.sessionEpoch + 1 })),
+  logout: () => set((state) => ({ accessToken: null, user: null, ready: true, sessionEpoch: state.sessionEpoch + 1 })),
+  renewToken: (accessToken, epoch) => {
+    let renewed = false
+    set((state) => { if (state.sessionEpoch !== epoch) return state; renewed = true; return { accessToken } })
+    return renewed
+  },
 }))

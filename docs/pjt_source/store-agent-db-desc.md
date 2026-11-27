@@ -363,11 +363,11 @@ erDiagram
 | --- | --- | --- | --- | --- | --- |
 | `store_id` | BIGINT | PK | N | 자동 증가 | 매장 ID |
 | `member_id` | BIGINT | FK→member, UQ* | N |  | 소유 계정 |
-| `biz_reg_no` | CHAR(10) | UQ* | N |  | 사업자등록번호 숫자 10자리 (member_id와 묶어서 UQ). 사업자등록 1건 = 매장 1개 |
+| `biz_reg_no` | CHAR(10) | UQ* | N |  | 사업자등록번호 숫자 10자리. 모든 계정에서 UQ. 사업자등록 1건 = 매장 1개 |
 | `biz_name` | VARCHAR(100) |  | Y |  | 상호 (사업자등록상). 매장명을 정하기 전 기본 표시명 |
 | `owner_name` | VARCHAR(50) |  | N |  | 대표자명 (공백만 입력 불가) |
 | `business_opened_on` | DATE |  | N |  | 사업자등록상 개업일자 |
-| `verify_status` | VARCHAR(20) |  | N | `'UNVERIFIED'` | UNVERIFIED 미확인 / VERIFIED 정상사업자 / CLOSED 휴·폐업 / FAILED 확인실패. 국세청 사업자 상태조회 결과 (진위확인은 현재 범위 밖) |
+| `verify_status` | VARCHAR(20) |  | N | `'UNVERIFIED'` | UNVERIFIED 미확인 / VERIFIED 진위 일치·계속사업자 / CLOSED 휴·폐업 / FAILED 확인실패 |
 | `verified_at` | TIMESTAMPTZ |  | Y |  | 진위·상태 확인 시각 |
 | `name` | VARCHAR(100) |  | Y |  | 매장명. 가입 때 상호가 있으면 미리 채우고 첫 매장 설정(UF-02)에서 확정 |
 | `category` | VARCHAR(50) |  | Y |  | 업종 (카페, 분식 등). 첫 매장 설정(UF-02)에서 입력 |
@@ -377,7 +377,7 @@ erDiagram
 | `coupon_settings` | JSONB |  | Y |  | 쿠폰 운영 설정: 목표, 월 예산, 제외 메뉴, 제외 시간대, 재조정 한도 (UF-07 1단계). 키는 camelCase |
 | `onboarding_status` | JSONB |  | Y |  | 초기 설정 단계별 완료 여부: 연동, 품목, 초기 재고, 레시피, 메뉴 연결. 로그인 후 다음 화면 안내에 사용. 키는 camelCase |
 
-제약: UQ(member_id, biz_reg_no) · CHECK(`btrim(owner_name) <> ''`) · 공통 칸: created_at, updated_at
+제약: UQ(biz_reg_no) · UQ(member_id, biz_reg_no) · CHECK(`btrim(owner_name) <> ''`) · 공통 칸: created_at, updated_at
 
 <a id="integration"></a>
 
