@@ -67,12 +67,6 @@ public class MenuController {
         return menuService.createOption(memberId(jwt), storeId, menuId, request);
     }
 
-    @PutMapping("/{menuId}/options/{optionId}")
-    public MenuOptionResponse updateOption(@AuthenticationPrincipal Jwt jwt, @PathVariable Long storeId, @PathVariable Long menuId,
-                                           @PathVariable Long optionId, @Valid @RequestBody MenuOptionRequest request) {
-        return menuService.updateOption(memberId(jwt), storeId, menuId, optionId, request);
-    }
-
     private Long memberId(Jwt jwt) {
         return Long.valueOf(jwt.getSubject());   // 토큰의 subject = 회원 번호
     }

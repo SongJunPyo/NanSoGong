@@ -75,14 +75,11 @@ public class MenuService {
         return MenuResponse.from(menu, false, List.of());
     }
 
-    /** 메뉴 수정. 옵션은 판매가 0원이 될 수 있어서 updateOption 으로만 고친다 */
+    /** 메뉴 수정 */
     @Transactional
     public MenuResponse updateMenu(Long memberId, Long storeId, Long menuId, MenuRequest request) {
         storeService.checkOwner(memberId, storeId);
         Menu menu = findMenu(storeId, menuId);
-        if (menu.isOption()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "옵션은 옵션 수정으로 바꿔 주세요");
-        }
         menu.update(request.name(), request.category(), request.price(), request.spec());   // @Transactional 이 끝날 때 자동 저장
         return getMenuResponse(storeId, menu);
     }
@@ -107,17 +104,6 @@ public class MenuService {
         Menu option = Menu.createOption(storeId, parent.getId(), request.name(), request.price(), MenuSource.MANUAL);
         menuRepository.save(option);
         return MenuOptionResponse.from(option, false);
-    }
-
-    /** 옵션 이름 · 가격 수정 (0원 가능). 경로의 기본 메뉴에 붙은 옵션이 아니면 404 */
-    @Transactional
-    public MenuOptionResponse updateOption(Long memberId, Long storeId, Long parentMenuId, Long optionId, MenuOptionRequest request) {
-        storeService.checkOwner(memberId, storeId);
-        Menu option = menuRepository.findByIdAndStoreId(optionId, storeId)
-                .filter(m -> m.isOption() && m.getParentMenuId().equals(parentMenuId))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "옵션을 찾을 수 없습니다"));
-        option.updateOption(request.name(), request.price());   // @Transactional 이 끝날 때 자동 저장
-        return MenuOptionResponse.from(option, connectedMenuIds(storeId).contains(option.getId()));
     }
 
     /**
