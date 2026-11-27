@@ -95,6 +95,12 @@ public class Menu {
         this.spec = spec;
     }
 
+    /** 옵션 이름 · 가격 수정. 옵션은 카테고리 · 규격이 없고 0원도 된다 (서비스에서 옵션인지 확인) */
+    public void updateOption(String name, BigDecimal price) {
+        this.name = name;
+        this.price = price;
+    }
+
     /** 판매중 / 품절 / 비활성. 메뉴는 지우지 않고 INACTIVE 로 둔다 (지난 매출이 이 메뉴를 가리키고 있어서) */
     public void changeSaleStatus(MenuSaleStatus saleStatus) {
         this.saleStatus = saleStatus;

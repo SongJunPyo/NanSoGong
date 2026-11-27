@@ -93,6 +93,16 @@ class MenuOwnerTest {
     }
 
     @Test
+    void 옵션_수정_안되고_그대로() {
+        Long optionId = menuRepository.save(Menu.createOption(otherStoreId, otherMenuId, "샷 추가", new BigDecimal("500"), MenuSource.MANUAL)).getId();
+        assertForbidden(() -> menuService.updateOption(intruderId, otherStoreId, otherMenuId, optionId,
+                new MenuOptionRequest("몰래옵션", BigDecimal.ZERO)));
+        Menu option = menuRepository.findById(optionId).orElseThrow();
+        assertThat(option.getName()).isEqualTo("샷 추가");
+        assertThat(option.getPrice()).isEqualByComparingTo("500");
+    }
+
+    @Test
     void 레시피_조회_저장() {
         assertForbidden(() -> recipeService.getRecipe(intruderId, otherStoreId, otherMenuId));
         assertForbidden(() -> recipeService.saveRecipe(intruderId, otherStoreId, otherMenuId, new RecipeSaveRequest(List.of())));
