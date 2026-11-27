@@ -68,8 +68,18 @@ app:
 
   # 📱 휴대폰 본인인증 (구현-1-1, 1-4, 1-5). MVP 는 목업: 인증번호가 항상 mock-code
   verification:
-    mode: ${VERIFICATION_MODE:mock}       # mock | real (real = PASS 등 연동 후)
+    mode: ${VERIFICATION_MODE:mock}       # mock | real (real = SENS SMS 수신 확인)
     mock-code: "000000"
+
+  session:
+    cookie-secure: ${AUTH_COOKIE_SECURE:false}  # 로컬 HTTP만 false. HTTPS에서는 true
+    cookie-same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+  sens:
+    base-url: https://sens.apigw.ntruss.com
+    service-id: ${SENS_SERVICE_ID:}
+    access-key: ${SENS_ACCESS_KEY:}
+    secret-key: ${SENS_SECRET_KEY:}
+    from: ${SENS_FROM:}
 
   # 🔒 POS · 거래처 · 마이데이터 연동 인증 정보 암호화 키 (구현-1-7, 7-1). AES-256 = Base64 로 인코딩한 32바이트
   #    로컬용 기본값. AWS 는 환경별로 다른 키를 Secrets Manager 에 둔다 (키를 바꾸면 기존 암호문을 못 읽으니 주의)
@@ -97,7 +107,9 @@ logging:
     root: INFO
     com.nansogong: DEBUG
     org.hibernate.SQL: DEBUG
-    org.hibernate.orm.jdbc.bind: TRACE
+    org.hibernate.orm.jdbc.bind: "OFF"   # 회원 비밀번호 해시·전화번호 등 바인딩 값 기록 금지
+    org.springframework.web: INFO        # DEBUG 모드에서도 인증 요청·응답 원문을 기록하지 않는다
+    org.springframework.security: INFO
     org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: DEBUG
 
 server:

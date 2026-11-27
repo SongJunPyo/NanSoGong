@@ -43,7 +43,7 @@ export function createAuthMock({ delayMs = 180, now = () => Date.now() } = {}) {
     if (!member) throw failure('로그인이 필요해요. 다시 로그인해 주세요.', null, 'UNAUTHORIZED', 401)
     return member
   }
-  const duplicateBusiness = (number) => number === '6666666666' || [...stores.values()].flat().some((store) => store.bizRegNo === number)
+  const duplicateBusiness = (number) => [...stores.values()].flat().some((store) => store.bizRegNo === number)
   function checkFields(errors) {
     const first = Object.entries(errors)[0]
     if (first) throw failure(first[1], first[0])
@@ -74,17 +74,30 @@ export function createAuthMock({ delayMs = 180, now = () => Date.now() } = {}) {
       phoneProofs.set(verificationToken, { phone: challenge.phone, name: challenge.name, expiresAt })
       return { verificationToken, expiresAt, phone: challenge.phone, name: challenge.name }
     },
-    async verifyBusiness(input) {
+    async verifyBusiness(input, verifyRemote) {
       await ready()
       checkFields(validateBusiness(input))
       const business = normalizeBusiness(input)
-      const statuses = { '7777777777': 'SUSPENDED', '9999999999': 'CLOSED', '8888888888': 'MISMATCH', '0000000000': 'NOT_FOUND' }
-      if (business.bizRegNo === '5555555555' && !retryBusinesses.has(business.bizRegNo)) {
-        retryBusinesses.add(business.bizRegNo)
-        throw failure('사업자 확인 요청에 실패했어요. 입력을 유지했으니 다시 시도해 주세요.', null, 'BUSINESS_UNAVAILABLE', 503)
+      let status
+      if (verifyRemote) {
+        // 화면에서는 세 값으로 진위확인을 요청한다. 상호·키는 보내지 않고 상태조회로 대체하지 않는다.
+        const response = await verifyRemote({ bizRegNo: business.bizRegNo, ownerName: business.ownerName, openingDate: business.openingDate })
+        if (response?.bizRegNo !== business.bizRegNo || !['ACTIVE', 'SUSPENDED', 'CLOSED', 'MISMATCH'].includes(response?.status)) {
+          throw failure('사업자 진위확인 결과를 확인할 수 없어요. 다시 시도해 주세요.', null, 'BUSINESS_UNAVAILABLE', 502)
+        }
+        status = response.status
+      } else {
+        // 순수 Mock 테스트용 번호 시나리오. 실제 백엔드 조회 경로에는 적용하지 않는다.
+        const statuses = { '7777777777': 'SUSPENDED', '9999999999': 'CLOSED', '8888888888': 'MISMATCH', '6666666666': 'DUPLICATE', '0000000000': 'NOT_FOUND' }
+        if (business.bizRegNo === '5555555555' && !retryBusinesses.has(business.bizRegNo)) {
+          retryBusinesses.add(business.bizRegNo)
+          throw failure('사업자 확인 요청에 실패했어요. 입력을 유지했으니 다시 시도해 주세요.', null, 'BUSINESS_UNAVAILABLE', 503)
+        }
+        status = statuses[business.bizRegNo] ?? 'ACTIVE'
       }
-      const status = duplicateBusiness(business.bizRegNo) ? 'DUPLICATE' : statuses[business.bizRegNo] ?? 'ACTIVE'
       if (status !== 'ACTIVE') return { status }
+      if (duplicateBusiness(business.bizRegNo)) return { status: 'DUPLICATE' }
+      // 기존 개발용 가입 흐름을 위한 로컬 증명이다. 실제 회원가입의 서버 검증을 대신하지 않는다.
       const verificationToken = crypto.randomUUID()
       businessProofs.set(verificationToken, { fingerprint: fingerprint(business), expiresAt: now() + 600000 })
       return { status, verificationToken, business }

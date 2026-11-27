@@ -1,7 +1,7 @@
 import { Screen } from '@/components/common/layout'
 import { Card, ListRow, P } from '@/components/common/ui'
-import { useStoreInfo } from '@/features/store/queries'
-import { useLogout } from '@/hooks/useAuthSession'
+import { useMyMember, useMyStores, useLogout } from '@/hooks/useAuthSession'
+import { useStoreSelection } from '@/store/useStoreSelection'
 import AuthButton from '@/components/auth/AuthButton'
 
 const Group = ({ title, children }) => (
@@ -15,7 +15,10 @@ const Group = ({ title, children }) => (
 
 /** 51 설정 */
 export default function SettingsPage() {
-  const { data: store } = useStoreInfo()
+  const member = useMyMember()
+  const stores = useMyStores()
+  const storeId = useStoreSelection(state => state.storeId)
+  const store = stores.data?.find(item => item.storeId === storeId)
   const logout = useLogout()
   return (
     <Screen title="설정">
@@ -23,14 +26,14 @@ export default function SettingsPage() {
         <div className="flex items-center gap-3">
           <span className="size-11 rounded-full bg-woori-deep" />
           <div>
-            <p className="text-base font-bold text-ink">{store.owner} 사장님</p>
-            <P small>{store.name}</P>
+            <p className="text-base font-bold text-ink">{member.data?.name ? `${member.data.name} 사장님` : '회원정보 조회 중'}</p>
+            <P small>{store?.name ?? store?.bizName ?? '선택한 매장이 없어요.'}</P>
           </div>
         </div>
       </Card>
       <Group title="계정">
         <ListRow title="회원 정보" to="/settings/member" />
-        <ListRow title="매장 정보" value="성수동" to="/settings/store" />
+        <ListRow title="매장 정보" value={store?.address ?? ''} to="/settings/store" />
       </Group>
       <Group title="연동">
         <ListRow title="POS·외부 서비스 연동" value="2/3 연결" to="/settings/integrations" />

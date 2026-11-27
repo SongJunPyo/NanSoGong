@@ -53,29 +53,18 @@
       }
     },
     {
-      "name": "국세청 진위확인 - 불일치 (b_no 8888888888)",
-      "priority": 1,
+      "name": "국세청 진위확인 - 단건·복수 사업자별 결과",
+      "priority": 5,
       "request": {
         "method": "POST",
-        "urlPath": "/nts/v1/validate",
-        "bodyPatterns": [{ "matchesJsonPath": "$.businesses[?(@.b_no == '8888888888')]" }]
+        "urlPath": "/nts/v1/validate"
       },
       "response": {
         "status": 200,
-        "jsonBody": {
-          "request_cnt": 1, "valid_cnt": 0, "status_code": "OK",
-          "data": [{ "b_no": "8888888888", "valid": "02", "valid_msg": "확인할 수 없습니다." }]
-        }
-      }
-    },
-    {
-      "name": "국세청 진위확인 - 그 외 번호는 일치",
-      "priority": 5,
-      "request": { "method": "POST", "urlPath": "/nts/v1/validate" },
-      "response": {
-        "status": 200,
-        "headers": { "Content-Type": "application/json" },
-        "body": "{\"request_cnt\":1,\"valid_cnt\":1,\"status_code\":\"OK\",\"data\":[{\"b_no\":\"{{jsonPath request.body '$.businesses[0].b_no'}}\",\"valid\":\"01\",\"request_param\":{\"b_no\":\"{{jsonPath request.body '$.businesses[0].b_no'}}\",\"start_dt\":\"{{jsonPath request.body '$.businesses[0].start_dt'}}\",\"p_nm\":\"{{jsonPath request.body '$.businesses[0].p_nm'}}\"},\"status\":{\"b_no\":\"{{jsonPath request.body '$.businesses[0].b_no'}}\",\"b_stt\":\"계속사업자\",\"b_stt_cd\":\"01\"}}]}"
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": "{\"request_cnt\":{{size (jsonPath request.body '$.businesses')}},\"status_code\":\"OK\",\"data\":[{{#each (jsonPath request.body '$.businesses')}}{{#unless @first}},{{/unless}}{\"b_no\":{{{toJson b_no}}},\"request_param\":{{{toJson this}}},\"valid\":\"{{#eq b_no '0000000000'}}02{{else}}{{#eq b_no '8888888888'}}02{{else}}01{{/eq}}{{/eq}}\",\"status\":{\"b_no\":{{{toJson b_no}}},\"b_stt_cd\":\"{{#eq b_no '7777777777'}}02{{else}}{{#eq b_no '9999999999'}}03{{else}}01{{/eq}}{{/eq}}\"}}{{/each}}]}"
       }
     }
   ]

@@ -19,7 +19,9 @@ public record AppProperties(
         @Valid @NotNull Jwt jwt,
         @Valid @NotNull Verification verification,
         @Valid @NotNull Crypto crypto,
-        @Valid @NotNull External external
+        @Valid @NotNull External external,
+        @Valid @NotNull Session session,
+        @Valid @NotNull Sens sens
 ) {
     public record Cors(@NotNull List<String> allowedOrigins) {}
 
@@ -30,6 +32,18 @@ public record AppProperties(
     }
 
     public record Crypto(@NotBlank String credentialKey) {}
+
+    public record Session(boolean cookieSecure, @NotBlank String cookieSameSite) {
+        public Session {
+            if (!java.util.Set.of("Strict", "Lax", "None").contains(cookieSameSite)
+                    || ("None".equals(cookieSameSite) && !cookieSecure)) {
+                throw new IllegalArgumentException("쿠키 SameSite·Secure 설정을 확인해 주세요");
+            }
+        }
+    }
+    public record Sens(@NotBlank String baseUrl, String serviceId, String accessKey, String secretKey, String from) {
+        @Override public String toString() { return "Sens[redacted]"; }
+    }
 
     public record External(
             @NotBlank String dataGoKrServiceKey,
