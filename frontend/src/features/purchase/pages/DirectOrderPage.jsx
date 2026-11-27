@@ -14,7 +14,7 @@ export default function DirectOrderPage() {
   const qty = params.get('qty') ?? '500'
   const unit = params.get('unit') ?? '개'
   const price = Number(params.get('price') ?? 51200)
-  const arrive = params.get('arrive') ?? '11.22'
+  const arrive = params.get('arrive') ?? '11.27'
   const [copied, setCopied] = useState(false)
 
   const copy = async () => {

@@ -16,11 +16,15 @@ const queryClient = new QueryClient({
   },
 })
 
+const SHOW_DEVTOOLS = new URLSearchParams(window.location.search).has('devtools')
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AppRouter />
-      <ReactQueryDevtools initialIsOpen={false} />   {/* 개발 중에만 보이는 쿼리 상태 창 (배포 빌드에서는 자동 제외) */}
+      {/* 개발 중에만 보이는 쿼리 상태 창 (배포 빌드에서는 자동 제외)
+          오른쪽 아래 버튼이 하단 탭 · 주요 버튼을 가려서, 주소에 ?devtools 를 붙여 열었을 때만 띄운다 */}
+      {SHOW_DEVTOOLS && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   </StrictMode>,
 )

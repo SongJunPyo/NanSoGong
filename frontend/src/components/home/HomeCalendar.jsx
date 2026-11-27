@@ -52,19 +52,19 @@ export default function HomeCalendar({ events, isPending, error }) {
   }
 
   return (
-    <section data-coach="home-calendar" aria-labelledby="home-calendar-title" className="min-w-0 self-start rounded-card border border-line bg-white p-4">
+    <section data-coach="home-calendar" aria-labelledby="home-calendar-title" className="flex min-w-0 flex-col rounded-card border border-line bg-white p-4 md:flex-1">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <h2 id="home-calendar-title" className="text-h2 font-bold text-ink">운영 캘린더</h2>
       </div>
 
       <div className="mb-2 grid grid-cols-[1fr_auto_1fr] items-center gap-1">
-        <button type="button" aria-label="이전 달" onClick={() => moveMonth(-1)} className="flex size-8 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted">
+        <button type="button" aria-label="이전 달" onClick={() => moveMonth(-1)} className="flex size-11 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted">
           <ChevronLeft size={18} aria-hidden="true" />
         </button>
         <h3 aria-live="polite" className="text-label font-bold text-ink">{formatCalendarMonth(month)}</h3>
         <div className="flex items-center justify-end gap-1">
           <button type="button" onClick={() => { const current = todayDateKey(); setMonth(`${current.slice(0, 7)}-01`); setSelected(current) }} className="rounded-md bg-woori-tint px-2 py-1 text-caption font-bold text-woori-deep">오늘</button>
-          <button type="button" aria-label="다음 달" onClick={() => moveMonth(1)} className="flex size-8 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted">
+          <button type="button" aria-label="다음 달" onClick={() => moveMonth(1)} className="flex size-11 items-center justify-center rounded-lg text-ink-sub hover:bg-surface-muted">
             <ChevronRight size={18} aria-hidden="true" />
           </button>
         </div>
@@ -73,7 +73,8 @@ export default function HomeCalendar({ events, isPending, error }) {
       <div className="grid grid-cols-7" aria-hidden="true">
         {WEEKDAYS.map((day, index) => <span key={day} className={`pb-1 text-center text-caption ${index === 0 ? 'text-danger' : index === 6 ? 'text-woori-blue' : 'text-ink-mute'}`}>{day}</span>)}
       </div>
-      <div role="group" aria-label={formatCalendarMonth(month)} className="grid grid-cols-7 gap-0.5">
+      {/* PC: 남은 높이만큼 날짜 칸이 늘어난다 */}
+      <div role="group" aria-label={formatCalendarMonth(month)} className="grid grid-cols-7 gap-0.5 md:flex-1 md:auto-rows-fr">
         {getCalendarDays(month).map((date) => {
           const inMonth = date.slice(0, 7) === month.slice(0, 7)
           const dayEvents = getHomeEventsForDate(events, date)
@@ -87,15 +88,25 @@ export default function HomeCalendar({ events, isPending, error }) {
               aria-current={isToday ? 'date' : undefined}
               aria-label={`${date.replaceAll('-', ' ')}${isToday ? ' 오늘' : ''}, 일정 ${dayEvents.length}건`}
               onClick={() => openDay(date)}
-              className={`flex min-h-9 flex-col items-center justify-center gap-0.5 rounded-lg py-1 text-[13px] focus-visible:outline-2 focus-visible:outline-woori-blue ${
+              className={`flex h-full min-h-9 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg py-1 text-[13px] md:justify-start md:pt-1.5 focus-visible:outline-2 focus-visible:outline-woori-blue ${
                 isToday ? 'bg-woori-deep font-bold text-white' :
                   isSelected ? 'bg-woori-tint font-bold text-woori-deep ring-1 ring-inset ring-woori-blue' :
                     inMonth ? 'text-ink hover:bg-surface-muted' : 'text-ink-mute/50'
               } ${isToday && isSelected ? 'ring-2 ring-woori-blue ring-offset-1' : ''}`}
             >
               {Number(date.slice(8))}
-              <span aria-hidden="true" className="flex h-1.5 items-center gap-0.5">
+              {/* 앱: 점만 / PC: 칸이 커지니 일정 이름을 2개까지 적는다 (점만으로는 무슨 일정인지 알 수 없어서) */}
+              <span aria-hidden="true" className="flex h-1.5 items-center gap-0.5 md:hidden">
                 {types.map((type) => <span key={type} className={`size-1 rounded-full ${HOME_EVENT_TYPES[type].dot} ${isToday ? 'ring-1 ring-white/70' : ''}`} />)}
+              </span>
+              <span aria-hidden="true" className="hidden w-full min-w-0 flex-col gap-0.5 px-0.5 md:flex">
+                {dayEvents.slice(0, 2).map((event) => (
+                  <span key={event.id} className={`flex min-w-0 items-center gap-1 text-left text-[11px] leading-tight ${isToday ? 'text-white' : 'text-[#4B5563]'}`}>
+                    <span className={`size-1.5 shrink-0 rounded-full ${HOME_EVENT_TYPES[event.type].dot}`} />
+                    <span className="truncate">{event.title}</span>
+                  </span>
+                ))}
+                {dayEvents.length > 2 && <span className={`text-[11px] ${isToday ? 'text-white/80' : 'text-[#4B5563]'}`}>+{dayEvents.length - 2}</span>}
               </span>
             </button>
           )
