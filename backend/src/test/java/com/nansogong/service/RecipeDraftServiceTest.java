@@ -135,15 +135,40 @@ class RecipeDraftServiceTest {
     }
 
     @Test
-    void 매장에_없는_재료는_ITEM_NOT_FOUND_이고_원가를_내지_않는다() {
+    void 매장에_없는_재료는_NEW_ITEM_으로_통과하고_원가는_내지_않는다() {
         RecipeDraftValidateResponse result = validate(
                 line(null, "우유", "200", "ML"),
-                line(null, "생딸기", "50", "G"));
+                line(null, "생딸기", "0.05", "KG"));
 
+        assertThat(result.valid()).isTrue();                        // 새 재료는 고칠 문제가 아니다
+        assertThat(result.lines().get(0).ok()).isTrue();            // 결과는 요청 순서 그대로
+        RecipeDraftValidateResponse.Line strawberry = result.lines().get(1);
+        assertThat(strawberry.ok()).isTrue();
+        assertThat(strawberry.reason()).isEqualTo(Reason.NEW_ITEM);
+        assertThat(strawberry.itemId()).isNull();
+        assertThat(strawberry.normalizedQty()).isEqualByComparingTo("50");   // KG → G
+        assertThat(strawberry.unit()).isEqualTo(ItemUnit.G);
+        assertThat(strawberry.unitCost()).isNull();
+        assertThat(result.totalCost()).isNull();                    // 새 재료 단가를 모르니 합계를 만들지 않음
+        assertThat(result.missingCosts()).isEmpty();                // 새 재료는 번호가 없어 넣지 않음
+    }
+
+    @Test
+    void 없는_품목_번호를_주면_새_재료가_아니라_ITEM_NOT_FOUND() {
+        RecipeDraftValidateResponse result = validate(line(999_999L, "생딸기", "50", "G"));
         assertThat(result.valid()).isFalse();
-        assertThat(result.lines().get(0).ok()).isTrue();           // 결과는 요청 순서 그대로
-        assertThat(result.lines().get(1).reason()).isEqualTo(Reason.ITEM_NOT_FOUND);
-        assertThat(result.totalCost()).isNull();
+        assertThat(result.lines().get(0).reason()).isEqualTo(Reason.ITEM_NOT_FOUND);
+    }
+
+    @Test
+    void 같은_새_재료가_두_번이면_DUPLICATE_ITEM_모르는_단위면_UNKNOWN_UNIT() {
+        RecipeDraftValidateResponse result = validate(
+                line(null, "생딸기", "50", "G"),
+                line(null, " 생딸기 ", "10", "G"),
+                line(null, "바질", "1", "줌"));
+        assertThat(result.lines()).extracting(RecipeDraftValidateResponse.Line::reason)
+                .containsExactly(Reason.NEW_ITEM, Reason.DUPLICATE_ITEM, Reason.UNKNOWN_UNIT);
+        assertThat(result.valid()).isFalse();
     }
 
     @Test
@@ -154,11 +179,12 @@ class RecipeDraftServiceTest {
     }
 
     @Test
-    void 사용_중지_품목은_번호면_ITEM_INACTIVE_이름이면_ITEM_NOT_FOUND() {
+    void 사용_중지_품목은_번호로도_이름으로도_ITEM_INACTIVE() {
         RecipeDraftValidateResponse byId = validate(line(oldSyrupId, "옛시럽", "20", "ML"));
-        RecipeDraftValidateResponse byName = validate(line(null, "옛시럽", "20", "ML"));
+        RecipeDraftValidateResponse byName = validate(line(null, "옛시럽", "20", "ML"));   // 새 재료로 보지 않음
         assertThat(byId.lines().get(0).reason()).isEqualTo(Reason.ITEM_INACTIVE);
-        assertThat(byName.lines().get(0).reason()).isEqualTo(Reason.ITEM_NOT_FOUND);
+        assertThat(byName.lines().get(0).reason()).isEqualTo(Reason.ITEM_INACTIVE);
+        assertThat(byName.valid()).isFalse();
     }
 
     @Test

@@ -49,24 +49,38 @@ class RecipeDraftContractTest {
         assertThat(request.lines()).hasSize(3);
         assertThat(request.lines().get(0).itemId()).isEqualTo(2L);
         assertThat(request.lines().get(1).itemId()).isNull();
-        assertThat(request.lines().get(1).qty()).isEqualByComparingTo("30");
+        // Python 은 Decimal 을 "30" 처럼 문자열로 보낸다 → BigDecimal 로 받아져야 한다
+        assertThat(request.lines().get(1).quantity()).isEqualByComparingTo("30");
         assertThat(validator.validate(request)).isEmpty();         // 예시가 검증 규칙(@NotBlank 등)도 통과
     }
 
     @Test
-    void 검증_응답이_예시와_같은_모양으로_나간다() throws Exception {
-        RecipeDraftValidateResponse response = new RecipeDraftValidateResponse(false, List.of(
+    void 검증_응답은_통과_실패_예시와_같은_모양으로_나간다() throws Exception {
+        for (String name : List.of("validate.valid.response.json", "validate.invalid.response.json")) {
+            JsonNode example = objectMapper.readTree(read(name));
+            // 예시를 Java 로 읽고(모르는 reason 코드면 실패) 다시 내보낸 모양이 예시와 같아야 한다
+            RecipeDraftValidateResponse parsed = objectMapper.readValue(read(name), RecipeDraftValidateResponse.class);
+            assertSameShape(name, example, objectMapper.valueToTree(parsed));
+        }
+
+        RecipeDraftValidateResponse valid = objectMapper.readValue(read("validate.valid.response.json"), RecipeDraftValidateResponse.class);
+        assertThat(valid.valid()).isTrue();
+        assertThat(valid.lines().get(2).reason()).isEqualTo(Reason.NEW_ITEM);   // 새 재료는 ok 이면서 NEW_ITEM
+        assertThat(valid.lines().get(2).ok()).isTrue();
+        assertThat(valid.missingCosts()).containsExactly(3L);                    // missingCosts 는 품목 번호 목록
+
+        RecipeDraftValidateResponse invalid = objectMapper.readValue(read("validate.invalid.response.json"), RecipeDraftValidateResponse.class);
+        assertThat(invalid.valid()).isFalse();
+        assertThat(invalid.lines().get(2).reason()).isEqualTo(Reason.ITEM_NOT_FOUND);
+    }
+
+    @Test
+    void Java가_직접_만든_검증_응답도_예시와_같은_모양이다() throws Exception {
+        RecipeDraftValidateResponse response = new RecipeDraftValidateResponse(true, List.of(
                 new RecipeDraftValidateResponse.Line(true, null, 2L, new BigDecimal("200.000"), ItemUnit.ML, new BigDecimal("2.5")),
-                new RecipeDraftValidateResponse.Line(true, null, 3L, new BigDecimal("30.000"), ItemUnit.ML, null),
-                new RecipeDraftValidateResponse.Line(false, Reason.ITEM_NOT_FOUND, null, null, null, null)),
+                new RecipeDraftValidateResponse.Line(true, Reason.NEW_ITEM, null, new BigDecimal("50.000"), ItemUnit.G, null)),
                 List.of(), null, List.of(3L));
-
-        JsonNode expected = objectMapper.readTree(read("validate.response.json"));
-        assertSameShape("validate.response", expected, objectMapper.valueToTree(response));
-
-        RecipeDraftValidateResponse parsed = objectMapper.readValue(read("validate.response.json"), RecipeDraftValidateResponse.class);
-        assertThat(parsed.lines().get(2).reason()).isEqualTo(Reason.ITEM_NOT_FOUND);
-        assertThat(parsed.missingCosts()).containsExactly(3L);    // missingCosts 는 품목 번호 목록
+        assertSameShape("java", objectMapper.readTree(read("validate.valid.response.json")), objectMapper.valueToTree(response));
     }
 
     @Test

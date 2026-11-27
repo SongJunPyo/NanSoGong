@@ -89,7 +89,7 @@ public class RecipeDraftService {
     }
 
     /**
-     * ② AI 초안 검증. 줄마다 매장 품목을 찾고, 관리 단위로 바꾸고, 현재 단가로 원가를 계산한다.
+     * ② AI 초안 검증. 줄마다 매장 품목을 찾고, 관리 단위로 바꾸고, 현재 단가로 원가를 계산한다. 매장에 없는 재료는 새 재료(NEW_ITEM)로 통과시킨다.
      * 하나라도 ok 가 아니면 valid = false (AI 가 reason 을 보고 고친다). 단가가 없는 품목은 valid 를 막지 않고 missingCosts 로 알린다.
      */
     @Transactional(readOnly = true)
@@ -100,50 +100,63 @@ public class RecipeDraftService {
         Set<Long> requestedIds = lines.stream().map(RecipeDraftValidateRequest.Line::itemId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         Map<Long, InventoryItemResponse> byId = inventoryItemService.getItemsByIds(storeId, requestedIds);   // 다른 매장 · 없는 품목은 빠진다
-        Map<String, List<InventoryItemResponse>> activeByName = activeItems(memberId, storeId).stream()
+        // 이름으로 찾을 때: 사용 중 품목에서 찾고, 없으면 사용 중지 품목 이름인지 본다 (같은 재료를 새 재료로 다시 등록하지 않게)
+        List<InventoryItemResponse> allItems = allItems(memberId, storeId);
+        Map<String, List<InventoryItemResponse>> activeByName = allItems.stream().filter(InventoryItemResponse::active)
                 .collect(Collectors.groupingBy(i -> nameKey(i.name())));
+        Set<String> inactiveNames = allItems.stream().filter(i -> !i.active())
+                .map(i -> nameKey(i.name())).collect(Collectors.toSet());
         Map<Long, ItemCost> costs = currentCosts(storeId);
 
         List<RecipeDraftValidateResponse.Line> results = new ArrayList<>();
         List<Long> missingCosts = new ArrayList<>();
-        Set<Long> seen = new HashSet<>();
+        Set<Long> seenItemIds = new HashSet<>();
+        Set<String> seenNewNames = new HashSet<>();
         BigDecimal total = BigDecimal.ZERO;
         boolean allOk = true;
+        boolean hasNewItem = false;
 
         for (RecipeDraftValidateRequest.Line line : lines) {
             InventoryItemResponse item = null;
+            boolean newItem = false;
             Reason reason = null;
 
             if (line.itemId() != null) {
                 item = byId.get(line.itemId());
                 if (item == null) {
-                    reason = Reason.ITEM_NOT_FOUND;
+                    reason = Reason.ITEM_NOT_FOUND;        // 번호를 줬는데 없음 · 다른 매장 품목
                 } else if (!item.active()) {
                     reason = Reason.ITEM_INACTIVE;
                 }
             } else {
-                List<InventoryItemResponse> found = activeByName.getOrDefault(nameKey(line.itemName()), List.of());
-                if (found.isEmpty()) {
-                    reason = Reason.ITEM_NOT_FOUND;
-                } else if (found.size() > 1) {
+                String key = nameKey(line.itemName());
+                List<InventoryItemResponse> found = activeByName.getOrDefault(key, List.of());
+                if (found.size() > 1) {
                     reason = Reason.ITEM_AMBIGUOUS;
-                } else {
+                } else if (found.size() == 1) {
                     item = found.get(0);
+                } else if (inactiveNames.contains(key)) {
+                    reason = Reason.ITEM_INACTIVE;          // 사용 중지 품목과 같은 이름 → 새 재료로 보지 않는다
+                } else {
+                    newItem = true;                         // 매장에 없는 새 재료 (문제 아님)
                 }
             }
-            if (reason == null && !seen.add(item.id())) {
+            if (reason == null && !newItem && !seenItemIds.add(item.id())) {
                 reason = Reason.DUPLICATE_ITEM;
+            }
+            if (reason == null && newItem && !seenNewNames.add(nameKey(line.itemName()))) {
+                reason = Reason.DUPLICATE_ITEM;             // 같은 새 재료가 두 번
             }
             Conversion conversion = UNITS.get(line.unit().strip().toUpperCase(Locale.ROOT));
             if (reason == null && conversion == null) {
                 reason = Reason.UNKNOWN_UNIT;
             }
-            if (reason == null && conversion.unit() != item.unit()) {
+            if (reason == null && !newItem && conversion.unit() != item.unit()) {
                 reason = Reason.UNIT_MISMATCH;
             }
             BigDecimal normalized = null;
             if (reason == null) {
-                normalized = line.qty().multiply(conversion.factor()).setScale(3, RoundingMode.HALF_UP);   // 레시피 수량은 소수 3자리
+                normalized = line.quantity().multiply(conversion.factor()).setScale(3, RoundingMode.HALF_UP);   // 레시피 수량은 소수 3자리
                 if (normalized.signum() <= 0) {
                     reason = Reason.INVALID_QTY;
                 }
@@ -153,6 +166,12 @@ public class RecipeDraftService {
                 allOk = false;
                 results.add(new RecipeDraftValidateResponse.Line(false, reason,
                         item == null ? null : item.id(), null, item == null ? null : item.unit(), null));
+                continue;
+            }
+
+            if (newItem) {
+                hasNewItem = true;   // 단가를 알 수 없어 원가 합계를 내지 않는다
+                results.add(new RecipeDraftValidateResponse.Line(true, Reason.NEW_ITEM, null, normalized, conversion.unit(), null));
                 continue;
             }
 
@@ -166,7 +185,7 @@ public class RecipeDraftService {
             results.add(new RecipeDraftValidateResponse.Line(true, null, item.id(), normalized, item.unit(), unitCost));
         }
 
-        BigDecimal totalCost = allOk && missingCosts.isEmpty() ? total.setScale(2, RoundingMode.HALF_UP) : null;
+        BigDecimal totalCost = allOk && !hasNewItem && missingCosts.isEmpty() ? total.setScale(2, RoundingMode.HALF_UP) : null;
         return new RecipeDraftValidateResponse(allOk, results, List.of(), totalCost, missingCosts);
     }
 
@@ -179,6 +198,11 @@ public class RecipeDraftService {
                 })
                 .toList();
         return new RecipeContextResponse.Menu(menu.getId(), menu.getName(), menu.getCategory(), menu.getPrice(), lines);
+    }
+
+    /** 매장의 품목 전체 (사용 중지 포함, 이름 순) */
+    private List<InventoryItemResponse> allItems(Long memberId, Long storeId) {
+        return inventoryItemService.getItems(memberId, storeId, null, null, Pageable.unpaged(Sort.by("name"))).getContent();
     }
 
     /** 매장의 사용 중 품목 전체 (이름 순) */

@@ -2,10 +2,10 @@
   "valid": false,
   "lines": [
     { "ok": true, "reason": null, "itemId": 2, "normalizedQty": 200.000, "unit": "ML", "unitCost": 2.5 },
-    { "ok": true, "reason": null, "itemId": 3, "normalizedQty": 30.000, "unit": "ML", "unitCost": null },
+    { "ok": false, "reason": "UNIT_MISMATCH", "itemId": 3, "normalizedQty": null, "unit": "ML", "unitCost": null },
     { "ok": false, "reason": "ITEM_NOT_FOUND", "itemId": null, "normalizedQty": null, "unit": null, "unitCost": null }
   ],
   "reasons": [],
   "totalCost": null,
-  "missingCosts": [3]
+  "missingCosts": []
 }
