@@ -65,6 +65,17 @@ public class InventoryItemNotFoundException extends BusinessException {
 - `app.*` 설정을 추가하면 `application.yml` 과 `common/AppProperties.java` 를 함께 고친다. AWS 값이면 `application-aws.yml` 도 고친다.
 - 새 환경변수를 추가할 때 함께 바꿀 곳은 [AGENTS.md 환경 규칙](../../AGENTS.md#4-환경--보안--github)을 본다.
 
+### 매장 날씨 조회
+
+- `GET /api/stores/{storeId}/weather`는 로그인한 회원의 매장 주소를 기준으로 시간별 예보를 반환한다. `WeatherService`가 캐시·외부 호출 전에 `StoreService.checkOwner`를 확인하고 `getMine`으로 저장된 주소를 읽는다. 주소·좌표·회원 번호는 요청 본문에서 받지 않는다.
+- 카카오 주소 검색(`/v2/local/search/address.json`)의 `x`(경도)·`y`(위도)를 기상청 5km 격자로 변환하고, 기존 `kmaRestClient`로 `/getVilageFcst`를 호출한다. 매장 표·회원가입·프론트는 변경하지 않는다. 좌표는 DB에 추가하지 않는다.
+- 응답은 `{ storeId, source: "KMA", mock, forecast }`다. `forecast`는 `{ kind: "FORECAST", issuedAt, forecastAt, fetchedAt, nx, ny, temperatureC, sky, precipitationType, precipitationProbability, precipitationAmount }`다. `issuedAt`·`forecastAt`은 한국 시간 오프셋이 있는 ISO 8601, `fetchedAt`은 수집 시각이다. `temperatureC`는 **관측 현재 기온이 아니라 `forecastAt`의 예보 기온**이다.
+- `sky`는 `CLEAR`·`PARTLY_CLOUDY`·`CLOUDY`, `precipitationType`은 `NONE`·`RAIN`·`RAIN_AND_SNOW`·`SNOW`·`SHOWERS`다. 강수 확률은 0~100이다. `precipitationAmount`는 `강수없음`·`1mm 미만`·구간 값 등 공급자 표현을 유지하며 누락은 `null`이다. 누락·실패를 0도·맑음·강수 0으로 채우지 않는다.
+- 02·05·08·11·14·17·20·23시 중 제공 지연 20분을 고려한 최신 발표분을 선택한다. 한국 시간 자정 전후의 날짜 전환을 처리한다. 명확한 `03`(자료 없음)이면 직전 발표분을 한 번 조회한다. 결과 코드를 확인하고 최대 10,000행까지 페이지를 모두 조회한다. 발표 시각·격자·중복 값이 모순되면 거절한다.
+- 현재 시간대부터 가장 가까운 시간별 예보를 선택한다. 최대 3시간 뒤까지만 허용한다. 주소 검색 결과가 여러 개이면 첫 번째 위치를 임의로 사용하지 않는다. 서버별 주소 캐시는 24시간·최대 256개, 격자·발표분별 예보 캐시는 10분·최대 128개다. 주소가 바뀌면 새 주소로 조회하고, 캐시 사용 때도 매장 권한을 확인한다. 실패 결과는 저장하지 않는다.
+- 실제 호출은 `KAKAO_BASE_URL`·`KAKAO_REST_API_KEY`·`KMA_BASE_URL`·`KMA_SERVICE_KEY`를 함께 설정한다. 기상청 키는 원본(Decoding)을 URI 변수로 한 번 인코딩한다. 기존 국세청 키는 유지한다. 목업 호출에는 실제 키를 전달하지 않는다. 한쪽만 목업이면 설정 오류로 거절한다. 설정 목록은 [Secrets 안내](../../infra/secrets/README.md#키-목록), 목업 데이터는 [목업 안내](../../mock/README.md)를 따른다.
+- 오류는 `{ code, message }`다. 주소 미설정은 `409 STORE_ADDRESS_REQUIRED`, 미검색·다중 후보는 `422 STORE_ADDRESS_NOT_FOUND`·`STORE_ADDRESS_AMBIGUOUS`, 다른 매장은 `403 FORBIDDEN`이다. 설정 누락·외부 장애·자료 없음은 `503`, 모순·누락된 응답은 `502`다. 공급자 오류 원문·인증키·주소를 로그·응답·예외 cause에 넣지 않는다. 공용 `BusinessException` 구현 전에는 기존 인증 API처럼 `ResponseStatusException` 기반 `WeatherLookupException`과 날씨 전용 오류 변환을 사용한다.
+
 ### 국세청 사업자 상태조회
 
 - API 계약은 `POST /api/auth/business-status`, 요청은 `{ "bizRegNo": "숫자 10자리" }`다. 가입 전 조회이므로 로그인 없이 호출한다. 인증키는 요청에서 받지 않는다.
