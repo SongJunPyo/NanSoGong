@@ -4,25 +4,40 @@ import com.nansogong.dto.InventoryStockAdjustmentRequest;
 import com.nansogong.dto.InventoryStockCountRequest;
 import com.nansogong.dto.InventoryStockCountResponse;
 import com.nansogong.dto.InventoryStockResponse;
+import com.nansogong.dto.InventoryStockSummaryResponse;
 import com.nansogong.dto.InventoryTransactionResponse;
 import com.nansogong.model.InventoryItem;
 import com.nansogong.model.InventoryStockCount;
 import com.nansogong.model.InventoryStockCountType;
+import com.nansogong.model.InventoryStockStatus;
 import com.nansogong.model.InventoryTransaction;
 import com.nansogong.repository.InventoryItemRepository;
 import com.nansogong.repository.InventoryStockCountRepository;
 import com.nansogong.repository.InventoryTransactionRepository;
+import com.nansogong.repository.InventoryTransactionRepository.ItemLastChange;
+import com.nansogong.repository.InventoryTransactionRepository.ItemQtySum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 재고 수량: 초기 재고 · 실사 · 폐기 · 손실 기록과 추정 재고 계산 (구현-3-2, 3-4, 3-5, 3-6, UF-09 ~ 11).
@@ -125,6 +140,75 @@ public class InventoryStockService {
                 .map(base -> InventoryStockResponse.of(itemId, item.getUnit(), base,
                         changeBetween(itemId, base.getCountedAt(), asOf), asOf))
                 .orElseGet(() -> InventoryStockResponse.notInitialized(itemId, item.getUnit(), asOf));
+    }
+
+    /**
+     * 재고 현황 목록 (구현-3-4, UF-10): 품목별 추정 재고 · 상태 · 최근 실사 / 변동 시각. 이름 순 (Pageable 의 정렬은 쓰지 않는다).
+     * name 은 부분 검색, active 가 없으면 사용 여부와 관계없이 전체, statuses 가 비어 있으면 상태와 관계없이 전체.
+     * 상태는 계산해야 알 수 있어서 매장 품목을 모두 계산한 뒤 거르고 페이지로 자른다 (매장 품목 수가 수백 개 이하라고 가정).
+     * 품목 수와 관계없이 DB 조회는 4번이다 (품목 · 기준점 · 변동 합 · 마지막 변동).
+     * REPEATABLE_READ: 4번의 조회가 같은 DB 상태를 본다. 기본(READ COMMITTED)이면 조회 사이에 저장된 실사 때문에
+     * 기준점은 옛 실사, 변동 합은 새 실사 기준으로 계산되어 어느 시점에도 없던 수량이 나올 수 있다.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public Page<InventoryStockSummaryResponse> getStockSummaries(Long memberId, Long storeId, String name, Boolean active,
+                                                                 Collection<InventoryStockStatus> statuses, Pageable pageable) {
+        storeService.checkOwner(memberId, storeId);
+        String keyword = name == null ? "" : name.strip();
+        Instant asOf = Instant.now();
+
+        List<InventoryItem> items = active == null
+                ? inventoryItemRepository.findByStoreIdAndNameContainingIgnoreCaseOrderByNameAscIdAsc(storeId, keyword)
+                : inventoryItemRepository.findByStoreIdAndActiveAndNameContainingIgnoreCaseOrderByNameAscIdAsc(storeId, active, keyword);
+        Map<Long, InventoryStockCount> baseByItem = inventoryStockCountRepository.findLatestBasesByStoreId(storeId, asOf).stream()
+                .collect(Collectors.toMap(InventoryStockCount::getItemId, Function.identity()));
+        Map<Long, BigDecimal> changeByItem = inventoryTransactionRepository.sumChangeSinceLatestBaseByStoreId(storeId, asOf).stream()
+                .collect(Collectors.toMap(ItemQtySum::getItemId, ItemQtySum::getQty));
+        Map<Long, Instant> lastChangeByItem = inventoryTransactionRepository.findLastChangeByStoreId(storeId, asOf).stream()
+                .collect(Collectors.toMap(ItemLastChange::getItemId, ItemLastChange::getLastAt));
+
+        List<InventoryStockSummaryResponse> filtered = items.stream()
+                .map(item -> InventoryStockSummaryResponse.of(item, baseByItem.get(item.getId()),
+                        changeByItem.getOrDefault(item.getId(), BigDecimal.ZERO), lastChangeByItem.get(item.getId())))
+                .filter(summary -> statuses == null || statuses.isEmpty() || statuses.contains(summary.status()))
+                .toList();
+
+        int from = (int) Math.min(pageable.getOffset(), filtered.size());
+        int to = Math.min(from + pageable.getPageSize(), filtered.size());
+        return new PageImpl<>(filtered.subList(from, to), pageable, filtered.size());
+    }
+
+    /** 품목의 실사 기록 (초기 재고 포함). 기본 정렬은 기준 일시 최신순. 없거나 다른 매장 품목이면 404 */
+    @Transactional(readOnly = true)
+    public Page<InventoryStockCountResponse> getStockCounts(Long memberId, Long storeId, Long itemId, Pageable pageable) {
+        storeService.checkOwner(memberId, storeId);
+        findItem(storeId, itemId);
+        return inventoryStockCountRepository.findByItemId(itemId, withIdTieBreak(pageable)).map(InventoryStockCountResponse::from);
+    }
+
+    /** 품목의 장부 기록 (판매 · 취소 · 입고 · 폐기 · 손실). 기본 정렬은 발생 시각 최신순. 없거나 다른 매장 품목이면 404 */
+    @Transactional(readOnly = true)
+    public Page<InventoryTransactionResponse> getTransactions(Long memberId, Long storeId, Long itemId, Pageable pageable) {
+        storeService.checkOwner(memberId, storeId);
+        findItem(storeId, itemId);
+        return inventoryTransactionRepository.findByItemId(itemId, withIdTieBreak(pageable)).map(InventoryTransactionResponse::from);
+    }
+
+    /**
+     * 정렬 끝에 id 최신순을 붙인다. 시각이 같은 기록(한 주문의 여러 줄 등)은 DB가 순서를 보장하지 않아서
+     * 페이지를 넘길 때 같은 기록이 다시 나오거나 빠질 수 있다. 화면이 다른 정렬을 보내도 항상 붙인다.
+     */
+    private Pageable withIdTieBreak(Pageable pageable) {
+        if (pageable.isUnpaged() || pageable.getSort().getOrderFor("id") != null) {
+            return pageable;
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                pageable.getSort().and(Sort.by(Sort.Direction.DESC, "id")));
+    }
+
+    private InventoryItem findItem(Long storeId, Long itemId) {
+        return inventoryItemRepository.findByIdAndStoreId(itemId, storeId)
+                .orElseThrow(() -> itemNotFound(itemId));
     }
 
     /** 기록 전에 품목을 잠그고 가져온다. 없거나 다른 매장 것이면 404, 사용 중지면 400 */
