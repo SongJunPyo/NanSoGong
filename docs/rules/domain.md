@@ -77,6 +77,18 @@
 12. 실사를 저장할 때 그 시각의 추정 재고를 서버가 계산해 `estimated_qty` 에 남긴다. 차이 = `counted_qty` − `estimated_qty` (음수면 기록보다 덜 있었다).
 13. 폐기 · 손실은 줄어든 양을 양수로 받아 장부에 음수 `qty_delta` 로 기록한다 (`DISPOSAL` · `LOSS`).
 14. 폐기 · 손실의 중복 방지 키는 `ADJUST:{Idempotency-Key 헤더}` 다. 같은 키로 다시 보내면 새로 기록하지 않고 처음 기록을 돌려준다. 헤더가 없으면 서버가 키를 만들므로 중복을 막지 못한다.
+15. 재고 현황의 품목 상태는 추정 재고와 발주 검토 기준(`item.reorder_point`)으로 정한다. 위에서부터 먼저 맞는 것을 고른다.
+
+    | 조건 | 상태 |
+    |---|---|
+    | 초기 재고 없음 | `NOT_INITIALIZED` |
+    | 추정 재고 < 0 | `CHECK_NEEDED` (기록 확인 필요, 실사 권장) |
+    | 추정 재고 = 0 | `SHORTAGE` |
+    | `reorder_point` 없음 (미산정) | `NO_THRESHOLD` |
+    | 추정 재고 ≤ `reorder_point` | `SHORTAGE` |
+    | 그 외 | `ENOUGH` |
+
+16. `reorder_point` 는 에이전트가 산정하는 값이라(구현-3-3) 사용자 입력 API로 바꾸지 않는다. 소비기한은 입고분(`receipt_item`) 기능이 생긴 뒤 재고 현황에 더한다.
 
 ## 발주 · 구매
 

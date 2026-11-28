@@ -22,7 +22,8 @@ import java.time.Instant;
  * 지금은 품목 등록 · 수정에 필요한 칸만 매핑했다. 아래 칸은 쓰는 기능을 만들 때 추가한다.
  * - unit_cost: item_cost 단가 이력의 최신값 사본이라 이력과 함께 다룬다
  * - default_supplier_id · purchase_config: 거래처 · 발주 기능과 함께
- * - reorder_point · target_qty · policy_basis: 에이전트가 산정하는 운영 기준 (구현-3-3). 사용자 입력으로 받지 않는다
+ * - target_qty · policy_basis: 에이전트가 산정하는 운영 기준 (구현-3-3). 사용자 입력으로 받지 않는다
+ * reorder_point 는 재고 현황의 부족 판단에 쓰려고 읽기 전용으로만 매핑했다 (값은 에이전트 산정 기능이 넣는다).
  * 삭제하지 않고 비활성으로 바꾼다: 재고 장부 · 실사 · 레시피가 item_id 를 참조한다.
  * 관리 단위(unit)는 등록 후 바꾸지 않는다: 이미 쌓인 레시피 · 재고 수량의 의미가 달라진다.
  */
@@ -62,6 +63,10 @@ public class InventoryItem {
 
     @Column(name = "is_active", nullable = false)
     private boolean active;
+
+    /** 발주 검토 기준 수량 (관리 단위). null 이면 미산정. 읽기 전용: 이 엔티티로 저장 · 수정할 때 이 칸은 건드리지 않는다 */
+    @Column(precision = 19, scale = 3, insertable = false, updatable = false)
+    private BigDecimal reorderPoint;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

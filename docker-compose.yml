@@ -92,6 +92,9 @@ services:
       SUPPLIER_BASE_URL: http://mock:8080/supplier/v1
       MYDATA_BASE_URL: http://mock:8080/mydata/v1
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-no-key}
+      # 🤖 Python AI 워커 → Spring 내부 API(/internal/**) 토큰. 비어 있으면 내부 API 는 모두 401 (일반 기능은 영향 없음)
+      #    dev EC2 는 nansogong/dev 비밀 → .env 로 들어온 값을 쓴다 (infra/secrets/README.md)
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy

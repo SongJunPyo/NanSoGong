@@ -574,6 +574,21 @@ Resources:
         - Type: fixed-response
           FixedResponseConfig: { StatusCode: '403', ContentType: text/plain, MessageBody: Forbidden }
 
+  # /internal/* (Python AI 워커 → Spring 내부 API) 도 밖에서 막는다
+  #   CloudFront 가 /api/* 만 ALB 로 보내서 원래 닿지 않지만, ALB 앞에서 한 번 더 막는다 (이중 방어)
+  #   워커는 ALB 를 거치지 않고 같은 서버 안에서 Spring(8080)을 직접 부른다
+  BlockInternalRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HttpsListener
+      Priority: 2
+      Conditions:
+        - Field: path-pattern
+          PathPatternConfig: { Values: ['/internal/*'] }
+      Actions:
+        - Type: fixed-response
+          FixedResponseConfig: { StatusCode: '403', ContentType: text/plain, MessageBody: Forbidden }
+
   # ── WAF (ALB 앞) ─────────────────────────────────────────
   WebAcl:
     Type: AWS::WAFv2::WebACL
