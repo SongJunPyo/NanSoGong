@@ -185,7 +185,7 @@ cd frontend && npm ci             # package-lock.json 이 바뀐 날만
 
 - 테스트: `backend` 폴더에서 `./gradlew test` (Testcontainers 가 테스트용 PostgreSQL · Redis 를 따로 띄운다. Docker Desktop 실행 필요)
 - 수요 예측 실험: `docker compose --profile ml up -d --build` → http://localhost:8888 (`ml/README.md`)
-- AI 서비스(FastAPI): `docker compose --profile ai up -d --build` → http://localhost:8001/health (`ai/README.md`). 테스트는 `ai` 폴더에서 `pytest`
+- AI 서비스(FastAPI): `docker compose --profile ai up -d --build` → http://localhost:8001/health (`ai/README.md`). 워커까지 띄우려면 `--profile ai --profile ai-worker` (`.env` 의 AI 칸 필요). 테스트는 `ai` 폴더에서 `pytest`
 - 배포 모양 화면 확인 (nginx · PWA): `docker compose --profile web up -d --build` → http://localhost:8000
 - 데모 데이터 넣기: `bash infra/demo-data/load.sh local` (`infra/demo-data/README.md`)
 - 모니터링 확인: `docker compose --profile monitoring up -d` → Prometheus http://localhost:9090 · Grafana http://localhost:3000 (admin/admin)

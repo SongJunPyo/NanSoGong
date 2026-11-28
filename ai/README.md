@@ -15,7 +15,7 @@ python -m app.worker          # 워커 (ai-worker). 작업을 받아 처리. 종
 
 | 환경변수 | 쓰는 곳 | 뜻 |
 |---|---|---|
-| `AI_SERVICE_TOKEN` | API 서버 | Spring → Python 호출 토큰 (`X-Internal-Token`) |
+| `AI_SERVICE_TOKEN` | API 서버 | Spring → Python 호출 토큰 (`X-Internal-Token`). 🚨 `INTERNAL_API_TOKEN` 과 **다른 값**을 쓴다 (방향별 토큰, 한쪽이 새어도 반대 방향은 지켜진다) |
 | `AI_DATABASE_URL` | API 서버 · 워커 · migrate | ai 스키마 접속 주소 (Python 전용 계정). 예: `postgresql://ai_app:<AI_DB_PASSWORD>@postgres:5432/nansogong` |
 | `SPRING_BASE_URL` | 워커 | Spring 주소 (예: `http://app:8080`) |
 | `INTERNAL_API_TOKEN` | 워커 | Python → Spring 호출 토큰. Spring `app.internal.token` 과 같은 환경변수 · 같은 값 |
@@ -57,11 +57,16 @@ python -m app.worker          # 워커 (ai-worker). 작업을 받아 처리. 종
 ## 실행
 
 ```bash
-docker compose --profile ai up -d --build      # 서버 · DB 등 + AI 서비스
+docker compose --profile ai up -d --build                       # 서버 · DB 등 + AI API 서버만
+docker compose --profile ai --profile ai-worker up -d --build   # + 저장소 준비 · 표 만들기 · 워커 (내 PC 전용)
 ```
 
+- 처음 한 번: `.env` 에 `AI_SERVICE_TOKEN` · `AI_DB_PASSWORD` · `AI_DATABASE_URL` · `INTERNAL_API_TOKEN` 을 넣는다 (`.env.example` 의 AI 칸). 워커가 실제로 작업을 처리하려면 `ANTHROPIC_API_KEY` 도 필요하다 (과금)
+- 🚨 `AI_SERVICE_TOKEN` 과 `INTERNAL_API_TOKEN` 은 서로 다른 값으로 만든다
+- `ai-worker` 프로필은 `ai-db-init`(계정 · 스키마, `infra/ai-db/init.sql`) → `ai-migrate`(표) → `ai-worker` 순서로 뜬다. 앞 단계가 실패하면 뒤 단계는 뜨지 않는다 (`docker compose logs ai-db-init` 로 이유 확인)
+- dev EC2 는 `ai` 프로필만 켠다 (API 서버만, 작업 API 는 401 · 503). 워커 dev 배포는 Spring 이 Python 을 부르는 코드가 생긴 뒤 따로 한다
 - http://localhost:8001/health → `{"status":"UP"}`
-- 작업 API 를 쓰려면 `AI_SERVICE_TOKEN` · `AI_DATABASE_URL` 이 있어야 한다 (없으면 401 · 503). 아직 docker-compose 에 연결하지 않았다
+- 작업 API 를 쓰려면 `AI_SERVICE_TOKEN` · `AI_DATABASE_URL` 이 있어야 한다 (없으면 401 · 503)
 - http://localhost:8001/docs → API 문서 (FastAPI 자동 생성)
 - Spring 컨테이너에서 확인: `docker compose exec app wget -qO- http://ai-api:8000/health`
 

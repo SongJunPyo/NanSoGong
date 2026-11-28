@@ -184,6 +184,7 @@ docker compose up -d                          # 서버(8080) + PostgreSQL + Redi
 docker compose logs -f app                    # 서버 로그
 cd frontend && npm ci && npm run dev          # 화면 (5173)
 docker compose --profile ai up -d --build     # + AI 서비스 FastAPI (8001)
+docker compose --profile ai --profile ai-worker up -d --build  # + AI 워커 (내 PC 전용, .env 의 AI 칸 필요)
 bash infra/demo-data/load.sh local            # 데모 데이터
 docker compose down -v && docker compose up -d  # 로컬 DB 초기화
 ```

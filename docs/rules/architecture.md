@@ -105,7 +105,7 @@ ml/에서 학습 · 검증
 | 세션 만료 · 재로그인 처리 | 미정 |
 | 결제 추가 인증 · 사용자 제어 전환 방식 | 미정 |
 | 실제 쿠팡 주문 지원 여부 | 검증 전 |
-| Spring ↔ Python 내부 API 경로 · 인증 방식 | 인증 결정: 방향별 토큰 `X-Internal-Token` (Python → Spring `INTERNAL_API_TOKEN`, Spring → Python `AI_SERVICE_TOKEN`), `/internal/**` 는 밖에서 닿지 않게 막는다. 경로: 레시피 초안 4개 확정 (`contracts/recipe-draft/`), 나머지는 기능별 `request` 이슈에서 확정 |
+| Spring ↔ Python 내부 API 경로 · 인증 방식 | 인증 결정: 방향별 토큰 `X-Internal-Token` (Python → Spring `INTERNAL_API_TOKEN`, Spring → Python `AI_SERVICE_TOKEN`). 두 토큰은 **서로 다른 값**을 쓴다 (한쪽이 새어도 반대 방향은 지켜지게). `/internal/**` 는 밖에서 닿지 않게 막는다. 경로: 레시피 초안 4개 확정 (`contracts/recipe-draft/`), 나머지는 기능별 `request` 이슈에서 확정 |
 | Python 프로젝트 폴더 · 라이브러리 버전 | 폴더 `ai/` (Python 3.12 · FastAPI, `ai/requirements.txt`). LangGraph · 모델 SDK 버전은 연결 확인 후 고정 |
 | 작업 등록부 · 체크포인트 표 구조 | 결정 ([DB 규칙 AI 작업 저장소](db.md#ai-작업-저장소-ai-스키마)) |
 | 기기 등록 · 명령 기록 표 구조 | 설계 전 |
