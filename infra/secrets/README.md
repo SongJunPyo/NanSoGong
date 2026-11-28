@@ -40,6 +40,7 @@
 | `AI_MODEL` · `DATA_GO_KR_SERVICE_KEY` · `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `VERIFICATION_MODE` | 선택 | 선택 | 필요할 때만 행 추가 |
 | `KAKAO_BASE_URL` · `KAKAO_REST_API_KEY` | 실제 날씨 연동 시 설정 | 실제 날씨 연동 시 설정 | 주소 `https://dapi.kakao.com`, 카카오 REST API 키. JavaScript 키·Admin 키는 사용하지 않음 |
 | `KMA_BASE_URL` · `KMA_SERVICE_KEY` | 실제 날씨 연동 시 설정 | 실제 날씨 연동 시 설정 | 주소 `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0`, 일반 인증키 원본(Decoding). 기존 국세청 `DATA_GO_KR_SERVICE_KEY`와 분리 |
+| `HOLIDAY_BASE_URL` | 실제 공휴일 연동 시 설정 | 실제 공휴일 연동 시 설정 | 주소 `https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService`. 인증키는 기존 `DATA_GO_KR_SERVICE_KEY`(특일 정보 활용 승인 필요)를 함께 쓴다. 없으면 dev 는 목업 |
 
 - 값이 없는 키는 **빈 값으로 두지 말고 아예 넣지 않습니다** (빈 값도 그대로 환경변수로 들어간다)
 - 🚨 prod 에는 `DB_URL` · `DB_USER` · `DB_PASSWORD` · `REDIS_HOST` 를 넣지 않습니다 (prod 스택이 넣어 준다). dev 에는 DB 값 3개만 넣고 `REDIS_HOST` 는 넣지 않습니다 (같은 EC2 의 Redis 컨테이너)
