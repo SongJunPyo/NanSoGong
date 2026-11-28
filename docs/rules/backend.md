@@ -76,6 +76,16 @@ public class InventoryItemNotFoundException extends BusinessException {
 - 실제 호출은 `KAKAO_BASE_URL`·`KAKAO_REST_API_KEY`·`KMA_BASE_URL`·`KMA_SERVICE_KEY`를 함께 설정한다. 기상청 키는 원본(Decoding)을 URI 변수로 한 번 인코딩한다. 기존 국세청 키는 유지한다. 목업 호출에는 실제 키를 전달하지 않는다. 한쪽만 목업이면 설정 오류로 거절한다. 설정 목록은 [Secrets 안내](../../infra/secrets/README.md#키-목록), 목업 데이터는 [목업 안내](../../mock/README.md)를 따른다.
 - 오류는 `{ code, message }`다. 주소 미설정은 `409 STORE_ADDRESS_REQUIRED`, 미검색·다중 후보는 `422 STORE_ADDRESS_NOT_FOUND`·`STORE_ADDRESS_AMBIGUOUS`, 다른 매장은 `403 FORBIDDEN`이다. 설정 누락·외부 장애·자료 없음은 `503`, 모순·누락된 응답은 `502`다. 공급자 오류 원문·인증키·주소를 로그·응답·예외 cause에 넣지 않는다. 공용 `BusinessException` 구현 전에는 기존 인증 API처럼 `ResponseStatusException` 기반 `WeatherLookupException`과 날씨 전용 오류 변환을 사용한다.
 
+### 홈 공휴일 조회
+
+- `GET /api/stores/{storeId}/home/holidays?year=2026&month=12`는 전국 공통 공휴일을 반환한다. `year`(네 자리)·`month`(1~12)는 필수다. `HomeHolidayService`가 캐시·외부 호출 전에 `StoreService.checkOwner`를 확인한다. 매장 주소는 필요 없으며 공휴일을 매장의 휴무일로 단정하지 않는다.
+- 응답은 `{ storeId, source: "KASI", mock, year, month, fetchedAt, holidays }`다. `holidays`는 `Page<{ date, name }>`이며 `date`는 한국 달력의 `YYYY-MM-DD`, `fetchedAt`은 원천 조회 시각이다. 기본 페이지 크기는 50, 정렬은 `date` 오름차순이다. `date`·`name` 정렬만 허용한다.
+- `HomeHolidayClient`는 기존 `holidayRestClient`로 `/getRestDeInfo`를 호출한다. `solYear`·두 자리 `solMonth`·`pageNo`·`numOfRows=100`·`_type=json`을 전달한다. 단건 객체·복수 배열을 정규화하고 `isHoliday=Y`만 반환한다. 같은 날짜의 다른 공휴일명은 보존한다.
+- 공급자 결과 코드·페이지·건수·날짜·중복 식별자를 검증하며 최대 10페이지·1,000행까지 읽는다. 전체 페이지가 성공한 뒤에만 반환한다. 명확한 성공 응답의 `totalCount=0`은 빈 페이지, 실패·불완전 응답은 오류다. 실패를 공휴일 0건으로 바꾸지 않는다.
+- 서버별 캐시는 연월별로 공유하며 6시간·최대 24개월이다. 0건도 정상 응답이면 캐시하고 실패·부분 결과는 캐시하지 않는다. 캐시를 사용해도 매장 권한을 먼저 확인한다. DB 표·매장 설정·프론트는 변경하지 않는다.
+- 실제 호출은 기존 `HOLIDAY_BASE_URL=https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService`와 `DATA_GO_KR_SERVICE_KEY` 원본(Decoding) 키를 사용한다. 키는 URI 변수로 한 번 인코딩한다. 이 키는 국세청과 공유하는 기존 설정이므로 임의로 교체하지 않는다. 키 없는 기본 목업에는 실제 키 대신 `mock-key`만 보낸다. 목업의 0건은 실제 달력 검증에 사용하지 않는다 ([목업 안내](../../mock/README.md)).
+- 오류는 `{ code, message }`다. 입력 오류는 `400 INVALID_REQUEST`, 다른 회원의 매장은 `403 FORBIDDEN`, 인증 설정 누락은 `503 HOLIDAY_NOT_CONFIGURED`, 외부 HTTP·통신·결과 코드 실패는 `503 HOLIDAY_UNAVAILABLE`, 잘못된 원천 응답은 `502 HOLIDAY_INVALID_RESPONSE`다. 공용 예외 구현 전에는 공휴일 Controller 범위의 오류 처리만 사용하며 원천 본문·URL·키·예외 cause는 응답이나 로그에 넣지 않는다.
+
 ### 국세청 사업자 상태조회
 
 - API 계약은 `POST /api/auth/business-status`, 요청은 `{ "bizRegNo": "숫자 10자리" }`다. 가입 전 조회이므로 로그인 없이 호출한다. 인증키는 요청에서 받지 않는다.
