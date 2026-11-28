@@ -107,20 +107,22 @@ public class MenuService {
     }
 
     /**
-     * POS 코드 → 앱 메뉴 번호 (AGENTS.md 3-5 계약, 경모 매출 수집 · 준표 재고 차감에서 부른다).
+     * POS 코드 → 앱 메뉴 번호 (docs/rules/domain.md 도메인 사이 메서드 계약, 준표 판매 저장 · 재고 차감에서 부른다).
      * 화면에서 부르는 API 가 아니라 서버 안에서 부르는 함수라 checkOwner 를 하지 않는다.
      * 옵션 연결은 (메뉴 코드, 옵션 코드) 묶음으로 찾는다: 같은 O101(샷 추가)이라도 메뉴마다 다른 옵션 행이다.
+     * 연결은 POS 연동마다 따로 있다 (#66): 한 매장에 POS 연동이 둘이면 같은 코드가 연동마다 다른 메뉴일 수 있다.
      *
-     * @param optionCodes 메뉴 1개에 붙은 POS 옵션 코드들 (없으면 빈 목록)
+     * @param integrationId 판매를 받은 POS 연동. 이 매장의 POS 연동인지는 부르는 쪽이 IntegrationService.checkPosIntegration 으로 확인한다
+     * @param optionCodes   메뉴 1개에 붙은 POS 옵션 코드들 (없으면 빈 목록)
      */
     @Transactional(readOnly = true)
-    public ResolvedMenu resolve(Long storeId, String posMenuCode, List<String> optionCodes) {
+    public ResolvedMenu resolve(Long storeId, Long integrationId, String posMenuCode, List<String> optionCodes) {
         List<String> codes = new ArrayList<>();
         codes.add("");                       // 기본 메뉴 연결은 옵션 코드가 빈 문자열
         codes.addAll(optionCodes);
 
         Map<String, PosMenuMapping> byOptionCode = posMenuMappingRepository
-                .findByStoreIdAndPosMenuCodeAndPosOptionCodeIn(storeId, posMenuCode, codes).stream()
+                .findByStoreIdAndIntegrationIdAndPosMenuCodeAndPosOptionCodeIn(storeId, integrationId, posMenuCode, codes).stream()
                 .collect(Collectors.toMap(PosMenuMapping::getPosOptionCode, Function.identity(), (a, b) -> a));
 
         PosMenuMapping menuMapping = byOptionCode.get("");

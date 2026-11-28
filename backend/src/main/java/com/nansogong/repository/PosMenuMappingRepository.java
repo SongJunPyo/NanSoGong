@@ -16,6 +16,10 @@ public interface PosMenuMappingRepository extends JpaRepository<PosMenuMapping, 
     /** 연결 상태별 목록 (GET /menus/pos-mappings?status=UNMAPPED) */
     List<PosMenuMapping> findByStoreIdAndStatus(Long storeId, PosMappingStatus status);
 
-    /** 한 메뉴 코드의 기본 메뉴("") · 옵션 코드들 연결을 한 번에 (MenuService.resolve) */
-    List<PosMenuMapping> findByStoreIdAndPosMenuCodeAndPosOptionCodeIn(Long storeId, String posMenuCode, Collection<String> posOptionCodes);
+    /**
+     * 한 POS 연동 · 한 메뉴 코드의 기본 메뉴("") · 옵션 코드들 연결을 한 번에 (MenuService.resolve).
+     * 연동이 둘이면 같은 코드가 연동마다 있을 수 있어서 연동 기준으로 찾고, 다른 매장 연결을 읽지 않게 매장도 함께 건다
+     */
+    List<PosMenuMapping> findByStoreIdAndIntegrationIdAndPosMenuCodeAndPosOptionCodeIn(
+            Long storeId, Long integrationId, String posMenuCode, Collection<String> posOptionCodes);
 }
