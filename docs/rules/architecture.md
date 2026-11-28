@@ -83,6 +83,7 @@ ml/에서 학습 · 검증
 
 - 학습과 예측 서비스를 나눈다. 요청마다 학습하지 않는다.
 - 예측 응답에는 모델 버전과 데이터 기준 시각을 넣는다. 예측 판매량을 그대로 최종 발주량으로 쓰지 않는다.
+- 실행 방식(Spring 스케줄러가 호출 · 저장) · 입력(날씨 · 특일은 모델 입력이 아님) · 장애 시 처리는 [AI 규칙 수요 예측](ai.md#수요-예측)에 있다.
 
 ## 배포 범위
 
@@ -104,7 +105,7 @@ ml/에서 학습 · 검증
 | 세션 만료 · 재로그인 처리 | 미정 |
 | 결제 추가 인증 · 사용자 제어 전환 방식 | 미정 |
 | 실제 쿠팡 주문 지원 여부 | 검증 전 |
-| Spring ↔ Python 내부 API 경로 · 인증 방식 | 계약 확정 전 |
+| Spring ↔ Python 내부 API 경로 · 인증 방식 | 인증 결정: 방향별 토큰 `X-Internal-Token` (Python → Spring `INTERNAL_API_TOKEN`, Spring → Python `AI_SERVICE_TOKEN`), `/internal/**` 는 밖에서 닿지 않게 막는다. 경로: 레시피 초안 4개 확정 (`contracts/recipe-draft/`), 나머지는 기능별 `request` 이슈에서 확정 |
 | Python 프로젝트 폴더 · 라이브러리 버전 | 폴더 `ai/` (Python 3.12 · FastAPI, `ai/requirements.txt`). LangGraph · 모델 SDK 버전은 연결 확인 후 고정 |
 | 작업 등록부 · 체크포인트 표 구조 | 결정 ([DB 규칙 AI 작업 저장소](db.md#ai-작업-저장소-ai-스키마)) |
 | 기기 등록 · 명령 기록 표 구조 | 설계 전 |
