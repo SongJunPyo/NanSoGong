@@ -22,7 +22,7 @@ class WeatherServiceTest {
         var ext = new AppProperties.External("nts-key", "https://api.odcloud.kr", "https://apis.data.go.kr",
                 "http://localhost/holiday", "http://localhost/naver", "mock", "mock", "http://localhost/pos",
                 "http://localhost/supplier", "http://localhost/mydata", Duration.ofSeconds(3), Duration.ofSeconds(10),
-                "http://localhost:8089/kakao", "kakao-key", "kma-key");
+                "http://localhost:8089/kakao", "kakao-key", "kma-key", "http://localhost:8089/tour");
         var props = mock(AppProperties.class);
         when(props.external()).thenReturn(ext);
         var service = new WeatherService(stores, locations, forecasts, props);

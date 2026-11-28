@@ -86,6 +86,18 @@ public class InventoryItemNotFoundException extends BusinessException {
 - 실제 호출은 기존 `HOLIDAY_BASE_URL=https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService`와 `DATA_GO_KR_SERVICE_KEY` 원본(Decoding) 키를 사용한다. 키는 URI 변수로 한 번 인코딩한다. 이 키는 국세청과 공유하는 기존 설정이므로 임의로 교체하지 않는다. 키 없는 기본 목업에는 실제 키 대신 `mock-key`만 보낸다. 목업의 0건은 실제 달력 검증에 사용하지 않는다 ([목업 안내](../../mock/README.md)).
 - 오류는 `{ code, message }`다. 입력 오류는 `400 INVALID_REQUEST`, 다른 회원의 매장은 `403 FORBIDDEN`, 인증 설정 누락은 `503 HOLIDAY_NOT_CONFIGURED`, 외부 HTTP·통신·결과 코드 실패는 `503 HOLIDAY_UNAVAILABLE`, 잘못된 원천 응답은 `502 HOLIDAY_INVALID_RESPONSE`다. 공용 예외 구현 전에는 공휴일 Controller 범위의 오류 처리만 사용하며 원천 본문·URL·키·예외 cause는 응답이나 로그에 넣지 않는다.
 
+### 홈 주변 행사 조회
+
+- `GET /api/stores/{storeId}/home/local-events?year=2026&month=12&radiusMeters=3000`은 저장된 매장 주소를 기준으로 월별 축제·행사를 조회한다. `year`(1000~9999)·`month`(1~12)는 필수이며 반경은 기본 3,000m, 허용 범위는 1~20,000m다. 초기 조회 범위로 둔 기본값이며 요청에서 조절할 수 있다.
+- `HomeEventService`가 캐시·외부 호출 전에 `StoreService.checkOwner`를 확인하고 `getMine`의 주소를 사용한다. 기존 `kakaoRestClient`로 주소를 위경도로 변환하며 다중 후보 중 임의 위치를 선택하지 않는다. 매장 표·날씨 도메인·프론트는 변경하지 않고 좌표·행사를 DB에 저장하지 않는다.
+- 기존 방식의 `tourRestClient`로 `/searchFestival2`에 `MobileOS=ETC`, `MobileApp=NanSoGong`, 월 첫날·말일(`eventStartDate`·`eventEndDate`), `_type=json`, `arrange=A`, `numOfRows=1000`, `pageNo`를 전달한다. 성공 코드는 실제 응답에서 확인한 `0000`이다. 단건 객체·복수 배열·명확한 0건을 정규화하고 전체 페이지(최대 10페이지·10,000행)를 읽은 뒤에만 반환·캐시한다. 제한 초과·중간 페이지 실패·중복 ID·모순된 건수를 정상 0건이나 일부 결과로 반환하지 않는다.
+- 행사 기간이 조회 월과 겹치면 이전 달에 시작하거나 다음 달에 끝나도 포함한다. Haversine 직선 거리로 반경을 판정하고 응답 거리는 m 단위 정수로 반올림한다. 반경 판정은 반올림 전에 수행한다. 도보·도로 거리, 관객 수, 매출 증가율은 제공하지 않는다.
+- 응답은 `{ storeId, source: "TOUR_API", mock, year, month, radiusMeters, fetchedAt, unlocatedEventCount, events }`다. `events`는 `Page<{ externalId, title, startDate, endDate, address, latitude, longitude, distanceMeters }>`다. 기본 50건·`startDate` 오름차순이며 `startDate`·`endDate`·`title`·`distanceMeters` 정렬만 허용한다. 동률은 시작일·외부 ID로 정렬해 페이지 순서를 고정한다. 페이지와 총건수는 전체 원천에 기간·거리 필터를 적용한 뒤 계산한다.
+- 비어 있거나 0인 행사 좌표는 위치 미제공으로 분류해 거리 판정에서 제외한다. `unlocatedEventCount`는 **전국 조회 후보 중 조회 월과 겹치지만 좌표가 없어 주변 여부를 확인하지 못한 건수**다. 범위를 벗어나거나 숫자로 읽을 수 없는 좌표는 원천 오류다. 누락 좌표를 0,0이나 매장 좌표로 채우지 않는다.
+- 서버별 전국 월별 원천 캐시는 6시간·최대 24개월, 주소 캐시는 24시간·최대 256개다. 실패·부분 결과는 캐시하지 않는다. 조회 권한과 최신 저장 주소는 매번 확인한다.
+- 기본은 카카오·행사 모두 목업이다. 실제 호출은 `TOUR_BASE_URL=https://apis.data.go.kr/B551011/KorService2`, TourAPI 활용 승인을 받은 기존 `DATA_GO_KR_SERVICE_KEY` 원본(Decoding), `KAKAO_BASE_URL`·`KAKAO_REST_API_KEY`를 함께 사용한다. 원본 키는 URI 변수로 한 번 인코딩한다. 카카오와 행사 중 한쪽만 목업이면 `503 EVENT_CONFIGURATION_REQUIRED`로 거절한다. 목업에는 실제 키를 보내지 않는다. 환경변수 목록은 [Secrets 안내](../../infra/secrets/README.md#키-목록)를 따른다.
+- 오류는 `{ code, message }`다. 입력 오류는 `400 INVALID_REQUEST`, 다른 매장은 `403 FORBIDDEN`, 주소 미설정은 `409 STORE_ADDRESS_REQUIRED`, 미검색·다중 후보는 `422 STORE_ADDRESS_NOT_FOUND`·`STORE_ADDRESS_AMBIGUOUS`, 인증 누락은 `503 EVENT_NOT_CONFIGURED`, 위치·행사 통신 실패는 `503 EVENT_LOCATION_UNAVAILABLE`·`EVENT_UNAVAILABLE`, 조회 한도 초과는 `503 EVENT_RESULT_LIMIT_EXCEEDED`, 잘못된 원천은 `502 EVENT_INVALID_LOCATION`·`EVENT_INVALID_RESPONSE`다. 기타 `ResponseStatusException`은 HTTP 상태를 유지하고 `REQUEST_FAILED`를 반환한다. 원천 URL·키·본문·주소·예외 cause를 오류나 로그에 포함하지 않는다.
+
 ### 국세청 사업자 상태조회
 
 - API 계약은 `POST /api/auth/business-status`, 요청은 `{ "bizRegNo": "숫자 10자리" }`다. 가입 전 조회이므로 로그인 없이 호출한다. 인증키는 요청에서 받지 않는다.
