@@ -33,6 +33,7 @@ AI 코딩 도구(Claude Code · Codex · Cursor 등)가 이 저장소에서 작�
 | [README.md](README.md) | 실행 방법, 환경 구성, 브랜치 전략, CI/CD, 자주 나는 문제 |
 | [유저 플로우 1.04](docs/pjt_source/유저_플로우_1.04.md), `요구사항정의서_수정본1.1.xlsx` | 사용자 흐름 · 예외 처리 · 기능 요구사항 번호(구현-x-y) |
 | [docs/pjt_source/store-agent-db.sql](docs/pjt_source/store-agent-db.sql) | 전체 표 구조 (28개) |
+| [contracts/](contracts/) | Spring ↔ Python 내부 API의 JSON 예시. Java · Python 계약 테스트가 같은 파일로 모양을 검증한다 (기능별 폴더의 `README.md`) |
 | [.github/](.github/pull_request_template.md) PR · 이슈 템플릿 | PR 본문 형식(팀원이 할 일 포함), 기능 · 버그 · 도메인 요청 · 결정 이슈 형식 |
 | [WONIT-A/07_cicd](https://github.com/WONIT-A/07_cicd) | 구조의 기준. 새 패키지 · 폴더 · 클래스를 만들 때 같은 계층의 파일 모양을 먼저 참고한다 |
 
