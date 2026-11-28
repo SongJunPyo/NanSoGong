@@ -22,6 +22,13 @@ from app.models.base import CamelModel
 # 품목 관리 단위는 이 셋뿐이다 (docs/rules/db.md 품목 · 연동: item.unit)
 Unit = Literal["G", "ML", "EA"]
 
+# ---------- Spring → Python: 작업 입력 (POST /jobs 의 input = ai_job.request_params) ----------
+
+
+class RecipeJobInput(CamelModel):
+    menu_name: str = Field(min_length=1, max_length=100)       # 사장님이 요청한 메뉴 이름 (초안의 메뉴 이름으로 고정)
+
+
 # ---------- Spring → Python: 레시피를 만들 때 참고할 매장 정보 ----------
 
 
@@ -111,7 +118,7 @@ class RecipeValidation(CamelModel):
 
 
 class RecipeGenerationContext(CamelModel):
-    job_id: str
+    job_id: int                                 # Spring ai_job.ai_job_id
     graph_version: str
     revisions: int                              # 검증 실패로 고쳐 쓴 횟수
     generated_at: datetime                      # 기준 시각 (offset 이 붙은 ISO 8601 로 나간다)

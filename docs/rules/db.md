@@ -177,9 +177,23 @@ AI 작업의 **기준 기록**은 Spring 업무 DB의 `ai_job` 표다. 칸은 [�
   - 제안 · 분석 작업: `FAILED`(`error_code` `TIMED_OUT`)로 끝낸다.
   - **발주 실행(`PURCHASE_EXECUTE`)은 시간 초과로 `FAILED` 처리하지 않는다.** 주문이 이미 나갔을 수 있으므로 연결된 `execution` 을 `CHECKING` 으로 두고 외부 주문 내역부터 확인한다 ([도메인 규칙 주문 · 결제 · 입고 결과](domain.md#주문--결제--입고-결과)). 이때 `ai_job.expires_at` 을 결과 확인 기한으로 다시 정한다. 그러지 않으면 만료 스케줄러가 같은 작업을 계속 다시 집는다. `ai_job` 은 확인 결과가 나온 뒤 닫는다.
 
-## AI 작업 저장소 (설계 예정)
+## AI 작업 저장소 (`ai` 스키마)
 
-- Python 작업 등록부와 LangGraph 체크포인트는 업무 표와 **스키마 · DB 계정을 나눠** 둔다. 초기에는 같은 PostgreSQL 인스턴스를 쓴다.
+Python 작업 등록부와 LangGraph 체크포인트는 업무 표와 **스키마 · DB 계정을 나눠** 둔다. 초기에는 같은 PostgreSQL 인스턴스를 쓴다.
+
+| 표 | 담는 것 | 만드는 곳 |
+|---|---|---|
+| `ai.job` | 워커가 받아 가는 작업. PK는 Spring `ai_job_id`. 상태 · 선점 워커 · 기한 · 시도 횟수 · 취소 요청 | `ai/app/db/migrations/*.sql` |
+| `ai.job_report` | Spring에 보낼 진행 · 결과 보고 편지함. 작업마다 `seq` 순번 | 같은 곳 |
+| `ai.registry_migration` | 위 SQL 파일 적용 기록 | `ai/app/db/migrate.py` |
+| `ai.checkpoints` 등 | LangGraph 체크포인트 (`thread_id` = `jobId`) | `PostgresSaver.setup()` (버전은 `ai/requirements.txt`) |
+
+- 칸은 `ai/app/db/migrations/` 의 SQL 파일에 있다. 이미 적용된 파일은 고치지 않고, 바꿀 내용은 다음 번호 파일로 만든다.
+- 계정 · `ai` 스키마(소유자 = Python 계정) · 권한은 인프라 DB 초기화 스크립트 [`infra/ai-db/init.sh`](../../infra/ai-db/init.sh)가 만든다. 비밀번호는 환경변수(`AI_DB_PASSWORD`)로만 넘기고 SQL · 명령줄 · 서버 로그에 남기지 않는다. 지금은 내 PC(`local`)만 있고 dev · prod는 AI 워커를 배포할 때 추가한다. Flyway는 `ai` 스키마를 다루지 않는다.
+- 표 생성 · 업그레이드는 배포 명령 `python -m app.db.migrate` 가 한다. 서버 · 워커는 실행 중에 표를 만들지 않는다.
 - Python 계정에는 업무 표 쓰기 권한을 주지 않는다. 업무 데이터는 Spring 내부 API로만 바꾼다.
-- 체크포인트 표의 생성 · 업그레이드는 버전을 고정한 뒤 배포 절차로 관리한다. 애플리케이션이 실행 중에 업무 스키마에 표를 만들지 않는다.
-- Python 작업 등록부 · 기기 등록 · 명령 기록 표는 아직 설계 전이다. 칸 이름을 추측해서 만들지 않는다.
+- 등록부 상태 이름은 Spring `ai_job` 과 같은 것만 쓴다 (`PENDING` · `RUNNING` · `SUCCEEDED` · `FAILED` · `CANCELED`). 기준 기록은 `ai_job` 이고, 화면 · Spring은 등록부를 직접 보지 않는다.
+- 같은 `jobId` 는 한 번만 접수한다. 같은 내용으로 다시 오면 기존 작업을 돌려주고, 내용이 다르면 거절한다.
+- 선점은 `FOR UPDATE SKIP LOCKED` 로 한다. 처리 · 보고 · 끝내기는 그 워커가 기한(`lease_expires_at`) 안에 잡고 있을 때만 반영한다. 기한이 지나면 다른 워커가 회수해서 체크포인트에서 이어 간다. 시도 한도를 넘으면 `RETRY_EXHAUSTED` 로 끝낸다.
+- 보고는 편지함에 먼저 쓰고, 작업마다 `seq` 순서대로 보낸다. 전송에 실패하면 남겨 두었다가 다시 보낸다. 작업을 끝낼 때는 마지막 보고를 같은 트랜잭션에서 넣는다.
+- 기기 등록 · 명령 기록 표는 아직 설계 전이다. 칸 이름을 추측해서 만들지 않는다.

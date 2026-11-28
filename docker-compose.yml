@@ -5,6 +5,7 @@
 #   docker compose --profile monitoring up -d     → + Prometheus(9090) + Grafana(3000)
 #   docker compose --profile ml up -d             → + 수요 예측용 Jupyter(8888)
 #   docker compose --profile ai up -d --build     → + AI 서비스 FastAPI(8001) (ai/README.md)
+#   docker compose --profile ai --profile ai-worker up -d --build  → + AI 작업 저장소 준비 · AI 워커 (내 PC 전용)
 #   docker compose --profile web up -d --build    → + 배포 모양 화면 nginx(8000) (AWS dev EC2 는 docker-compose.dev.yml 로 항상 켬)
 # 🧑‍💻 서버 코드를 고치며 디버깅할 때는 VS Code "서버 (Spring Boot, 8080)" 로 실행한다
 #     → 실행 전에 컨테이너 서버(app)를 자동으로 멈추고 DB · Redis · 목업만 띄운다 (8080 충돌 방지)
@@ -14,6 +15,12 @@
 # 값은 같은 폴더의 .env 에서 읽는다 (.env.example 을 복사해서 만든다)
 # 🚨 버전은 운영(RDS · ElastiCache)과 테스트(TestcontainersConfig)와 맞춘다. 바꿀 때는 세 곳을 함께 바꾼다
 name: nansogong
+
+# AI 서비스 이미지 (ai-migrate · ai-worker 가 같이 쓴다. ai-api 와 같은 이미지)
+x-ai-image: &ai-image
+  build: ./ai
+  image: nansogong-ai:local
+  pull_policy: build
 
 services:
   postgres:
@@ -119,10 +126,10 @@ services:
     depends_on:
       - app
 
-  # 🤖 (선택) 수요 예측 실험: 이동평균 baseline → LightGBM (ml/README.md)
-  # 🧠 (선택) AI 서비스 FastAPI (ai/Dockerfile). 지금은 /health · /metrics 틀만 있다 (ai/README.md)
+  # 🧠 (선택) AI 서비스 (ai/Dockerfile, ai/README.md). 같은 이미지로 API 서버 · 표 만들기 · 워커를 띄운다
   #    Spring(app) 은 http://ai-api:8000 으로 부른다. 내 PC 에서는 http://localhost:8001 (8000 은 web 프로필이 쓴다)
-  #    AI 작업 API 가 생겨 Spring 이 꼭 필요로 하게 되면 프로필을 빼고 기본으로 띄운다
+  #    토큰 두 개는 서로 다른 값을 쓴다: AI_SERVICE_TOKEN(Spring → Python) · INTERNAL_API_TOKEN(Python → Spring). 값은 .env
+  #    ai 프로필은 AWS dev EC2 도 켠다 (API 서버만). 아래 ai-worker 프로필은 내 PC 전용이다
   ai-api:
     build: ./ai
     image: nansogong-ai:local
@@ -130,7 +137,74 @@ services:
     profiles: ["ai"]
     ports:
       - "${AI_PORT:-8001}:8000"
+    environment:
+      # 비어 있으면 작업 API 만 401(토큰) · 503(저장소)이고 /health · /metrics 는 그대로 동작한다
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+      AI_DATABASE_URL: ${AI_DATABASE_URL:-}
 
+  # 🧠 (선택, 내 PC 전용) ai-worker 프로필: ① 저장소 준비 → ② 표 만들기 → ③ 워커 순서로 뜬다
+  #    dev EC2 에는 아직 띄우지 않는다 (Spring 이 Python 을 부르는 코드가 생기면 dev 배포를 따로 한다)
+  #    ① ai-db-init: postgres 컨테이너에 Python 전용 계정(ai_app) · ai 스키마 (infra/ai-db/init.sql). 여러 번 해도 결과가 같다
+  ai-db-init:
+    image: postgres:17-alpine
+    profiles: ["ai-worker"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ${DB_USER:-dev}
+      PGPASSWORD: ${DB_PASSWORD:-dev}
+      PGDATABASE: ${DB_NAME:-nansogong}
+      AI_DB_USER: ${AI_DB_USER:-ai_app}
+      AI_DB_PASSWORD: ${AI_DB_PASSWORD:-}           # 비밀번호는 환경변수로만 넘긴다 (명령줄 · 로그에 남지 않게)
+    volumes:
+      - ./infra/ai-db/init.sql:/init.sql:ro
+    command:
+      - sh
+      - -c
+      - '[ -n "$$AI_DB_PASSWORD" ] || { echo "AI_DB_PASSWORD 가 없습니다 (.env.example 참고)"; exit 1; }; psql -X -q -v ON_ERROR_STOP=1 -v ai_user="$$AI_DB_USER" -f /init.sql'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  #    ② ai-migrate: ai 스키마 표 만들기 · 올리기 (python -m app.db.migrate). 끝나면 멈춘다
+  ai-migrate:
+    <<: *ai-image
+    profiles: ["ai-worker"]
+    command: ["python", "-m", "app.db.migrate"]
+    healthcheck:
+      disable: true                                 # 이미지의 /health 검사는 API 서버용
+    environment:
+      AI_DATABASE_URL: ${AI_DATABASE_URL:-}
+    depends_on:
+      ai-db-init:
+        condition: service_completed_successfully
+
+  #    ③ ai-worker: 작업을 받아 처리 (python -m app.worker). 필요한 환경변수가 없으면 이름만 알려 주고 멈춘다
+  #      실제 Claude 를 부르므로 ANTHROPIC_API_KEY 가 필요하다 (과금). LangSmith 추적은 LANGSMITH_TRACING=true 일 때만
+  #      VS Code 로 Spring 을 띄울 때: .env 에 SPRING_BASE_URL=http://host.docker.internal:8080 을 넣고
+  #        docker compose --profile ai --profile ai-worker up -d --build ai-api ai-worker   ← 서비스 이름을 적어야 app 컨테이너가 같이 뜨지 않는다
+  #      app 을 기다리지 않는다 (service_started 는 Spring 준비 완료를 보장하지 않고, VS Code 로 띄울 때는 app 이 없다)
+  ai-worker:
+    <<: *ai-image
+    profiles: ["ai-worker"]
+    command: ["python", "-m", "app.worker"]
+    healthcheck:
+      disable: true
+    environment:
+      AI_DATABASE_URL: ${AI_DATABASE_URL:-}
+      SPRING_BASE_URL: ${SPRING_BASE_URL:-http://app:8080}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-claude-haiku-5-5}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-nansogong-local}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Linux 에서도 컨테이너가 내 PC(호스트)의 Spring 을 부를 수 있게
+    depends_on:
+      ai-migrate:
+        condition: service_completed_successfully
+
+  # 🤖 (선택) 수요 예측 실험: 이동평균 baseline → LightGBM (ml/README.md)
   ml:
     build: ./ml
     profiles: ["ml"]

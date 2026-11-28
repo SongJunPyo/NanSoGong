@@ -20,7 +20,7 @@ from app.graphs.recipe import (
 from app.models.recipe import RecipeLineCheck, RecipeReason, RecipeValidation
 from tests.fakes import BAD_DRAFT, CONTEXT, GOOD_DRAFT, INVALID, VALID, FakeSpring, FakeWriter
 
-START_INPUT = {"job_id": "job-1", "workflow_key": "MENU:job-1", "menu_name": "딸기라떼"}
+START_INPUT = {"job_id": 1, "workflow_key": "MENU:1", "menu_name": "딸기라떼"}
 
 
 def run(spring: FakeSpring, writer: FakeWriter) -> dict:
@@ -42,11 +42,11 @@ def test_valid_draft_is_saved_once():
     assert len(spring.saved) == 1
     saved = spring.saved[0]
     assert saved.suggestion_type == "MENU"
-    assert saved.workflow_key == "MENU:job-1"
+    assert saved.workflow_key == "MENU:1"
     assert saved.payload["menuName"] == "딸기라떼"          # Spring 으로 가는 JSON 은 camelCase
     assert saved.evidence["valid"] is True
     context = saved.generation_context
-    assert context["jobId"] == "job-1" and context["revisions"] == 0
+    assert context["jobId"] == 1 and context["revisions"] == 0
     assert datetime.fromisoformat(context["generatedAt"]).tzinfo is not None   # 기준 시각은 offset 포함
 
 
@@ -212,7 +212,8 @@ class _FakeChatModel:
     def __init__(self, result):
         self._result = result
 
-    def with_structured_output(self, schema):
+    def with_structured_output(self, schema, method=None):
+        self.method = method
         return self
 
     def invoke(self, prompt):
@@ -227,6 +228,14 @@ def test_claude_writer_turns_bad_output_into_generation_error(result):
 
     with pytest.raises(DraftGenerationError):
         writer.write("딸기라떼", CONTEXT)
+
+
+def test_claude_writer_uses_structured_output_not_forced_tool():
+    model = _FakeChatModel(GOOD_DRAFT)
+
+    ClaudeDraftWriter(model)
+
+    assert model.method == "json_schema"                   # thinking 이 켜진 모델에서도 쓸 수 있는 방식
 
 
 def test_claude_writer_lets_network_errors_through_for_retry():

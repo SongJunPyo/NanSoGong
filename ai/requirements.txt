@@ -6,7 +6,14 @@ uvicorn[standard]~=0.34.0
 prometheus-fastapi-instrumentator~=7.1.0
 pydantic~=2.14.0                 # 2.11 이상 필요: camelCase 내보내기(serialize_by_alias, app/models/base.py)
 pydantic-settings~=2.16.0        # 환경변수 → 설정 (app/config.py)
+httpx~=0.28.0                    # Python → Spring 내부 API 호출 (app/clients/spring_http.py)
 # AI 흐름 (app/graphs/). 설치해서 가짜 모델로 테스트한 버전. 실제 Claude 연결 확인은 #36 PR 전에 한다
 langgraph~=1.2.24
 langchain-core~=1.8.5
 langchain-anthropic~=1.7.13
+# AI 작업 저장소 (Postgres ai 스키마: 작업 등록부 · 체크포인트, app/db/)
+psycopg[binary]~=3.3.9
+psycopg-pool~=3.3.3
+langgraph-checkpoint-postgres~=3.2.1   # 체크포인트 표 생성 · 올리기는 배포 명령 python -m app.db.migrate 가 한다
+# 추적 (app/tracing.py). 민감정보를 지우는 Client 를 직접 만든다. 실제 LangSmith 로 보내는 것은 아직 확인 전
+langsmith~=0.16.2

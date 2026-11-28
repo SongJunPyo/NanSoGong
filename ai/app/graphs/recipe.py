@@ -19,6 +19,7 @@ from typing import Any, Protocol, TypedDict
 
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
@@ -32,9 +33,11 @@ from app.models.recipe import (
 )
 from app.models.suggestion import SuggestionSave
 from app.prompts import render
+from app.tracing import TRACE_ID_KEY
 
 MAX_REVISIONS = 2
-GRAPH_VERSION = "recipe-draft/2"                # 2: 초안 사용량 칸 qty → quantity (#35 계약)
+ENTRY_NODE = "load_context"                     # 처음 실행하는 노드 (작업 실행기가 첫 진행 보고에 쓴다)
+GRAPH_VERSION = "recipe-draft/3"                # 2: 초안 사용량 칸 qty → quantity (#35 계약) / 3: jobId 숫자 (Spring ai_job_id)
 
 
 class RecipeOutcome(StrEnum):
@@ -51,7 +54,7 @@ class RecipeState(TypedDict, total=False):
     """
 
     # 시작할 때 넣는 값
-    job_id: str
+    job_id: int
     workflow_key: str
     menu_name: str
     # 단계를 지나며 채워지는 값
@@ -141,7 +144,9 @@ class ClaudeDraftWriter:
     """
 
     def __init__(self, chat_model: BaseChatModel):
-        self._structured = chat_model.with_structured_output(RecipeDraft)
+        # json_schema: 도구 호출을 강제하지 않고 Claude 구조화 출력(output_config.format)으로 받는다.
+        # 도구 강제 방식은 thinking 이 켜진 모델에서 막힌다. 받은 결과는 RecipeDraft 가 다시 검사한다
+        self._structured = chat_model.with_structured_output(RecipeDraft, method="json_schema")
 
     def write(self, menu_name, context, previous=None, validation=None) -> RecipeDraft:
         try:
@@ -186,8 +191,10 @@ def build_recipe_graph(spring: SpringClient, writer: DraftWriter, checkpointer=N
         )
         return {**update, "revisions": state["revisions"] + 1}
 
-    def save(state: RecipeState) -> dict:
+    def save(state: RecipeState, config: RunnableConfig) -> dict:
         draft = RecipeDraft.model_validate(state["draft"])
+        # 워커가 넣어 준 이번 실행의 LangSmith 루트 실행 ID (추적을 끄면 없음). 제안과 추적을 잇는다
+        trace_id = config.get("configurable", {}).get(TRACE_ID_KEY)
         context = RecipeGenerationContext(
             job_id=state["job_id"],
             graph_version=GRAPH_VERSION,
@@ -204,6 +211,7 @@ def build_recipe_graph(spring: SpringClient, writer: DraftWriter, checkpointer=N
                 payload=state["draft"],
                 evidence=state["validation"],
                 generation_context=context.model_dump(mode="json"),
+                langsmith_trace_id=trace_id,
             ),
         )
         return {"suggestion_id": saved.suggestion_id, "outcome": RecipeOutcome.SAVED.value}
@@ -214,7 +222,7 @@ def build_recipe_graph(spring: SpringClient, writer: DraftWriter, checkpointer=N
     # ---------- 갈림길 (다음에 갈 노드 이름을 돌려준다) ----------
 
     def skip_if_done(state: RecipeState) -> str:
-        return END if state.get("outcome") else "load_context"
+        return END if state.get("outcome") else ENTRY_NODE
 
     def stop_if_generation_failed(state: RecipeState) -> str:
         return END if state.get("outcome") == RecipeOutcome.GENERATION_FAILED else "validate"
@@ -227,15 +235,15 @@ def build_recipe_graph(spring: SpringClient, writer: DraftWriter, checkpointer=N
         return "revise"
 
     builder = StateGraph(RecipeState)
-    builder.add_node("load_context", load_context)
+    builder.add_node(ENTRY_NODE, load_context)
     builder.add_node("generate_draft", generate_draft)
     builder.add_node("validate", validate)
     builder.add_node("revise", revise)
     builder.add_node("save", save)
     builder.add_node("give_up", give_up)
 
-    builder.add_conditional_edges(START, skip_if_done, ["load_context", END])
-    builder.add_edge("load_context", "generate_draft")
+    builder.add_conditional_edges(START, skip_if_done, [ENTRY_NODE, END])
+    builder.add_edge(ENTRY_NODE, "generate_draft")
     builder.add_conditional_edges("generate_draft", stop_if_generation_failed, ["validate", END])
     builder.add_conditional_edges("validate", after_validate, ["save", "revise", "give_up"])
     builder.add_conditional_edges("revise", stop_if_generation_failed, ["validate", END])
