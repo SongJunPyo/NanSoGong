@@ -64,6 +64,13 @@ docker compose --profile ai --profile ai-worker up -d --build   # + 저장소 �
 - 처음 한 번: `.env` 에 `AI_SERVICE_TOKEN` · `AI_DB_PASSWORD` · `AI_DATABASE_URL` · `INTERNAL_API_TOKEN` 을 넣는다 (`.env.example` 의 AI 칸). 워커가 실제로 작업을 처리하려면 `ANTHROPIC_API_KEY` 도 필요하다 (과금)
 - 🚨 `AI_SERVICE_TOKEN` 과 `INTERNAL_API_TOKEN` 은 서로 다른 값으로 만든다
 - `ai-worker` 프로필은 `ai-db-init`(계정 · 스키마, `infra/ai-db/init.sql`) → `ai-migrate`(표) → `ai-worker` 순서로 뜬다. 앞 단계가 실패하면 뒤 단계는 뜨지 않는다 (`docker compose logs ai-db-init` 로 이유 확인)
+- VS Code 로 Spring 을 띄울 때: `.env` 에 `SPRING_BASE_URL=http://host.docker.internal:8080` 을 넣고 서비스 이름을 적어서 띄운다. 이름을 적지 않으면 app 컨테이너가 같이 떠서 VS Code 서버와 8080 이 부딪힌다
+
+  ```bash
+  docker compose --profile ai --profile ai-worker up -d --build ai-api ai-worker
+  ```
+
+- 워커는 Spring 이 뜰 때까지 기다리지 않는다. Spring 이 꺼져 있는 동안 처리하던 작업은 재시도하며 시도 횟수를 쓴다 (3번 실패하면 `RETRY_EXHAUSTED`)
 - dev EC2 는 `ai` 프로필만 켠다 (API 서버만, 작업 API 는 401 · 503). 워커 dev 배포는 Spring 이 Python 을 부르는 코드가 생긴 뒤 따로 한다
 - http://localhost:8001/health → `{"status":"UP"}`
 - 작업 API 를 쓰려면 `AI_SERVICE_TOKEN` · `AI_DATABASE_URL` 이 있어야 한다 (없으면 401 · 503)

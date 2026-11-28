@@ -180,6 +180,9 @@ services:
 
   #    ③ ai-worker: 작업을 받아 처리 (python -m app.worker). 필요한 환경변수가 없으면 이름만 알려 주고 멈춘다
   #      실제 Claude 를 부르므로 ANTHROPIC_API_KEY 가 필요하다 (과금). LangSmith 추적은 LANGSMITH_TRACING=true 일 때만
+  #      VS Code 로 Spring 을 띄울 때: .env 에 SPRING_BASE_URL=http://host.docker.internal:8080 을 넣고
+  #        docker compose --profile ai --profile ai-worker up -d --build ai-api ai-worker   ← 서비스 이름을 적어야 app 컨테이너가 같이 뜨지 않는다
+  #      app 을 기다리지 않는다 (service_started 는 Spring 준비 완료를 보장하지 않고, VS Code 로 띄울 때는 app 이 없다)
   ai-worker:
     <<: *ai-image
     profiles: ["ai-worker"]
@@ -188,18 +191,18 @@ services:
       disable: true
     environment:
       AI_DATABASE_URL: ${AI_DATABASE_URL:-}
-      SPRING_BASE_URL: http://app:8080
+      SPRING_BASE_URL: ${SPRING_BASE_URL:-http://app:8080}
       INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-claude-haiku-5-5}
       LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
       LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-nansogong-local}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Linux 에서도 컨테이너가 내 PC(호스트)의 Spring 을 부를 수 있게
     depends_on:
       ai-migrate:
         condition: service_completed_successfully
-      app:
-        condition: service_started
 
   # 🤖 (선택) 수요 예측 실험: 이동평균 baseline → LightGBM (ml/README.md)
   ml:
