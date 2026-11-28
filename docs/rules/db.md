@@ -189,7 +189,7 @@ Python 작업 등록부와 LangGraph 체크포인트는 업무 표와 **스키�
 | `ai.checkpoints` 등 | LangGraph 체크포인트 (`thread_id` = `jobId`) | `PostgresSaver.setup()` (버전은 `ai/requirements.txt`) |
 
 - 칸은 `ai/app/db/migrations/` 의 SQL 파일에 있다. 이미 적용된 파일은 고치지 않고, 바꿀 내용은 다음 번호 파일로 만든다.
-- 계정 · `ai` 스키마(소유자 = Python 계정) · 권한은 인프라 DB 초기화 스크립트가 만든다. Flyway는 `ai` 스키마를 다루지 않는다.
+- 계정 · `ai` 스키마(소유자 = Python 계정) · 권한은 인프라 DB 초기화 스크립트 [`infra/ai-db/init.sh`](../../infra/ai-db/init.sh)가 만든다. 비밀번호는 환경변수(`AI_DB_PASSWORD`)로만 넘기고 SQL · 명령줄 · 서버 로그에 남기지 않는다. 지금은 내 PC(`local`)만 있고 dev · prod는 AI 워커를 배포할 때 추가한다. Flyway는 `ai` 스키마를 다루지 않는다.
 - 표 생성 · 업그레이드는 배포 명령 `python -m app.db.migrate` 가 한다. 서버 · 워커는 실행 중에 표를 만들지 않는다.
 - Python 계정에는 업무 표 쓰기 권한을 주지 않는다. 업무 데이터는 Spring 내부 API로만 바꾼다.
 - 등록부 상태 이름은 Spring `ai_job` 과 같은 것만 쓴다 (`PENDING` · `RUNNING` · `SUCCEEDED` · `FAILED` · `CANCELED`). 기준 기록은 `ai_job` 이고, 화면 · Spring은 등록부를 직접 보지 않는다.

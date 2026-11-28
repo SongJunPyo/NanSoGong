@@ -28,6 +28,7 @@ dev 가 작아서 **네트워크 · 보안 그룹 · IAM · ElastiCache TLS · H
 | `dev/update.sh` | dev EC2 에서 최신 설정 · 이미지로 compose 다시 띄우기 |
 | `dev/run-remote.sh` | Actions 가 dev EC2 의 `update.sh` 를 SSM 으로 원격 실행 |
 | `demo-data/` | 발표용 데모 데이터 SQL 과 넣기 스크립트 (`demo-data/README.md`) |
+| `ai-db/init.sh` | AI 작업 저장소(Postgres `ai` 스키마)와 Python 전용 계정 만들기. 지금은 내 PC(`local`)만 (`docs/rules/db.md` AI 작업 저장소) |
 
 ### GitHub Actions 역할 (스택이 만든다)
 
