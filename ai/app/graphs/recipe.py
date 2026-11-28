@@ -19,6 +19,7 @@ from typing import Any, Protocol, TypedDict
 
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 from pydantic import ValidationError
 
@@ -32,6 +33,7 @@ from app.models.recipe import (
 )
 from app.models.suggestion import SuggestionSave
 from app.prompts import render
+from app.tracing import TRACE_ID_KEY
 
 MAX_REVISIONS = 2
 ENTRY_NODE = "load_context"                     # 처음 실행하는 노드 (작업 실행기가 첫 진행 보고에 쓴다)
@@ -189,8 +191,10 @@ def build_recipe_graph(spring: SpringClient, writer: DraftWriter, checkpointer=N
         )
         return {**update, "revisions": state["revisions"] + 1}
 
-    def save(state: RecipeState) -> dict:
+    def save(state: RecipeState, config: RunnableConfig) -> dict:
         draft = RecipeDraft.model_validate(state["draft"])
+        # 워커가 넣어 준 이번 실행의 LangSmith 루트 실행 ID (추적을 끄면 없음). 제안과 추적을 잇는다
+        trace_id = config.get("configurable", {}).get(TRACE_ID_KEY)
         context = RecipeGenerationContext(
             job_id=state["job_id"],
             graph_version=GRAPH_VERSION,
@@ -207,6 +211,7 @@ def build_recipe_graph(spring: SpringClient, writer: DraftWriter, checkpointer=N
                 payload=state["draft"],
                 evidence=state["validation"],
                 generation_context=context.model_dump(mode="json"),
+                langsmith_trace_id=trace_id,
             ),
         )
         return {"suggestion_id": saved.suggestion_id, "outcome": RecipeOutcome.SAVED.value}

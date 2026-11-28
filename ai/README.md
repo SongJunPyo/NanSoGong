@@ -1,24 +1,51 @@
 # ai — AI 서비스 (Python · FastAPI)
 
 Spring 이 부르는 **내부용 AI 서버**입니다. Spring 이 작업(`jobId`)을 넘기면 접수만 하고 바로 답하고, 워커가 LangGraph 그래프를 돌려 진행 · 결과를 Spring 에 보고합니다.
-지금 붙어 있는 작업은 레시피 초안(`RECIPE_DRAFT`) 하나입니다. 실제 Spring(PR #56) · 실제 Claude 와 이어서 돌려 본 적은 아직 없고, docker-compose 에도 아직 연결하지 않았습니다 (테스트는 가짜 Spring · 가짜 LLM).
+지금 붙어 있는 작업은 레시피 초안(`RECIPE_DRAFT`) 하나입니다. 실제 Spring 내부 API(PR #56)와는 가짜 LLM 으로 이어서 돌려 봤습니다 (정상 · 검증 실패 · 401 뒤 재시도). 실제 Claude 호출과 실제 LangSmith 추적은 아직 확인하지 않았습니다. Spring 에는 아직 작업을 시작해 Python 을 부르는 코드가 없어서, 지금은 `POST /jobs` 를 직접 불러 작업을 넣습니다.
 
-## 워커 실행
+## 실행 명령
+
+같은 이미지로 세 가지를 띄운다.
 
 ```bash
 python -m app.db.migrate      # 배포할 때 한 번: ai 스키마 표 만들기 · 올리기
-python -m app.worker          # 작업을 받아 처리. 종료 신호(SIGTERM · Ctrl+C)를 받으면 지금 작업을 끝내고 멈춤
+python -m app.serve           # API 서버 (ai-api, 이미지 기본 명령). 포트 8000
+python -m app.worker          # 워커 (ai-worker). 작업을 받아 처리. 종료 신호(SIGTERM · Ctrl+C)를 받으면 지금 작업을 끝내고 멈춤
 ```
 
 | 환경변수 | 쓰는 곳 | 뜻 |
 |---|---|---|
 | `AI_SERVICE_TOKEN` | API 서버 | Spring → Python 호출 토큰 (`X-Internal-Token`) |
-| `AI_DATABASE_URL` | API 서버 · 워커 · migrate | ai 스키마 접속 주소 (Python 전용 계정) |
+| `AI_DATABASE_URL` | API 서버 · 워커 · migrate | ai 스키마 접속 주소 (Python 전용 계정). 예: `postgresql://ai_app:<AI_DB_PASSWORD>@postgres:5432/nansogong` |
 | `SPRING_BASE_URL` | 워커 | Spring 주소 (예: `http://app:8080`) |
 | `INTERNAL_API_TOKEN` | 워커 | Python → Spring 호출 토큰. Spring `app.internal.token` 과 같은 환경변수 · 같은 값 |
 | `ANTHROPIC_API_KEY` · `AI_MODEL` | 워커 | Claude 키 · 모델 (기본 `claude-haiku-5-5`). Spring 설정과 같은 이름 |
+| `LANGSMITH_TRACING` | 워커 | `true` 면 LangSmith 로 추적을 보낸다. 기본 꺼짐 |
+| `LANGSMITH_API_KEY` | 워커 | 추적을 켰을 때만 필수 |
+| `LANGSMITH_PROJECT` | 워커 | 환경별 프로젝트 (기본 `nansogong-local`. dev 는 `nansogong-dev`) |
 
 워커는 필수 환경변수가 하나라도 없으면 이름만 알려 주고 바로 끝난다. Spring 이 400 · 404 · 409 로 거절하면 다시 시도하지 않고 `SPRING_REJECTED` 로 끝내고, 401 · 5xx · 연결 오류는 나중에 다시 시도한다.
+
+## 로그
+
+표준 출력에 JSON 한 줄씩 쓴다 (`app/logs.py`). 워커가 작업을 처리하는 동안은 `jobId` · `traceId`(추적을 켰을 때)가 붙는다.
+
+```json
+{"time": "2026-11-28T06:21:39.346+00:00", "level": "INFO", "logger": "app.jobs.worker", "message": "작업 1: SUCCEEDED", "jobId": 1}
+```
+
+- `docker compose logs ai-worker | grep '"jobId": 7'` 처럼 작업 하나의 로그만 볼 수 있다
+- 🚨 비밀값 · 개인정보를 로그에 넣지 않는다
+
+## 추적 (LangSmith)
+
+`app/tracing.py`. 추적을 켜면 작업 한 번 실행이 LangSmith 루트 실행 하나가 된다.
+
+- 루트 실행 ID 를 Spring 보고 · 제안의 `langsmithTraceId` 로 보낸다 → Spring `ai_job` · `suggestion` 에서 추적으로 찾아갈 수 있다. 재시도하면 새 실행 ID 가 생기고 `ai_job` 에는 마지막 것이 남는다
+- 태그: 업무 이름 (`recipe`). 메타데이터: `jobId` · `jobType` · `workflowKey` · `graphVersion` · `attempt`. `storeId` 는 Python 이 받지 않으므로 넣지 않는다 (`jobId` 로 Spring `ai_job` 에서 찾는다)
+- 보내기 전에 `mask()` 가 민감정보를 지운다: 비밀번호 · 토큰 · 쿠키 · 키 · 전화번호 · 사업자번호 · 주소 · 이메일 같은 키의 값, 글 속의 전화번호 · 사업자번호 · 이메일 · API 키 모양. 실행 환경 정보(OS · 환경변수)도 보내지 않는다
+- 인증 · 결제 단계(#40)의 값은 `auth` 키(또는 `secret_` 로 시작하는 키) 아래에 둔다 → 통째로 빠진다
+- 테스트(`tests/conftest.py`)와 CI 에서는 끈다. 추적 테스트는 네트워크 없이 가짜 Client 로 보낸 내용을 확인한다
 
 | 항목 | 값 |
 |---|---|
@@ -48,7 +75,7 @@ pytest
 ```
 
 - 작업 등록부 · 체크포인트 테스트는 testcontainers 로 Postgres 17 컨테이너를 띄운다 → **Docker Desktop 이 켜져 있어야 한다.** Docker 가 없으면 내 PC 에서는 그 테스트만 건너뛰고, CI(`CI=true`)에서는 실패한다
-- 실제 모델 · 실제 Spring 을 부르지 않는다 (`tests/fakes.py`)
+- 실제 모델 · 실제 Spring · 실제 LangSmith 를 부르지 않는다 (`tests/fakes.py`, `tests/test_tracing.py`)
 
 ## 작업 API (Spring → Python)
 
@@ -65,9 +92,11 @@ pytest
 ## AI 작업 저장소 (Postgres `ai` 스키마)
 
 - 표: 작업 등록부(`ai.job`) · 보고 편지함(`ai.job_report`) · LangGraph 체크포인트. 규칙은 [DB 규칙 AI 작업 저장소](../docs/rules/db.md#ai-작업-저장소-ai-스키마)
-- 표 만들기 · 올리기는 배포 명령: `python -m app.db.migrate` (`AI_DATABASE_URL` 의 DB). 서버 · 워커는 실행 중에 표를 만들지 않는다
+- 순서: ① `ai` 스키마 · Python 전용 계정(`ai_app`) 만들기 → ② 표 만들기 · 올리기
+  1. `bash infra/ai-db/init.sh local` (저장소 최상위에서). `.env` 의 `AI_DB_PASSWORD` 가 필요하다 (`openssl rand -hex 24`). 여러 번 실행해도 된다
+  2. 배포 명령 `python -m app.db.migrate` (`AI_DATABASE_URL` 의 DB). 서버 · 워커는 실행 중에 표를 만들지 않는다
 - 새 표 · 칸은 `app/db/migrations/` 에 다음 번호 SQL 파일로 추가한다. 이미 적용된 파일은 고치지 않는다
-- `ai` 스키마와 Python 전용 계정은 인프라 DB 초기화 스크립트가 만든다 (아직 없음, #34 ④)
+- `ai_app` 은 `ai` 스키마만 쓸 수 있고 업무 표(public) 권한이 없다. dev · prod 용 초기화는 AI 워커를 배포할 때 추가한다
 
 ## 규칙
 

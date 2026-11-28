@@ -4,9 +4,13 @@
 배포 명령과 같은 migrate() 로 표를 만든다. 테스트마다 표를 비운다.
 
 Docker 가 없으면 내 PC 에서는 DB 테스트만 건너뛴다. CI(CI=true) 에서는 건너뛰지 않고 실패한다.
+LangSmith 추적은 모든 테스트에서 끈다 (LANGSMITH_TRACING=false).
 """
 
 import os
+
+# 테스트는 LangSmith 로 보내지 않는다 (내 PC .env · 환경변수에 켜 두었어도). 추적 테스트는 가짜 Client 로 따로 확인한다
+os.environ["LANGSMITH_TRACING"] = "false"
 
 import psycopg
 import pytest

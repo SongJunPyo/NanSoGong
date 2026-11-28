@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr = SecretStr("")
     ai_model: str = "claude-haiku-5-5"          # 개발 중 기본 모델 (docs/rules/ai.md). 운영 모델은 환경변수로 바꾼다
 
+    # ---------- LangSmith 추적 (app/tracing.py) ----------
+    # 기본은 꺼짐. 켜면 LANGSMITH_API_KEY 가 있어야 워커가 뜬다. pytest · CI 는 끈다 (tests/conftest.py)
+    langsmith_tracing: bool = False
+    langsmith_api_key: SecretStr = SecretStr("")
+    langsmith_project: str = "nansogong-local"   # 환경별 프로젝트. 예: nansogong-local · nansogong-dev
+
 
 @lru_cache
 def get_settings() -> Settings:

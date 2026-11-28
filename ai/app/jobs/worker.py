@@ -18,7 +18,9 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from app.clients.spring import SpringClient, SpringRejected
 from app.jobs.handlers import JobHandler, JobStart
 from app.jobs.registry import JobRecord, JobRegistry, LeaseLost
+from app.logs import log_context
 from app.models.job import JobErrorCode, JobStatus, JobType
+from app.tracing import TRACE_ID_KEY, TraceRun, Tracing
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +46,14 @@ class Worker:
         spring: SpringClient,
         checkpointer: BaseCheckpointSaver,
         owner: str,
+        tracing: Tracing | None = None,
     ):
         self._registry = registry
         self._handlers = handlers
         self._spring = spring
         self._checkpointer = checkpointer
         self._owner = owner
+        self._tracing = tracing or Tracing()            # 없으면 추적하지 않는다
 
     def run_once(self) -> bool:
         """작업을 하나 처리했으면 True, 받을 작업이 없었으면 False."""
@@ -73,22 +77,43 @@ class Worker:
         for pending in self._registry.unsent_reports():
             if pending.job_id in blocked:
                 continue
-            try:
-                self._spring.report(pending.job_id, pending.report)
-            except SpringRejected:
-                # 끝난 작업 · 순서 역전 등: 다시 보내도 같은 답이라 보낸 것으로 친다
-                logger.warning("작업 %s 보고 %s: Spring 이 거절", pending.job_id, pending.report.seq)
-            except Exception:
-                logger.warning("작업 %s 보고 %s: 전송 실패, 다음에 다시 보냄", pending.job_id, pending.report.seq)
-                blocked.add(pending.job_id)
-                continue
+            with log_context(job_id=pending.job_id, trace_id=pending.report.langsmith_trace_id):
+                try:
+                    self._spring.report(pending.job_id, pending.report)
+                except SpringRejected:
+                    # 끝난 작업 · 순서 역전 등: 다시 보내도 같은 답이라 보낸 것으로 친다
+                    logger.warning("작업 %s 보고 %s: Spring 이 거절", pending.job_id, pending.report.seq)
+                except Exception:
+                    logger.warning("작업 %s 보고 %s: 전송 실패, 다음에 다시 보냄", pending.job_id, pending.report.seq)
+                    blocked.add(pending.job_id)
+                    continue
             self._registry.mark_sent(pending.job_id, pending.report.seq)
 
     # ---------- 작업 하나 ----------
 
     def _run(self, job: JobRecord) -> None:
         handler = self._handlers[job.job_type]          # 접수 API 가 지원하는 종류만 받는다
-        config = {"configurable": {"thread_id": str(job.job_id)}}
+        # 이번 실행 = LangSmith 루트 실행 하나. 재시도 · 재시작하면 새 루트 실행이 생긴다
+        trace = self._tracing.start(
+            name=job.job_type.value,
+            tags=[handler.trace_tag],
+            metadata={
+                "jobId": job.job_id,
+                "jobType": job.job_type.value,
+                "workflowKey": job.workflow_key,
+                "graphVersion": handler.graph_version,
+                "attempt": job.attempts,
+            },
+        )
+        with log_context(job_id=job.job_id, trace_id=trace.trace_id):
+            self._run_traced(job, handler, trace)
+
+    def _run_traced(self, job: JobRecord, handler: JobHandler, trace: TraceRun) -> None:
+        trace_id = trace.trace_id
+        config = {
+            **trace.config,
+            "configurable": {"thread_id": str(job.job_id), TRACE_ID_KEY: trace_id},
+        }
         step = step_name(handler.entry_node)
 
         try:
@@ -99,7 +124,7 @@ class Worker:
             inputs = None if resume_from else handler.initial_state(JobStart(job.job_id, job.workflow_key, job.input))
             if resume_from:
                 step = step_name(resume_from[0])
-            self._registry.report(job.job_id, self._owner, step)
+            self._registry.report(job.job_id, self._owner, step, trace_id)
             self.deliver_reports()
 
             # durability="sync": 단계마다 체크포인트를 다 쓴 뒤에 다음 단계로 간다 (중간에 죽어도 끝낸 단계는 남는다)
@@ -109,7 +134,7 @@ class Worker:
                 next_nodes = graph.get_state(config).next
                 if next_nodes:
                     step = step_name(next_nodes[0])
-                    self._registry.report(job.job_id, self._owner, step)
+                    self._registry.report(job.job_id, self._owner, step, trace_id)
                     self.deliver_reports()
                 else:
                     step = step_name(next(iter(update)))   # 마지막으로 끝낸 단계
@@ -124,22 +149,24 @@ class Worker:
         except SpringRejected:
             # 끝난 작업 · 잘못된 요청: 다시 해도 같은 답이라 재시도(LLM 재호출)하지 않고 끝낸다
             logger.warning("작업 %s: %s 단계에서 Spring 이 거절해 실패로 끝냄", job.job_id, step, exc_info=True)
-            self._registry.finish(job.job_id, self._owner, JobStatus.FAILED, step, JobErrorCode.SPRING_REJECTED.value)
+            self._registry.finish(
+                job.job_id, self._owner, JobStatus.FAILED, step, JobErrorCode.SPRING_REJECTED.value, trace_id=trace_id
+            )
             return
         except Exception:
-            self._fail_or_retry(job, step)
+            self._fail_or_retry(job, step, trace_id)
             return
 
         self._registry.finish(
-            job.job_id, self._owner, result.status, step, result.error_code, result.suggestion_id
+            job.job_id, self._owner, result.status, step, result.error_code, result.suggestion_id, trace_id
         )
         logger.info("작업 %s: %s", job.job_id, result.status)
 
-    def _fail_or_retry(self, job: JobRecord, step: str) -> None:
+    def _fail_or_retry(self, job: JobRecord, step: str, trace_id: str | None) -> None:
         if job.attempts >= MAX_ATTEMPTS:
             logger.exception("작업 %s: %s 단계 오류, 시도 한도를 다 써서 실패로 끝냄", job.job_id, step)
             self._registry.finish(
-                job.job_id, self._owner, JobStatus.FAILED, step, JobErrorCode.RETRY_EXHAUSTED.value
+                job.job_id, self._owner, JobStatus.FAILED, step, JobErrorCode.RETRY_EXHAUSTED.value, trace_id=trace_id
             )
         else:
             logger.exception("작업 %s: %s 단계 오류, 나중에 다시 시도 (%s/%s)", job.job_id, step, job.attempts, MAX_ATTEMPTS)

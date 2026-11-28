@@ -11,7 +11,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
 from app.clients.spring import SpringClient
-from app.graphs.recipe import ENTRY_NODE, DraftWriter, RecipeOutcome, build_recipe_graph
+from app.graphs.recipe import ENTRY_NODE, GRAPH_VERSION, DraftWriter, RecipeOutcome, build_recipe_graph
 from app.models.job import JobErrorCode, JobStatus, JobType
 from app.models.recipe import RecipeJobInput
 
@@ -39,6 +39,8 @@ class JobStart:
 
 class JobHandler(Protocol):
     entry_node: str                             # 첫 진행 보고에 쓰는 단계
+    graph_version: str                          # LangSmith 메타데이터 graphVersion
+    trace_tag: str                              # LangSmith 태그 (업무 이름). 예: recipe
 
     def build_graph(self, checkpointer) -> CompiledStateGraph: ...
 
@@ -49,6 +51,8 @@ class JobHandler(Protocol):
 
 class RecipeDraftHandler:
     entry_node = ENTRY_NODE
+    graph_version = GRAPH_VERSION
+    trace_tag = "recipe"
 
     def __init__(self, spring: SpringClient, writer: DraftWriter):
         self._spring = spring

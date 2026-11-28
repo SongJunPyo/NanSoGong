@@ -145,11 +145,14 @@ class JobRegistry:
                 {"job_id": job_id, "owner": owner, "delay": delay.total_seconds()},
             )
 
-    def report(self, job_id: int, owner: str, step: str) -> None:
-        """진행 보고(RUNNING)를 편지함에 넣는다. 이 워커가 잡고 있지 않으면 LeaseLost."""
+    def report(self, job_id: int, owner: str, step: str, trace_id: str | None = None) -> None:
+        """진행 보고(RUNNING)를 편지함에 넣는다. 이 워커가 잡고 있지 않으면 LeaseLost.
+
+        trace_id: 이번 실행의 LangSmith 루트 실행 ID (추적을 끄면 None).
+        """
         with self._pool.connection() as conn, conn.transaction():
             self._lock_owned(conn, job_id, owner)
-            self._insert_report(conn, job_id, step, ReportStatus.RUNNING)
+            self._insert_report(conn, job_id, step, ReportStatus.RUNNING, trace_id=trace_id)
 
     def finish(
         self,
@@ -159,6 +162,7 @@ class JobRegistry:
         step: str,
         error_code: str | None = None,
         suggestion_id: int | None = None,
+        trace_id: str | None = None,
     ) -> None:
         """작업을 끝내고 마지막 보고를 같은 트랜잭션에서 넣는다 (끝났는데 보고가 빠지는 일이 없게).
 
@@ -175,7 +179,9 @@ class JobRegistry:
                 {"job_id": job_id, "status": status.value, "error_code": error_code},
             )
             if status != JobStatus.CANCELED:
-                self._insert_report(conn, job_id, step, ReportStatus(status.value), error_code, suggestion_id)
+                self._insert_report(
+                    conn, job_id, step, ReportStatus(status.value), error_code, suggestion_id, trace_id
+                )
 
     def close_abandoned(self, max_attempts: int) -> list[int]:
         """기한이 지났는데 더 시도할 수 없는 작업을 끝낸다. 끝낸 jobId 목록.
@@ -259,13 +265,14 @@ class JobRegistry:
         status: ReportStatus,
         error_code: str | None = None,
         suggestion_id: int | None = None,
+        trace_id: str | None = None,
     ) -> None:
         # 다음 순번은 작업 행을 잠근 뒤에 계산한다 (두 보고가 같은 순번을 받지 않게)
         conn.execute(
             """
-            INSERT INTO job_report (job_id, seq, step, status, error_code, suggestion_id)
+            INSERT INTO job_report (job_id, seq, step, status, error_code, suggestion_id, langsmith_trace_id)
             VALUES (%(job_id)s, COALESCE((SELECT MAX(seq) FROM job_report WHERE job_id = %(job_id)s), 0) + 1,
-                    %(step)s, %(status)s, %(error_code)s, %(suggestion_id)s)
+                    %(step)s, %(status)s, %(error_code)s, %(suggestion_id)s, %(trace_id)s)
             """,
             {
                 "job_id": job_id,
@@ -273,6 +280,7 @@ class JobRegistry:
                 "status": status.value,
                 "error_code": error_code,
                 "suggestion_id": suggestion_id,
+                "trace_id": trace_id,
             },
         )
 

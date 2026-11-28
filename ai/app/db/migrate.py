@@ -17,6 +17,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 
 from app.config import get_settings
 from app.db.pool import CONNECTION_KWARGS
+from app.logs import configure_logging
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ def migrate(url: str) -> list[str]:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    configure_logging()
     url = get_settings().ai_database_url.get_secret_value()
     if not url:
         raise SystemExit("AI_DATABASE_URL 이 없습니다")

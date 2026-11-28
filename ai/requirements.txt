@@ -15,3 +15,5 @@ langchain-anthropic~=1.7.13
 psycopg[binary]~=3.3.9
 psycopg-pool~=3.3.3
 langgraph-checkpoint-postgres~=3.2.1   # 체크포인트 표 생성 · 올리기는 배포 명령 python -m app.db.migrate 가 한다
+# 추적 (app/tracing.py). 민감정보를 지우는 Client 를 직접 만든다. 실제 LangSmith 로 보내는 것은 아직 확인 전
+langsmith~=0.16.2
