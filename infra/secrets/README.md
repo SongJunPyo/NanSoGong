@@ -35,6 +35,8 @@
 | `AUTH_COOKIE_SECURE` · `AUTH_COOKIE_SAME_SITE` | 현재 HTTP `false` · `Lax` | HTTPS `true` · `Lax` | `None`은 `Secure=true` 필수 |
 | `CORS_ALLOWED_ORIGINS` | 프록시로 여는 실제 화면 Origin 필수 | 필수 `https://<도메인>` | scheme·host·port를 정확히 지정. 여러 개는 쉼표 구분, 끝의 `/` 제외 |
 | `INTERNAL_API_TOKEN` | AI 워커 연동 시 필수 | AI 워커 연동 시 필수 | Python 워커 → Spring 내부 API(`/internal/**`, `X-Internal-Token`) 토큰 (`openssl rand -base64 48`, dev 와 prod 는 다른 값). 없으면 `/internal/**` 만 401 |
+| `AI_SERVICE_TOKEN` · `AI_DATABASE_URL` | 아직 넣지 않음 (AI 워커 dev 배포 때) | 아직 없음 | AI 서비스(ai-api) 작업 API. 토큰은 Spring → Python 호출용으로 `INTERNAL_API_TOKEN` 과 다른 값, 주소는 ai 스키마 전용 계정(`ai_app`). 없으면 작업 API 만 401 · 503. dev 주소 모양이 정해지면 틀 파일에도 넣는다 |
+| `LANGSMITH_TRACING` · `LANGSMITH_API_KEY` · `LANGSMITH_PROJECT` | 아직 넣지 않음 (AI 워커 dev 배포 때, 프로젝트 `nansogong-dev`) | 아직 없음 | AI 워커의 LangSmith 추적. dev 의 ai-api 는 받지 않는다 |
 | `AI_MODEL` · `DATA_GO_KR_SERVICE_KEY` · `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `VERIFICATION_MODE` | 선택 | 선택 | 필요할 때만 행 추가 |
 | `KAKAO_BASE_URL` · `KAKAO_REST_API_KEY` | 실제 날씨 연동 시 설정 | 실제 날씨 연동 시 설정 | 주소 `https://dapi.kakao.com`, 카카오 REST API 키. JavaScript 키·Admin 키는 사용하지 않음 |
 | `KMA_BASE_URL` · `KMA_SERVICE_KEY` | 실제 날씨 연동 시 설정 | 실제 날씨 연동 시 설정 | 주소 `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0`, 일반 인증키 원본(Decoding). 기존 국세청 `DATA_GO_KR_SERVICE_KEY`와 분리 |
