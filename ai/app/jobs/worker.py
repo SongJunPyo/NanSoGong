@@ -25,7 +25,12 @@ from app.tracing import TRACE_ID_KEY, TraceRun, Tracing
 logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 3                                # 오류 · 워커 중단을 포함해 작업 하나를 받는 최대 횟수
-LEASE = timedelta(minutes=5)                    # 단계 하나가 이보다 오래 걸리면 다른 워커가 회수할 수 있다
+# 작업 기한. 단계가 끝날 때마다 이만큼 다시 늘린다 (단계 도중에는 늘리지 않는다)
+# → 단계 하나(LLM 호출은 최대 1번)의 최악 시간보다 길어야 한다. 짧으면 단계가 끝날 때 기한이 이미 지나 있어
+#   다시 선점되며 시도 횟수를 쓰고, 워커가 여럿이면 다른 워커가 같은 단계를 또 한다
+#   Claude 호출 최악 시간은 app/worker.py model_call_worst_seconds (테스트로 확인)
+#   Spring ai_job 기한(레시피 초안 5분, 보고가 오면 연장)도 같은 조건이다
+LEASE = timedelta(minutes=5)
 RETRY_DELAY = timedelta(seconds=10)             # 오류 뒤 다시 받기까지 기다리는 시간 × 시도 횟수
 
 

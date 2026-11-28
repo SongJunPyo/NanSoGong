@@ -5,8 +5,16 @@ import threading
 from pydantic import SecretStr
 
 from app.config import Settings
-from app.jobs.worker import Worker
-from app.worker import build_worker, missing_settings, run_forever
+from app.jobs.worker import LEASE, Worker
+from app.worker import build_worker, missing_settings, model_call_worst_seconds, run_forever
+
+STEP_MARGIN_SECONDS = 60                        # 단계 앞뒤의 진행 보고 · 체크포인트 저장에 쓸 여유
+
+
+def test_claude_call_ends_well_before_job_lease():
+    """Claude 호출이 끝나기 전에 작업 기한이 지나면 다시 선점하며 시도 횟수를 쓴다 (워커가 여럿이면 같은 호출을 또 한다)."""
+    assert model_call_worst_seconds() == 196
+    assert model_call_worst_seconds() <= LEASE.total_seconds() - STEP_MARGIN_SECONDS
 
 
 def test_missing_settings_are_listed_by_name():

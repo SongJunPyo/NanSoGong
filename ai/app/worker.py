@@ -36,8 +36,25 @@ logger = logging.getLogger(__name__)
 
 IDLE_SECONDS = 1.0                              # 받을 작업이 없을 때 기다리는 시간
 ERROR_SECONDS = 5.0                             # DB 연결 실패 등 예상 못 한 오류 뒤 기다리는 시간
-MODEL_TIMEOUT_SECONDS = 120.0                   # Claude 요청 하나의 제한 시간 (SDK 가 2번까지 다시 시도)
+MODEL_TIMEOUT_SECONDS = 60.0                    # Claude 요청 한 번의 제한 시간
+MODEL_MAX_RETRIES = 2                           # SDK 가 다시 시도하는 횟수 (시간 초과 · 429 · 5xx · 연결 오류)
 MODEL_MAX_TOKENS = 16000
+# 다시 시도하기 전에 SDK 가 기다리는 시간: 보통 최대 8초, 서버가 retry-after 를 주면 그만큼 기다린다
+# 🚨 가정: retry-after 는 60초를 넘지 않는다 (분 단위 사용 한도). SDK 는 이 값에 상한을 두지 않는다
+SDK_BACKOFF_MAX_SECONDS = 8.0
+RETRY_AFTER_MAX_SECONDS = 60.0
+
+
+def model_call_worst_seconds() -> float:
+    """Claude 호출 한 번(SDK 재시도 포함)이 가장 오래 걸리는 시간(초). 지금 값으로 196초.
+
+    다시 시도하기 전의 시도 하나는 둘 중 하나다
+    - 시간 초과: 제한 시간 + 최대 8초 대기
+    - 오류 응답(429 등)이 바로 옴: retry-after 만큼 대기
+    작업 기한(app.jobs.worker.LEASE)보다 넉넉히 짧아야 한다 (tests/test_worker_main.py 가 확인).
+    """
+    one_retry = max(MODEL_TIMEOUT_SECONDS + SDK_BACKOFF_MAX_SECONDS, RETRY_AFTER_MAX_SECONDS)
+    return one_retry * MODEL_MAX_RETRIES + MODEL_TIMEOUT_SECONDS
 
 
 def missing_settings(settings: Settings) -> list[str]:
@@ -61,7 +78,7 @@ def build_worker(settings: Settings) -> tuple[Worker, Callable[[], None]]:
         api_key=settings.anthropic_api_key.get_secret_value(),
         max_tokens=MODEL_MAX_TOKENS,
         default_request_timeout=MODEL_TIMEOUT_SECONDS,
-        max_retries=2,
+        max_retries=MODEL_MAX_RETRIES,
     )
     handlers = {JobType.RECIPE_DRAFT: RecipeDraftHandler(spring, ClaudeDraftWriter(chat_model))}
     owner = f"{socket.gethostname()}-{os.getpid()}"[:64]
