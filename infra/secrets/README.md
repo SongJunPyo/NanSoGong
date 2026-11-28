@@ -35,8 +35,12 @@
 | `AUTH_COOKIE_SECURE` · `AUTH_COOKIE_SAME_SITE` | 현재 HTTP `false` · `Lax` | HTTPS `true` · `Lax` | `None`은 `Secure=true` 필수 |
 | `CORS_ALLOWED_ORIGINS` | 프록시로 여는 실제 화면 Origin 필수 | 필수 `https://<도메인>` | scheme·host·port를 정확히 지정. 여러 개는 쉼표 구분, 끝의 `/` 제외 |
 | `AI_MODEL` · `DATA_GO_KR_SERVICE_KEY` · `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `VERIFICATION_MODE` | 선택 | 선택 | 필요할 때만 행 추가 |
+| `KAKAO_BASE_URL` · `KAKAO_REST_API_KEY` | 실제 날씨 연동 시 설정 | 실제 날씨 연동 시 설정 | 주소 `https://dapi.kakao.com`, 카카오 REST API 키. JavaScript 키·Admin 키는 사용하지 않음 |
+| `KMA_BASE_URL` · `KMA_SERVICE_KEY` | 실제 날씨 연동 시 설정 | 실제 날씨 연동 시 설정 | 주소 `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0`, 일반 인증키 원본(Decoding). 기존 국세청 `DATA_GO_KR_SERVICE_KEY`와 분리 |
 
 - 값이 없는 키는 **빈 값으로 두지 말고 아예 넣지 않습니다** (빈 값도 그대로 환경변수로 들어간다)
 - 🚨 prod 에는 `DB_URL` · `DB_USER` · `DB_PASSWORD` · `REDIS_HOST` 를 넣지 않습니다 (prod 스택이 넣어 준다). dev 에는 DB 값 3개만 넣고 `REDIS_HOST` 는 넣지 않습니다 (같은 EC2 의 Redis 컨테이너)
 - dev 의 온프레미스 DB 방화벽은 dev EC2 고정 IP(dev 스택 출력 `Url`)만 허용합니다. dev 스택을 다시 만들면 IP 가 바뀌므로 방화벽도 고칩니다
 - 새 환경변수를 만들면 이 표와 틀 파일도 함께 고칩니다
+
+날씨의 로컬·dev 기본은 목업입니다. 실제 날씨를 사용할 때만 위 네 값을 함께 설정합니다. 틀 파일의 날씨 항목을 사용하지 않으면 네 행을 모두 제거합니다. 카카오와 기상청 중 하나만 목업이면 `WEATHER_CONFIGURATION_REQUIRED`로 거절합니다. 환경변수 변경은 `docker compose up -d --build app`으로 앱을 다시 생성해야 반영됩니다. 목업 호출에는 실제 키를 전달하지 않습니다.

@@ -7,6 +7,7 @@ API 키가 없어도, 실제 POS · 거래처가 없어도 팀원 모두가 같�
 |---|---|---|---|
 | `/nts/v1/status`, `/nts/v1/validate` | 국세청 사업자 상태조회 · 진위확인 | 구현-1-2 | 공공데이터포털 `api.odcloud.kr/api/nts-businessman/v1` |
 | `/kma/getVilageFcst`, `/kma/getUltraSrtNcst` | 기상청 단기예보 · 초단기실황 | 구현-1-13 | 공공데이터포털 `apis.data.go.kr/1360000/VilageFcstInfoService_2.0` |
+| `/kakao/v2/local/search/address.json` | 주소 → 위경도 | 구현-1-13 | 카카오 `dapi.kakao.com/v2/local/search/address.json` |
 | `/holiday/getRestDeInfo` | 특일 정보(공휴일) | 구현-2-5 | 공공데이터포털 `apis.data.go.kr/B090041/openapi/service/SpcdeInfoService` |
 | `/naver/v1/datalab/search` | 네이버 데이터랩 검색어 트렌드 | 구현-4-5 | `openapi.naver.com/v1/datalab/search` |
 | `/pos/v1/menus`, `/pos/v1/orders`, `/pos/v1/coupons` | POS (메뉴 · 주문 · 쿠폰 등록) | 구현-1-7, 1-9, 1-14, UF-07 | MVP 는 목업 (토스플레이스 · 페이히어는 향후) |
@@ -36,3 +37,5 @@ API 키가 없어도, 실제 POS · 거래처가 없어도 팀원 모두가 같�
 - 받은 요청 기록 (내 서버가 무엇을 보냈는지 확인): http://localhost:8089/__admin/requests
 - 스텁을 고친 뒤 반영: `docker compose restart mock`
 - 진짜 API 로 바꾸기: `.env` 에서 해당 `*_BASE_URL` 과 키를 넣는다 (`.env.example` 참고)
+
+날씨 API의 기본 목업은 어떤 주소에도 서울시청 격자를 반환하며 응답에 `mock: true`가 표시됩니다. 실제 매장 위치·날씨 검증에는 사용하지 않습니다. 단기예보는 요청한 발표일·시각과 현재 이후 예보 시각으로 응답합니다. 실제 연동 설정과 오류 계약은 [백엔드 날씨 계약](../docs/rules/backend.md#매장-날씨-조회)을 따릅니다.

@@ -1,0 +1,27 @@
+{
+  "name": "카카오 주소 검색 - 개발용 서울시청 좌표",
+  "request": {
+    "method": "GET",
+    "urlPath": "/kakao/v2/local/search/address.json"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "meta": {
+        "total_count": 1,
+        "pageable_count": 1,
+        "is_end": true
+      },
+      "documents": [
+        {
+          "address_name": "서울 중구 세종대로 110",
+          "x": "126.977918351844",
+          "y": "37.566370776634"
+        }
+      ]
+    }
+  }
+}

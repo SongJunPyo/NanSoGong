@@ -43,6 +43,14 @@ public class ExternalApiConfig {
         return builder.clone().baseUrl(ext.kmaBaseUrl()).build();
     }
 
+    @Bean
+    RestClient kakaoRestClient() {
+        // 목업의 요청 기록·로그에 실제 키가 남지 않게 가짜 키만 전달한다.
+        String key = ext.kakaoMock() ? "mock-key" : java.util.Objects.toString(ext.kakaoRestApiKey(), "");
+        return builder.clone().baseUrl(ext.kakaoBaseUrl())
+                .defaultHeader("Authorization", "KakaoAK " + key).build();
+    }
+
     @Bean   // 특일 정보 (구현-2-5)
     RestClient holidayRestClient() {
         return builder.clone().baseUrl(ext.holidayBaseUrl()).build();
