@@ -100,6 +100,7 @@ app:
     kakao-base-url: ${KAKAO_BASE_URL:http://localhost:${MOCK_PORT:8089}/kakao}
     kakao-rest-api-key: ${KAKAO_REST_API_KEY:mock-key}
     holiday-base-url: ${HOLIDAY_BASE_URL:http://localhost:${MOCK_PORT:8089}/holiday}     # 특일 정보(공휴일)
+    tour-base-url: ${TOUR_BASE_URL:http://localhost:${MOCK_PORT:8089}/tour}              # 한국관광공사 행사
     naver-datalab-base-url: ${NAVER_DATALAB_BASE_URL:http://localhost:${MOCK_PORT:8089}/naver/v1/datalab}
     naver-client-id: ${NAVER_CLIENT_ID:mock-id}
     naver-client-secret: ${NAVER_CLIENT_SECRET:mock-secret}

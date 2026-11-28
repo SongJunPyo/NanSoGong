@@ -67,10 +67,12 @@ public record AppProperties(
             @NotNull Duration readTimeout,
             @NotBlank String kakaoBaseUrl,
             String kakaoRestApiKey,
-            String kmaServiceKey
+            String kmaServiceKey,
+            @NotBlank String tourBaseUrl
     ) {
         public boolean kakaoMock() { return isMock(kakaoBaseUrl, "/kakao"); }
         public boolean kmaMock() { return isMock(kmaBaseUrl, "/kma"); }
+        public boolean tourMock() { return isMock(tourBaseUrl, "/tour"); }
 
         private static boolean isMock(String baseUrl, String path) {
             URI uri = URI.create(baseUrl);

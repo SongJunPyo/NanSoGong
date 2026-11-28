@@ -97,6 +97,7 @@ services:
       KAKAO_BASE_URL: ${KAKAO_BASE_URL:-http://mock:8080/kakao}
       KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-mock-key}
       HOLIDAY_BASE_URL: ${HOLIDAY_BASE_URL:-http://mock:8080/holiday}
+      TOUR_BASE_URL: ${TOUR_BASE_URL:-http://mock:8080/tour}
       NAVER_DATALAB_BASE_URL: http://mock:8080/naver/v1/datalab
       POS_BASE_URL: http://mock:8080/pos/v1
       SUPPLIER_BASE_URL: http://mock:8080/supplier/v1

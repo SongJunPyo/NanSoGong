@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/tour/searchFestival2",
+    "queryParameters": {
+      "serviceKey": {
+        "equalTo": "mock-key"
+      },
+      "_type": {
+        "equalTo": "json"
+      },
+      "pageNo": {
+        "equalTo": "1"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json; charset=utf-8"
+    },
+    "body": "{\"response\":{\"header\":{\"resultCode\":\"0000\",\"resultMsg\":\"OK\"},\"body\":{\"items\":{\"item\":[{\"contentid\":\"1001\",\"contenttypeid\":\"15\",\"title\":\"서울시청 주변 행사 예시\",\"eventstartdate\":\"{{request.query.eventStartDate}}\",\"eventenddate\":\"{{request.query.eventEndDate}}\",\"addr1\":\"개발용 예시 장소\",\"addr2\":\"\",\"mapx\":\"126.9779\",\"mapy\":\"37.5664\"},{\"contentid\":\"1002\",\"contenttypeid\":\"15\",\"title\":\"광화문 행사 예시\",\"eventstartdate\":\"{{request.query.eventStartDate}}\",\"eventenddate\":\"{{request.query.eventEndDate}}\",\"addr1\":\"개발용 예시 장소\",\"addr2\":\"\",\"mapx\":\"126.9767\",\"mapy\":\"37.5716\"},{\"contentid\":\"1003\",\"contenttypeid\":\"15\",\"title\":\"부산 행사 예시\",\"eventstartdate\":\"{{request.query.eventStartDate}}\",\"eventenddate\":\"{{request.query.eventEndDate}}\",\"addr1\":\"개발용 예시 장소\",\"addr2\":\"\",\"mapx\":\"129.0756\",\"mapy\":\"35.1796\"},{\"contentid\":\"1004\",\"contenttypeid\":\"15\",\"title\":\"좌표 미제공 행사 예시\",\"eventstartdate\":\"{{request.query.eventStartDate}}\",\"eventenddate\":\"{{request.query.eventEndDate}}\",\"addr1\":\"개발용 예시 장소\",\"addr2\":\"\",\"mapx\":\"\",\"mapy\":\"\"}]},\"numOfRows\":1000,\"pageNo\":1,\"totalCount\":4}}}"
+  }
+}

@@ -56,6 +56,11 @@ public class ExternalApiConfig {
         return builder.clone().baseUrl(ext.holidayBaseUrl()).build();
     }
 
+    @Bean   // 매장 주변 축제·행사 (구현-2-5)
+    RestClient tourRestClient() {
+        return builder.clone().baseUrl(ext.tourBaseUrl()).build();
+    }
+
     @Bean  // 네이버 데이터랩 검색어 트렌드 (구현-4-5)
     RestClient naverDatalabRestClient() {
         return builder.clone().baseUrl(ext.naverDatalabBaseUrl())
