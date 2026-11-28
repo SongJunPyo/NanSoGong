@@ -31,7 +31,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -227,6 +229,29 @@ class InventoryStockOverviewFlowTest {
         call(get("/api/stores/" + storeId + "/inventory-items/999999999/transactions")).andExpect(status().isNotFound());
         Long otherStoreId = storeRepository.save(Store.create(memberId, "%09d2".formatted(memberId), "다른카페", "테스트", LocalDate.of(2026, 1, 1))).getId();
         call(get("/api/stores/" + otherStoreId + "/inventory-items/" + milkId + "/stock-counts")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 같은_시각_장부가_많아도_페이지를_넘길_때_중복_누락이_없다() throws Exception {
+        // 한 주문의 여러 줄처럼 발생 시각이 같은 기록 100건
+        Instant sameAt = t0.plus(Duration.ofHours(7));
+        for (int i = 0; i < 100; i++) {
+            ledger(beanId, InventoryTransactionType.SALE, "-1", sameAt);
+        }
+        String beanUrl = "/api/stores/" + storeId + "/inventory-items/" + beanId + "/transactions";
+
+        Set<Long> seen = new HashSet<>();
+        for (int page = 0; page < 5; page++) {
+            String body = call(get(beanUrl).param("page", String.valueOf(page)).param("size", "20"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            List<Number> ids = JsonPath.read(body, "$.content[*].id");
+            assertThat(ids).hasSize(20);
+            for (Number id : ids) {
+                assertThat(seen.add(id.longValue())).as("중복 id %s (page %d)", id, page).isTrue();
+            }
+        }
+        assertThat(seen).hasSize(100);
     }
 
     @Test

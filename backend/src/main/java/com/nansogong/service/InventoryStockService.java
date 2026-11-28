@@ -20,7 +20,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -181,7 +183,7 @@ public class InventoryStockService {
     public Page<InventoryStockCountResponse> getStockCounts(Long memberId, Long storeId, Long itemId, Pageable pageable) {
         storeService.checkOwner(memberId, storeId);
         findItem(storeId, itemId);
-        return inventoryStockCountRepository.findByItemId(itemId, pageable).map(InventoryStockCountResponse::from);
+        return inventoryStockCountRepository.findByItemId(itemId, withIdTieBreak(pageable)).map(InventoryStockCountResponse::from);
     }
 
     /** 품목의 장부 기록 (판매 · 취소 · 입고 · 폐기 · 손실). 기본 정렬은 발생 시각 최신순. 없거나 다른 매장 품목이면 404 */
@@ -189,7 +191,19 @@ public class InventoryStockService {
     public Page<InventoryTransactionResponse> getTransactions(Long memberId, Long storeId, Long itemId, Pageable pageable) {
         storeService.checkOwner(memberId, storeId);
         findItem(storeId, itemId);
-        return inventoryTransactionRepository.findByItemId(itemId, pageable).map(InventoryTransactionResponse::from);
+        return inventoryTransactionRepository.findByItemId(itemId, withIdTieBreak(pageable)).map(InventoryTransactionResponse::from);
+    }
+
+    /**
+     * 정렬 끝에 id 최신순을 붙인다. 시각이 같은 기록(한 주문의 여러 줄 등)은 DB가 순서를 보장하지 않아서
+     * 페이지를 넘길 때 같은 기록이 다시 나오거나 빠질 수 있다. 화면이 다른 정렬을 보내도 항상 붙인다.
+     */
+    private Pageable withIdTieBreak(Pageable pageable) {
+        if (pageable.isUnpaged() || pageable.getSort().getOrderFor("id") != null) {
+            return pageable;
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(),
+                pageable.getSort().and(Sort.by(Sort.Direction.DESC, "id")));
     }
 
     private InventoryItem findItem(Long storeId, Long itemId) {
