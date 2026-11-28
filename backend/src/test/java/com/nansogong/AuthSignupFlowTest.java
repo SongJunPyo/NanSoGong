@@ -230,7 +230,7 @@ class AuthSignupFlowTest {
 
     @Test
     void refusesToSubstituteTheMockWhenRealPhoneModeIsRequested() {
-        var realProps = new AppProperties(props.cors(), props.jwt(), new AppProperties.Verification(AppProperties.Verification.Mode.REAL, "000000"), props.crypto(), props.external(), props.session(), props.sens());
+        var realProps = new AppProperties(props.cors(), props.jwt(), new AppProperties.Verification(AppProperties.Verification.Mode.REAL, "000000"), props.crypto(), props.external(), props.session(), props.sens(), props.internal());
         var real = new AuthPhoneVerificationService(redis, realProps, sms, environment);
         assertThatThrownBy(() -> real.requestCode(new AuthPhoneRequest(NAME, PHONE)))
                 .isInstanceOfSatisfying(ResponseStatusException.class, error -> assertThat(error.getStatusCode().value()).isEqualTo(503));

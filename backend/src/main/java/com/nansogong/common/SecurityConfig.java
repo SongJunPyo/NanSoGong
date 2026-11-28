@@ -7,6 +7,8 @@ import com.nansogong.service.AuthCookieService;
 import com.nansogong.service.AuthSessionCsrfFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -57,7 +59,26 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * Python AI 워커가 부르는 내부 API(/internal/**) 전용 (#34 ③). 사용자 체인보다 먼저 검사한다.
+     * X-Internal-Token 만 받는다 → 사용자 JWT 로는 들어올 수 없고, 이 경로는 사용자 체인(세션 검사)을 거치지 않는다.
+     * 바깥에서는 프록시 · ALB 가 /internal/** 을 넘기지 않는다 (토큰 하나에만 기대지 않게).
+     */
     @Bean
+    @Order(1)
+    SecurityFilterChain internalFilterChain(HttpSecurity http) throws Exception {
+        String internalToken = props.internal() == null ? "" : props.internal().token();
+        http
+                .securityMatcher("/internal/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(new InternalTokenFilter(internalToken), AuthorizationFilter.class)
+                .authorizeHttpRequests(a -> a.anyRequest().hasRole("INTERNAL"));
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain filterChain(HttpSecurity http, AuthCookieService cookies, AuthSessionService sessions) throws Exception {
         http
                 .cors(Customizer.withDefaults())            // 🚨 이 줄이 없으면 WebConfig 의 CORS 설정이 무시된다

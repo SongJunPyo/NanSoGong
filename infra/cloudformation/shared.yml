@@ -128,12 +128,24 @@ Resources:
                 - !Ref GitHubOidcProvider
                 - !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com'
             Action: sts:AssumeRoleWithWebIdentity
+            # GitHub 가 보내는 sub(신분)는 두 모양이 있어서 둘 다 받는다
+            #   예전: repo:SongJunPyo/NanSoGong:ref:refs/heads/dev
+            #   새것: repo:SongJunPyo@<계정 ID>/NanSoGong@<저장소 ID>:ref:refs/heads/dev  (실제로 이 모양으로 와서 거절된 적 있음)
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
                 token.actions.githubusercontent.com:sub:
                   - !Sub 'repo:${GitHubRepository}:ref:refs/heads/dev'
                   - !Sub 'repo:${GitHubRepository}:ref:refs/heads/main'
+                  - !Sub
+                    - 'repo:${Owner}@*/${Name}@*:ref:refs/heads/dev'
+                    - Owner: !Select [0, !Split ['/', !Ref GitHubRepository]]
+                      Name: !Select [1, !Split ['/', !Ref GitHubRepository]]
+                  - !Sub
+                    - 'repo:${Owner}@*/${Name}@*:ref:refs/heads/main'
+                    - Owner: !Select [0, !Split ['/', !Ref GitHubRepository]]
+                      Name: !Select [1, !Split ['/', !Ref GitHubRepository]]
       Policies:
         - PolicyName: push-nansogong-images
           PolicyDocument:

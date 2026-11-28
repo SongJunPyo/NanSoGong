@@ -41,8 +41,11 @@
 | 재고 | `InventoryService.deductForSale(orderItemId)` | `resolve` → `usageOf` × 차감 수량 → 장부 기록 → `deduct_status` 변경 |
 | 재고 | `InventoryItemService.validateSameStore(storeId, Collection<Long> itemIds)` | 품목이 하나라도 없거나 다른 매장 것이면 400. 사용 중지 여부는 보지 않는다 |
 | 재고 | `InventoryItemService.getItemsByIds(storeId, Collection<Long> itemIds)` | `Map<itemId, InventoryItemResponse>` (이름 · 단위 등). 없거나 다른 매장 품목은 빠진다 |
+| 메뉴 | `RecipeDraftService.context(memberId, storeId)` | AI 레시피 초안 맥락 (#35 ①): 사용 중 품목과 현재 단가(확인되지 않으면 null), 기본 메뉴(옵션 · 판매 중지 제외)별 지금 레시피 |
+| 메뉴 | `RecipeDraftService.validate(memberId, storeId, RecipeDraftValidateRequest)` | AI 초안 검증 (#35 ②): 줄마다 품목 찾기 · 관리 단위로 변환 · 현재 단가. 결과는 요청과 같은 순서 · 개수, 문제는 `reason` 코드. 매장에 없는 재료는 `NEW_ITEM`(ok) 으로 통과. 단가가 없거나 새 재료가 있으면 `totalCost` 는 null. 저장하지 않는다 ([계약 예시](../../contracts/recipe-draft/README.md)) |
 
 - 재고의 품목 메서드는 부르는 쪽이 `checkOwner` 를 이미 했다고 보고 매장 권한을 다시 확인하지 않는다.
+- `RecipeDraftService` 를 내부 API(`/internal/ai-jobs/{jobId}/…`)에서 부를 때 `memberId` · `storeId` 는 `ai_job` 행에서 꺼낸다 (요청 본문 · 경로의 값을 쓰지 않는다).
 - `usageOf` 는 메뉴 1개 기준만 돌려준다. **수량을 곱하는 일은 `deductForSale` 이 맡는다.** 취소 · 부분 취소가 생겨도 `usageOf` 는 바꾸지 않는다.
 
 ## 판매 → 재고 차감

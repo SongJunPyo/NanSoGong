@@ -153,7 +153,7 @@ class AuthPasswordResetFlowTest {
                 .isInstanceOfSatisfying(ResponseStatusException.class, e -> assertThat(e.getStatusCode().value()).isEqualTo(503));
         env.setActiveProfiles("prod");
         assertThatThrownBy(() -> aws.request(new AuthPasswordResetStartRequest("demo-office", PHONE), "local")).isInstanceOf(ResponseStatusException.class);
-        var realProps = new AppProperties(props.cors(), props.jwt(), new AppProperties.Verification(AppProperties.Verification.Mode.REAL, "000000"), props.crypto(), props.external(), props.session(), props.sens());
+        var realProps = new AppProperties(props.cors(), props.jwt(), new AppProperties.Verification(AppProperties.Verification.Mode.REAL, "000000"), props.crypto(), props.external(), props.session(), props.sens(), props.internal());
         var real = new AuthPasswordResetService(members, redis, realProps, new MockEnvironment(), credentials, passwords, persistence, sms, delivery);
         assertThatThrownBy(() -> real.request(new AuthPasswordResetStartRequest("demo-office", PHONE), "local")).isInstanceOf(ResponseStatusException.class);
     }

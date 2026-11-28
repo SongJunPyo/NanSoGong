@@ -1,3 +1,4 @@
 import { request } from './client.js'
+import { createStoreApi } from './store-server.js'
 
-export const updateStoreBasics = (storeId, input) => request(`/stores/${storeId}`, { method: 'PUT', body: JSON.stringify(input) })
+export const { getStore, updateStoreBasics } = createStoreApi(request)

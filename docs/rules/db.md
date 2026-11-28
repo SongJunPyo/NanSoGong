@@ -1,6 +1,6 @@
 # DB 규칙
 
-PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추측하지 말고 [전체 표 구조](../pjt_source/store-agent-db.sql)를 봅니다. 28개 표의 현재 스키마입니다. 처음 27개 표는 `V202611241000__create_store_agent_schema.sql`, 그 뒤 변경은 이후 마이그레이션(`V202611261001` 사업자번호 UQ, `V202611262100` `ai_job`)에 있습니다. 설명은 [표 설계 설명](../pjt_source/store-agent-db-desc.md)에 있습니다.
+PostgreSQL 17 · Flyway 규칙입니다. 표 · 칸 이름이 궁금하면 추측하지 말고 [전체 표 구조](../pjt_source/store-agent-db.sql)를 봅니다. 28개 표의 현재 스키마입니다. 처음 27개 표는 `V202611241000__create_store_agent_schema.sql`, 그 뒤 변경은 이후 마이그레이션(`V202611261001` 사업자번호 UQ, `V202611262100` `ai_job`, `V202611271730` 제안 버전 UQ)에 있습니다. 설명은 [표 설계 설명](../pjt_source/store-agent-db-desc.md)에 있습니다.
 
 - 업무 규칙(차감 계산 · 결제 상태 전이 등)은 [도메인 규칙](domain.md)에 씁니다.
 - AI 작업 상태 저장 방식은 [AI 규칙](ai.md#상태-저장--재개)에 씁니다.
@@ -160,11 +160,14 @@ AI 작업의 **기준 기록**은 Spring 업무 DB의 `ai_job` 표다. 칸은 [�
 
 **보고**
 
-- 보고 순번은 `last_report_seq` 와 비교한다. 같으면 중복이라 무시하고, 작으면 순서가 뒤바뀐 것이라 거절하고, 크면 반영한다.
-- **끝난 작업(`SUCCEEDED` · `FAILED` · `CANCELED` · `SUPERSEDED`)의 보고는 모두 거절한다.** 늦게 온 보고가 끝난 작업을 되살리지 않게 한다.
+- 보고 순번은 `last_report_seq` 와 비교한다. 같으면 중복이라 무시하고(응답 유실 후 재시도), 작으면 순서가 뒤바뀐 것이라 거절하고, 크면 반영한다.
+- 같은 순번 검사가 먼저다. 끝난 작업이라도 마지막 보고와 순번이 같으면 중복으로 보고 그대로 돌려준다 (`applied=false`).
+- **끝난 작업(`SUCCEEDED` · `FAILED` · `CANCELED` · `SUPERSEDED`)에 온 새 순번 보고는 모두 거절한다.** 늦게 온 보고가 끝난 작업을 되살리지 않게 한다.
+- 제안을 만드는 작업(레시피 초안 · 신메뉴 추천 · 발주 제안 · 쿠폰 제안)은 제안을 저장하기 전에 `SUCCEEDED` 로 끝낼 수 없다 (409). 화면에 "완료"인데 결과가 없는 상태를 막는다.
 - 보고 반영과 만료 처리는 조건부로 갱신한다 (`WHERE status IN (진행 중) AND last_report_seq < :seq`). 스케줄러와 늦은 보고가 동시에 와도 한쪽만 반영된다.
 - 작업에 이미 `suggestion_id` 가 있으면, 같은 작업의 제안 저장 요청은 새 버전을 만들지 않고 기존 제안을 돌려준다 (응답 유실 후 재시도로 제안이 두 번 생기는 것을 막는다).
 - `suggestion_id` · `execution_id` 를 연결할 때 그 행의 `store_id` 가 `ai_job.store_id` 와 같은지 서비스에서 확인한다. DB FK는 매장까지 확인하지 않는다.
+- 제안 버전은 **같은 매장 · `workflow_key` 마다** 1부터 센다 (`UNIQUE (store_id, workflow_key, version)`). 작업 종류가 달라도 같은 제안 유형이면 같은 키로 동시에 저장할 수 있으므로, 최신 버전을 읽기 전에 `(store_id, workflow_key)` 단위로 잠근다 (트랜잭션 advisory lock).
 
 **기한 (`expires_at`)**
 

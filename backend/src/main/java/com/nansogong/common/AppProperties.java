@@ -21,7 +21,8 @@ public record AppProperties(
         @Valid @NotNull Crypto crypto,
         @Valid @NotNull External external,
         @Valid @NotNull Session session,
-        @Valid @NotNull Sens sens
+        @Valid @NotNull Sens sens,
+        Internal internal          // 일부러 @NotNull·@NotBlank 없음: 토큰이 비어도 서버는 뜨고, /internal/** 만 401 이 된다
 ) {
     public record Cors(@NotNull List<String> allowedOrigins) {}
 
@@ -41,6 +42,11 @@ public record AppProperties(
             }
         }
     }
+    // Python AI 워커 → Spring /internal/** 토큰 (환경변수 INTERNAL_API_TOKEN)
+    public record Internal(String token) {
+        @Override public String toString() { return "Internal[redacted]"; }
+    }
+
     public record Sens(@NotBlank String baseUrl, String serviceId, String accessKey, String secretKey, String from) {
         @Override public String toString() { return "Sens[redacted]"; }
     }
