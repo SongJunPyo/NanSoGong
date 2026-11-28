@@ -23,6 +23,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -144,8 +145,10 @@ public class InventoryStockService {
      * name 은 부분 검색, active 가 없으면 사용 여부와 관계없이 전체, statuses 가 비어 있으면 상태와 관계없이 전체.
      * 상태는 계산해야 알 수 있어서 매장 품목을 모두 계산한 뒤 거르고 페이지로 자른다 (매장 품목 수가 수백 개 이하라고 가정).
      * 품목 수와 관계없이 DB 조회는 4번이다 (품목 · 기준점 · 변동 합 · 마지막 변동).
+     * REPEATABLE_READ: 4번의 조회가 같은 DB 상태를 본다. 기본(READ COMMITTED)이면 조회 사이에 저장된 실사 때문에
+     * 기준점은 옛 실사, 변동 합은 새 실사 기준으로 계산되어 어느 시점에도 없던 수량이 나올 수 있다.
      */
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Page<InventoryStockSummaryResponse> getStockSummaries(Long memberId, Long storeId, String name, Boolean active,
                                                                  Collection<InventoryStockStatus> statuses, Pageable pageable) {
         storeService.checkOwner(memberId, storeId);
