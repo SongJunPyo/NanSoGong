@@ -36,7 +36,8 @@
 |---|---|---|
 | 매장 | `StoreService.checkOwner(memberId, storeId)` | 내 매장이 아니면 403 |
 | 매출 | `SalesService.saveOrders(storeId, List<PosOrder>)` | POS 주문 저장. 같은 `external_order_id` 는 무시한다 |
-| 메뉴 | `MenuService.resolve(storeId, posMenuCode, List<String> optionCodes)` | 코드 → `menuId` 와 옵션별 `menuId` (못 찾으면 null) |
+| 연동 | `IntegrationService.checkPosIntegration(storeId, integrationId)` | 이 매장의 POS 연동(`TOSS_PLACE`)이 아니면(없음 · 다른 매장 · 다른 종류) 400. `status` 는 보지 않는다 (연결 해제 후 데이터 보존 범위 미정) |
+| 메뉴 | `MenuService.resolve(storeId, integrationId, posMenuCode, List<String> optionCodes)` | 그 POS 연동의 연결로 코드 → `menuId` 와 옵션별 `menuId` (못 찾으면 null) |
 | 메뉴 | `RecipeService.usageOf(menuId, List<OptionQty> options, at)` | **메뉴 1개 기준** 품목별 사용량 `Map<itemId, BigDecimal>` |
 | 재고 | `InventoryService.deductForSale(orderItemId)` | `resolve` → `usageOf` × 차감 수량 → 장부 기록 → `deduct_status` 변경 |
 | 재고 | `InventoryItemService.validateSameStore(storeId, Collection<Long> itemIds)` | 품목이 하나라도 없거나 다른 매장 것이면 400. 사용 중지 여부는 보지 않는다 |
@@ -45,6 +46,7 @@
 | 메뉴 | `RecipeDraftService.validate(memberId, storeId, RecipeDraftValidateRequest)` | AI 초안 검증 (#35 ②): 줄마다 품목 찾기 · 관리 단위로 변환 · 현재 단가. 결과는 요청과 같은 순서 · 개수, 문제는 `reason` 코드. 매장에 없는 재료는 `NEW_ITEM`(ok) 으로 통과. 단가가 없거나 새 재료가 있으면 `totalCost` 는 null. 저장하지 않는다 ([계약 예시](../../contracts/recipe-draft/README.md)) |
 
 - 재고의 품목 메서드는 부르는 쪽이 `checkOwner` 를 이미 했다고 보고 매장 권한을 다시 확인하지 않는다.
+- POS 메뉴 연결(`pos_menu_mapping`)은 연동마다 따로 있다. 한 매장에 POS 연동이 둘이면 같은 코드가 연동마다 다른 메뉴일 수 있어서 `resolve` 에 판매를 받은 `integrationId` 를 넘긴다. 판매 저장은 맨 앞에서 `checkPosIntegration` 을 한 번 부르고, 판매 줄마다 다시 확인하지 않는다.
 - `RecipeDraftService` 를 내부 API(`/internal/ai-jobs/{jobId}/…`)에서 부를 때 `memberId` · `storeId` 는 `ai_job` 행에서 꺼낸다 (요청 본문 · 경로의 값을 쓰지 않는다).
 - `usageOf` 는 메뉴 1개 기준만 돌려준다. **수량을 곱하는 일은 `deductForSale` 이 맡는다.** 취소 · 부분 취소가 생겨도 `usageOf` 는 바꾸지 않는다.
 
