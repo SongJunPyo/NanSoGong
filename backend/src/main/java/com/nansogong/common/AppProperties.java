@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Duration;
+import java.net.URI;
 import java.util.List;
 
 // ⚙️ application.yml 의 app.* 를 타입으로 읽는다
@@ -63,6 +64,20 @@ public record AppProperties(
             @NotBlank String supplierBaseUrl,
             @NotBlank String mydataBaseUrl,
             @NotNull Duration connectTimeout,
-            @NotNull Duration readTimeout
-    ) {}
+            @NotNull Duration readTimeout,
+            @NotBlank String kakaoBaseUrl,
+            String kakaoRestApiKey,
+            String kmaServiceKey
+    ) {
+        public boolean kakaoMock() { return isMock(kakaoBaseUrl, "/kakao"); }
+        public boolean kmaMock() { return isMock(kmaBaseUrl, "/kma"); }
+
+        private static boolean isMock(String baseUrl, String path) {
+            URI uri = URI.create(baseUrl);
+            return uri.getHost() != null && List.of("localhost", "127.0.0.1", "mock", "::1", "[::1]").contains(uri.getHost())
+                    && (path.equals(uri.getPath()) || (path + "/").equals(uri.getPath()));
+        }
+
+        @Override public String toString() { return "External[redacted]"; }
+    }
 }

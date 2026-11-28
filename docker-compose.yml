@@ -92,7 +92,10 @@ services:
       REDIS_PORT: "6379"
       NTS_BASE_URL: ${NTS_BASE_URL:-http://mock:8080/nts/v1}
       DATA_GO_KR_SERVICE_KEY: ${DATA_GO_KR_SERVICE_KEY:-mock-key}
-      KMA_BASE_URL: http://mock:8080/kma
+      KMA_BASE_URL: ${KMA_BASE_URL:-http://mock:8080/kma}
+      KMA_SERVICE_KEY: ${KMA_SERVICE_KEY:-mock-key}
+      KAKAO_BASE_URL: ${KAKAO_BASE_URL:-http://mock:8080/kakao}
+      KAKAO_REST_API_KEY: ${KAKAO_REST_API_KEY:-mock-key}
       HOLIDAY_BASE_URL: http://mock:8080/holiday
       NAVER_DATALAB_BASE_URL: http://mock:8080/naver/v1/datalab
       POS_BASE_URL: http://mock:8080/pos/v1
